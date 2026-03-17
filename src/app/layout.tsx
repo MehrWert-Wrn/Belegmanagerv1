@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Coding Starter Kit",
-  description: "Built with AI Agent Team System",
+  title: "Belegmanager",
+  description: "Buchhaltungsvorbereitung für österreichische KMUs",
 };
 
 export default function RootLayout({
@@ -12,9 +13,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="de">
       <body className="antialiased">
         {children}
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   );

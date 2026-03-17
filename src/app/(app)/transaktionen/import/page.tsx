@@ -1,0 +1,546 @@
+'use client'
+
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { DropZone } from '@/components/transaktionen/drop-zone'
+import { SpaltenMapping } from '@/components/transaktionen/spalten-mapping'
+import {
+  ImportErgebnis,
+  type ImportResult,
+} from '@/components/transaktionen/import-ergebnis'
+import {
+  detectEncoding,
+  parseCsvFile,
+  autoDetectMapping,
+  applyMapping,
+  type CsvParseResult,
+  type ColumnMapping,
+} from '@/lib/csv-parser'
+import type { Zahlungsquelle } from '@/lib/supabase/types'
+
+type WizardStep = 1 | 2 | 3
+
+const STEPS = [
+  { number: 1, label: 'Datei hochladen' },
+  { number: 2, label: 'Spalten zuordnen' },
+  { number: 3, label: 'Importieren' },
+]
+
+export default function ImportPage() {
+  const router = useRouter()
+
+  // Wizard state
+  const [step, setStep] = useState<WizardStep>(1)
+
+  // Zahlungsquelle (payment source) state
+  const [quellen, setQuellen] = useState<Zahlungsquelle[]>([])
+  const [quellenLoading, setQuellenLoading] = useState(true)
+  const [quellenError, setQuellenError] = useState<string | null>(null)
+  const [selectedQuelleId, setSelectedQuelleId] = useState<string | null>(null)
+
+  // Step 1: File
+  const [file, setFile] = useState<File | null>(null)
+  const [csvData, setCsvData] = useState<CsvParseResult | null>(null)
+  const [encoding, setEncoding] = useState('auto')
+  const [delimiter, setDelimiter] = useState('auto')
+  const [parseLoading, setParseLoading] = useState(false)
+  const [parseError, setParseError] = useState<string | null>(null)
+
+  // Step 2: Mapping
+  const [mapping, setMapping] = useState<ColumnMapping>({
+    datum: null,
+    betrag: null,
+    beschreibung: null,
+    iban: null,
+    referenz: null,
+  })
+  const [invertSign, setInvertSign] = useState(false)
+
+  // Step 3: Import
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+
+  // Fetch available Zahlungsquellen on mount
+  useEffect(() => {
+    async function fetchQuellen() {
+      try {
+        const response = await fetch('/api/zahlungsquellen')
+        if (!response.ok) {
+          throw new Error('Zahlungsquellen konnten nicht geladen werden.')
+        }
+        const data: Zahlungsquelle[] = await response.json()
+
+        // Filter for kontoauszug type sources
+        const kontoauszugQuellen = data.filter((q) => q.typ === 'kontoauszug')
+
+        if (kontoauszugQuellen.length === 0) {
+          // Auto-create a default Kontoauszug source
+          const createResponse = await fetch('/api/zahlungsquellen', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: 'Kontoauszug',
+              typ: 'kontoauszug',
+            }),
+          })
+
+          if (!createResponse.ok) {
+            throw new Error('Standard-Zahlungsquelle konnte nicht erstellt werden.')
+          }
+
+          const newQuelle: Zahlungsquelle = await createResponse.json()
+          setQuellen([newQuelle])
+          setSelectedQuelleId(newQuelle.id)
+        } else {
+          setQuellen(kontoauszugQuellen)
+          setSelectedQuelleId(kontoauszugQuellen[0].id)
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unbekannter Fehler'
+        setQuellenError(message)
+      } finally {
+        setQuellenLoading(false)
+      }
+    }
+    fetchQuellen()
+  }, [])
+
+  // Parsed transactions based on current mapping
+  const parsedTransactions = useMemo(() => {
+    if (!csvData) return []
+    return applyMapping(csvData.rows, mapping, invertSign)
+  }, [csvData, mapping, invertSign])
+
+  const validTransactions = parsedTransactions.filter((t) => !t.error)
+  const errorTransactions = parsedTransactions.filter((t) => t.error)
+
+  // Re-parse helper that accepts explicit encoding/delimiter values
+  const reParseWith = useCallback(async (
+    currentFile: File,
+    enc: string,
+    delim: string
+  ) => {
+    setParseLoading(true)
+    setParseError(null)
+
+    try {
+      const resolvedEnc = enc === 'auto' ? await detectEncoding(currentFile) : enc
+      const resolvedDelim = delim === 'auto' ? '' : delim
+
+      const result = await parseCsvFile(currentFile, resolvedEnc, resolvedDelim)
+      setCsvData(result)
+
+      const autoMapping = autoDetectMapping(result.headers)
+      setMapping(autoMapping)
+    } catch (err) {
+      setParseError(
+        err instanceof Error ? err.message : 'Fehler beim Lesen der Datei.'
+      )
+    } finally {
+      setParseLoading(false)
+    }
+  }, [])
+
+  // Handle file selection
+  async function handleFileAccepted(newFile: File) {
+    setFile(newFile)
+    setParseLoading(true)
+    setParseError(null)
+
+    try {
+      const enc = encoding === 'auto' ? await detectEncoding(newFile) : encoding
+      const delim = delimiter === 'auto' ? '' : delimiter
+
+      const result = await parseCsvFile(newFile, enc, delim)
+
+      if (result.rows.length === 0) {
+        throw new Error('Die CSV-Datei enthalt keine Datenzeilen.')
+      }
+
+      setCsvData(result)
+
+      // Auto-detect column mapping
+      const autoMapping = autoDetectMapping(result.headers)
+      setMapping(autoMapping)
+
+      // Auto-advance to step 2
+      setStep(2)
+    } catch (err) {
+      setParseError(
+        err instanceof Error ? err.message : 'Fehler beim Lesen der Datei.'
+      )
+    } finally {
+      setParseLoading(false)
+    }
+  }
+
+  // Validate step can proceed
+  function canProceed(): boolean {
+    if (step === 1) return csvData !== null && selectedQuelleId !== null
+    if (step === 2) return mapping.datum !== null && mapping.betrag !== null && validTransactions.length > 0
+    return false
+  }
+
+  // Handle import
+  async function handleImport() {
+    if (validTransactions.length === 0 || !file || !selectedQuelleId) return
+
+    setImporting(true)
+
+    try {
+      const payload = {
+        quelle_id: selectedQuelleId,
+        dateiname: file.name,
+        transaktionen: validTransactions.map((t) => ({
+          datum: t.datum,
+          betrag: t.betrag,
+          beschreibung: t.beschreibung,
+          iban_gegenseite: t.iban_gegenseite,
+          buchungsreferenz: t.buchungsreferenz,
+        })),
+      }
+
+      const response = await fetch('/api/transaktionen/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(
+          errorData.error || 'Import fehlgeschlagen. Bitte versuchen Sie es erneut.'
+        )
+      }
+
+      const result = await response.json()
+      setImportResult({
+        importiert: result.anzahl_importiert ?? 0,
+        duplikate: result.anzahl_duplikate ?? 0,
+        fehler: errorTransactions.length + (result.anzahl_fehler ?? 0),
+        matching_quote: result.matching_quote ?? 0,
+      })
+      setStep(3)
+      toast.success(
+        `${result.anzahl_importiert ?? 0} Transaktionen importiert.`
+      )
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Unbekannter Fehler beim Import.'
+      toast.error(message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  function handleBack() {
+    if (step === 2) setStep(1)
+  }
+
+  function handleNext() {
+    if (step === 1 && canProceed()) setStep(2)
+  }
+
+  return (
+    <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push('/transaktionen')}
+          aria-label="Zuruck zur Transaktionsubersicht"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Kontoauszug importieren
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            CSV-Datei hochladen und Spalten zuordnen.
+          </p>
+        </div>
+      </div>
+
+      {/* Step indicator */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          {STEPS.map((s) => (
+            <div
+              key={s.number}
+              className="flex items-center gap-2"
+            >
+              <div
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium ${
+                  s.number < step
+                    ? 'bg-emerald-600 text-white'
+                    : s.number === step
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {s.number < step ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  s.number
+                )}
+              </div>
+              <span
+                className={`text-sm hidden sm:inline ${
+                  s.number === step
+                    ? 'font-medium'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                {s.label}
+              </span>
+            </div>
+          ))}
+        </div>
+        <Progress value={(step / 3) * 100} className="h-1" />
+      </div>
+
+      {/* Zahlungsquelle error state */}
+      {quellenError && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>{quellenError}</span>
+        </div>
+      )}
+
+      {/* Step content */}
+      {step === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>CSV-Datei hochladen</CardTitle>
+            <CardDescription>
+              Laden Sie den Kontoauszug als CSV-Datei hoch. Unterstuzte Formate:
+              UTF-8, Latin-1 (ISO-8859-1), mit Semikolon oder Komma als
+              Trennzeichen.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Zahlungsquelle selection */}
+            {quellenLoading ? (
+              <div className="space-y-1.5">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : quellen.length > 1 ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="quelle" className="text-xs">
+                  Zahlungsquelle
+                </Label>
+                <Select
+                  value={selectedQuelleId ?? ''}
+                  onValueChange={setSelectedQuelleId}
+                >
+                  <SelectTrigger id="quelle" aria-label="Zahlungsquelle wahlen">
+                    <SelectValue placeholder="Zahlungsquelle wahlen..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {quellen.map((q) => (
+                      <SelectItem key={q.id} value={q.id}>
+                        {q.name}
+                        {q.iban ? ` (${q.iban})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : quellen.length === 1 ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Zahlungsquelle:</span>
+                <Badge variant="outline">{quellen[0].name}</Badge>
+              </div>
+            ) : null}
+
+            <DropZone
+              onFileAccepted={handleFileAccepted}
+              isLoading={parseLoading}
+              error={parseError}
+            />
+
+            {/* Encoding & delimiter overrides */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="encoding" className="text-xs">
+                  Zeichenkodierung
+                </Label>
+                <Select
+                  value={encoding}
+                  onValueChange={(v) => {
+                    setEncoding(v)
+                    if (file) reParseWith(file, v, delimiter)
+                  }}
+                >
+                  <SelectTrigger id="encoding">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Automatisch</SelectItem>
+                    <SelectItem value="UTF-8">UTF-8</SelectItem>
+                    <SelectItem value="ISO-8859-1">
+                      Latin-1 (ISO-8859-1)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="delimiter" className="text-xs">
+                  Trennzeichen
+                </Label>
+                <Select
+                  value={delimiter}
+                  onValueChange={(v) => {
+                    setDelimiter(v)
+                    if (file) reParseWith(file, encoding, v)
+                  }}
+                >
+                  <SelectTrigger id="delimiter">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Automatisch</SelectItem>
+                    <SelectItem value=";">Semikolon ( ; )</SelectItem>
+                    <SelectItem value=",">Komma ( , )</SelectItem>
+                    <SelectItem value="	">Tabulator</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* File info after parsing */}
+            {csvData && file && (
+              <div className="flex flex-wrap gap-2 text-sm">
+                <Badge variant="outline">{file.name}</Badge>
+                <Badge variant="secondary">
+                  {csvData.rows.length} Zeilen
+                </Badge>
+                <Badge variant="secondary">
+                  {csvData.headers.length} Spalten
+                </Badge>
+                <Badge variant="secondary">{csvData.encoding}</Badge>
+                <Badge variant="secondary">
+                  Trennzeichen: {csvData.delimiter === ';' ? 'Semikolon' : csvData.delimiter === ',' ? 'Komma' : csvData.delimiter}
+                </Badge>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 2 && csvData && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Spalten zuordnen</CardTitle>
+            <CardDescription>
+              Ordnen Sie die CSV-Spalten den Transaktionsfeldern zu. Datum und
+              Betrag sind Pflichtfelder.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SpaltenMapping
+              headers={csvData.headers}
+              rows={csvData.rows}
+              mapping={mapping}
+              onMappingChange={setMapping}
+              invertSign={invertSign}
+              onInvertSignChange={setInvertSign}
+              previewData={parsedTransactions}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 3 && importResult && file && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Import abgeschlossen</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ImportErgebnis
+              result={importResult}
+              fileName={file.name}
+              onClose={() => router.push('/transaktionen')}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Navigation buttons */}
+      {step !== 3 && (
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={step === 1}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Zuruck
+          </Button>
+
+          {step === 1 && (
+            <Button onClick={handleNext} disabled={!canProceed()}>
+              Weiter
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          )}
+
+          {step === 2 && (
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-muted-foreground hidden sm:block">
+                {validTransactions.length} gueltige Zeilen
+                {errorTransactions.length > 0 && (
+                  <span className="text-destructive">
+                    , {errorTransactions.length} Fehler
+                  </span>
+                )}
+              </div>
+              <Button
+                onClick={handleImport}
+                disabled={!canProceed() || importing}
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Importiere...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    {validTransactions.length} Transaktionen importieren
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

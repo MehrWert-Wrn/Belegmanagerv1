@@ -1,0 +1,310 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  public: {
+    Tables: {
+      belege: {
+        Row: {
+          bruttobetrag: number | null
+          dateityp: string
+          erstellt_am: string
+          faelligkeitsdatum: string | null
+          geloescht_am: string | null
+          id: string
+          lieferant: string | null
+          mandant_id: string
+          mwst_satz: number | null
+          nettobetrag: number | null
+          original_filename: string
+          rechnungsdatum: string | null
+          rechnungsnummer: string | null
+          storage_path: string
+          zuordnungsstatus: Database['public']['Enums']['zuordnungsstatus']
+        }
+        Insert: {
+          bruttobetrag?: number | null
+          dateityp: string
+          faelligkeitsdatum?: string | null
+          id?: string
+          lieferant?: string | null
+          mandant_id: string
+          mwst_satz?: number | null
+          nettobetrag?: number | null
+          original_filename: string
+          rechnungsdatum?: string | null
+          rechnungsnummer?: string | null
+          storage_path: string
+          zuordnungsstatus?: Database['public']['Enums']['zuordnungsstatus']
+        }
+        Update: {
+          bruttobetrag?: number | null
+          faelligkeitsdatum?: string | null
+          geloescht_am?: string | null
+          lieferant?: string | null
+          mwst_satz?: number | null
+          nettobetrag?: number | null
+          rechnungsdatum?: string | null
+          rechnungsnummer?: string | null
+          zuordnungsstatus?: Database['public']['Enums']['zuordnungsstatus']
+        }
+      }
+      import_protokolle: {
+        Row: {
+          anzahl_duplikate: number
+          anzahl_fehler: number
+          anzahl_importiert: number
+          dateiname: string
+          id: string
+          importiert_am: string
+          importiert_von: string
+          mandant_id: string
+          quelle_id: string
+        }
+        Insert: {
+          anzahl_duplikate?: number
+          anzahl_fehler?: number
+          anzahl_importiert?: number
+          dateiname: string
+          id?: string
+          importiert_von: string
+          mandant_id: string
+          quelle_id: string
+        }
+        Update: {
+          anzahl_duplikate?: number
+          anzahl_fehler?: number
+          anzahl_importiert?: number
+        }
+      }
+      mandanten: {
+        Row: {
+          erstellt_am: string
+          firmenname: string
+          geschaeftsjahr_beginn: number
+          id: string
+          land: string
+          onboarding_abgeschlossen: boolean
+          ort: string | null
+          owner_id: string
+          plz: string | null
+          rechtsform: string | null
+          strasse: string | null
+          uid_nummer: string | null
+        }
+        Insert: {
+          firmenname: string
+          geschaeftsjahr_beginn?: number
+          id?: string
+          land?: string
+          onboarding_abgeschlossen?: boolean
+          ort?: string | null
+          owner_id: string
+          plz?: string | null
+          rechtsform?: string | null
+          strasse?: string | null
+          uid_nummer?: string | null
+        }
+        Update: {
+          firmenname?: string
+          geschaeftsjahr_beginn?: number
+          land?: string
+          onboarding_abgeschlossen?: boolean
+          ort?: string | null
+          plz?: string | null
+          rechtsform?: string | null
+          strasse?: string | null
+          uid_nummer?: string | null
+        }
+      }
+      transaktions_kommentare: {
+        Row: {
+          id: string
+          transaktion_id: string
+          mandant_id: string
+          user_id: string
+          text: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          transaktion_id: string
+          mandant_id: string
+          user_id: string
+          text: string
+          created_at?: string
+        }
+        Update: Record<never, never>
+      }
+      transaktionen: {
+        Row: {
+          beschreibung: string | null
+          betrag: number
+          bic_gegenseite: string | null
+          buchungsreferenz: string | null
+          datum: string
+          erstellt_am: string
+          iban_gegenseite: string | null
+          id: string
+          mandant_id: string
+          match_score: number | null
+          match_status: Database['public']['Enums']['match_status']
+          quelle_id: string
+          workflow_status: Database['public']['Enums']['workflow_status']
+        }
+        Insert: {
+          beschreibung?: string | null
+          betrag: number
+          bic_gegenseite?: string | null
+          buchungsreferenz?: string | null
+          datum: string
+          iban_gegenseite?: string | null
+          id?: string
+          mandant_id: string
+          match_score?: number | null
+          match_status?: Database['public']['Enums']['match_status']
+          quelle_id: string
+          workflow_status?: Database['public']['Enums']['workflow_status']
+        }
+        Update: {
+          beschreibung?: string | null
+          betrag?: number
+          match_score?: number | null
+          match_status?: Database['public']['Enums']['match_status']
+          workflow_status?: Database['public']['Enums']['workflow_status']
+        }
+      }
+      mandant_users: {
+        Row: {
+          id: string
+          mandant_id: string
+          user_id: string | null
+          email: string
+          rolle: 'admin' | 'buchhalter'
+          aktiv: boolean
+          eingeladen_am: string
+          einladung_angenommen_am: string | null
+          einladung_token: string | null
+          einladung_gueltig_bis: string | null
+        }
+        Insert: {
+          id?: string
+          mandant_id: string
+          user_id?: string | null
+          email: string
+          rolle: 'admin' | 'buchhalter'
+          aktiv?: boolean
+          eingeladen_am?: string
+          einladung_angenommen_am?: string | null
+          einladung_token?: string | null
+          einladung_gueltig_bis?: string | null
+        }
+        Update: {
+          rolle?: 'admin' | 'buchhalter'
+          aktiv?: boolean
+          user_id?: string | null
+          einladung_angenommen_am?: string | null
+          einladung_token?: string | null
+          einladung_gueltig_bis?: string | null
+        }
+      }
+      zahlungsquellen: {
+        Row: {
+          aktiv: boolean
+          csv_mapping: Json | null
+          erstellt_am: string
+          iban: string | null
+          id: string
+          mandant_id: string
+          name: string
+          typ: Database['public']['Enums']['zahlungsquelle_typ']
+        }
+        Insert: {
+          aktiv?: boolean
+          csv_mapping?: Json | null
+          iban?: string | null
+          id?: string
+          mandant_id: string
+          name: string
+          typ: Database['public']['Enums']['zahlungsquelle_typ']
+        }
+        Update: {
+          aktiv?: boolean
+          csv_mapping?: Json | null
+          iban?: string | null
+          name?: string
+        }
+      }
+    }
+    Enums: {
+      match_status: 'offen' | 'vorgeschlagen' | 'bestaetigt' | 'kein_beleg'
+      workflow_status: 'normal' | 'rueckfrage' | 'erledigt'
+      zahlungsquelle_typ: 'kontoauszug' | 'kassa' | 'kreditkarte' | 'paypal' | 'sonstige'
+      zuordnungsstatus: 'offen' | 'zugeordnet'
+    }
+    Functions: {
+      get_mandant_id: { Args: Record<never, never>; Returns: string }
+      get_user_rolle: { Args: Record<never, never>; Returns: string }
+    }
+  }
+}
+
+// Convenience-Types
+export type Beleg = Database['public']['Tables']['belege']['Row']
+export type BelegInsert = Database['public']['Tables']['belege']['Insert']
+export type BelegUpdate = Database['public']['Tables']['belege']['Update']
+export type Mandant = Database['public']['Tables']['mandanten']['Row']
+export type Transaktion = Database['public']['Tables']['transaktionen']['Row']
+export type TransaktionInsert = Database['public']['Tables']['transaktionen']['Insert']
+export type Zahlungsquelle = Database['public']['Tables']['zahlungsquellen']['Row']
+export type ImportProtokoll = Database['public']['Tables']['import_protokolle']['Row']
+export type Zuordnungsstatus = Database['public']['Enums']['zuordnungsstatus']
+export type MatchStatus = Database['public']['Enums']['match_status']
+export type WorkflowStatus = Database['public']['Enums']['workflow_status']
+export type ZahlungsquelleTyp = Database['public']['Enums']['zahlungsquelle_typ']
+
+// MandantUser type
+export type MandantUser = Database['public']['Tables']['mandant_users']['Row']
+export type MandantUserInsert = Database['public']['Tables']['mandant_users']['Insert']
+export type UserRolle = 'admin' | 'buchhalter'
+
+// API response type for benutzer list
+export type BenutzerListItem = {
+  id: string
+  user_id: string | null
+  email: string
+  rolle: UserRolle
+  aktiv: boolean
+  eingeladen_am: string
+  einladung_angenommen_am: string | null
+  last_sign_in_at: string | null
+}
+
+// Kommentar on a transaction
+export type TransaktionsKommentar = {
+  id: string
+  text: string
+  created_at: string
+  user_email: string
+  is_own: boolean
+}
+
+// Transaktionen with joined relations (from /api/transaktionen)
+export type TransaktionWithRelations = Transaktion & {
+  beleg_id: string | null
+  match_type: string | null
+  belege: {
+    lieferant: string | null
+    rechnungsnummer: string | null
+    bruttobetrag: number | null
+  } | null
+  zahlungsquellen: {
+    name: string
+    typ: ZahlungsquelleTyp
+  } | null
+}
