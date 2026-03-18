@@ -14,7 +14,7 @@
 |----|---------|--------|------|---------|
 | PROJ-1 | Authentifizierung | In Review | [PROJ-1-authentifizierung.md](PROJ-1-authentifizierung.md) | 2026-03-13 |
 | PROJ-2 | Mandant-Onboarding | In Review | [PROJ-2-mandant-onboarding.md](PROJ-2-mandant-onboarding.md) | 2026-03-13 |
-| PROJ-3 | Belegverwaltung | In Progress | [PROJ-3-belegverwaltung.md](PROJ-3-belegverwaltung.md) | 2026-03-13 |
+| PROJ-3 | Belegverwaltung | Deployed | [PROJ-3-belegverwaltung.md](PROJ-3-belegverwaltung.md) | 2026-03-13 |
 | PROJ-4 | Kontoauszug-Import | In Review | [PROJ-4-kontoauszug-import.md](PROJ-4-kontoauszug-import.md) | 2026-03-13 |
 | PROJ-5 | Matching-Engine | In Review | [PROJ-5-matching-engine.md](PROJ-5-matching-engine.md) | 2026-03-13 |
 | PROJ-6 | Manuelle Zuordnung | In Review | [PROJ-6-manuelle-zuordnung.md](PROJ-6-manuelle-zuordnung.md) | 2026-03-13 |

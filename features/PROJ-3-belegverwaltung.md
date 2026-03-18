@@ -719,4 +719,13 @@ In `src/app/api/onboarding/route.ts` wird nach erfolgreicher Mandant-Anlage die 
 | BUG-PROJ3-023 | Changed both bruttobetrag and nettobetrag `onChange` handlers from `field.onChange(e.target.value)` to `field.onChange(parseFloat(e.target.value) \|\| 0)` to send numbers instead of strings | `src/components/belege/beleg-detail-sheet.tsx` |
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-03-18
+**Production URL:** https://belegmanagerv1.vercel.app
+**Platform:** Vercel (Frontend) + Supabase EU Frankfurt (Backend)
+**Git Tag:** v1.3.0-PROJ-3
+**Migrations applied:** 20260318000000 – 20260318000010 (11 migrations)
+
+### GitHub Auto-Deploy
+Für automatisches Deployment bei jedem `git push`:
+→ vercel.com → Project belegmanagerv1 → Settings → Git → GitHub Repository verbinden
