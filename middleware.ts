@@ -62,7 +62,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+  const nonce = btoa(crypto.randomUUID())
   const csp = buildCsp(nonce)
 
   // Inject nonce into request headers so Next.js applies it to its own inline scripts
