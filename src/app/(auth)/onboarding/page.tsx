@@ -290,7 +290,7 @@ function OnboardingWizard() {
                 <Label htmlFor="geschaeftsjahr_beginn">Beginn des Geschäftsjahres *</Label>
                 <Select
                   onValueChange={(v) => form3.setValue('geschaeftsjahr_beginn', v)}
-                  defaultValue={data.geschaeftsjahr_beginn || '1'}
+                  value={form3.watch('geschaeftsjahr_beginn') || '1'}
                 >
                   <SelectTrigger id="geschaeftsjahr_beginn">
                     <SelectValue placeholder="Monat wählen..." />
