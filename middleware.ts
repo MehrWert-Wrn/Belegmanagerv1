@@ -30,30 +30,24 @@ function isRateLimited(ip: string, method: string): boolean {
   return false
 }
 
+// Trim env vars once at module load to avoid trailing newlines from Vercel env editor
+const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
+const SUPABASE_ANON_KEY = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
+
 function buildCsp(nonce: string): string {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob: ${supabaseUrl}`,
+    `img-src 'self' data: blob: ${SUPABASE_URL}`,
     "font-src 'self'",
-    `connect-src 'self' ${supabaseUrl} wss:`,
-    `frame-src ${supabaseUrl}`,
+    `connect-src 'self' ${SUPABASE_URL} wss:`,
+    `frame-src ${SUPABASE_URL}`,
     "frame-ancestors 'none'",
   ].join('; ')
 }
 
 export async function middleware(request: NextRequest) {
-  try {
-  return await middlewareInner(request)
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message + '\n' + err.stack : String(err)
-    return NextResponse.json({ error: 'MIDDLEWARE_DEBUG', detail: msg }, { status: 500 })
-  }
-}
-
-async function middlewareInner(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Rate-limit sensitive API endpoints
@@ -82,8 +76,8 @@ async function middlewareInner(request: NextRequest) {
   supabaseResponse.headers.set('Content-Security-Policy', csp)
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
