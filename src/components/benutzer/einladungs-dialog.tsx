@@ -28,6 +28,7 @@ interface EinladungsDialogProps {
 
 export function EinladungsDialog({ open, onOpenChange, onSuccess }: EinladungsDialogProps) {
   const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
   const [rolle, setRolle] = useState<'admin' | 'buchhalter'>('buchhalter')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -43,7 +44,7 @@ export function EinladungsDialog({ open, onOpenChange, onSuccess }: EinladungsDi
       const res = await fetch('/api/benutzer/einladen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, rolle }),
+        body: JSON.stringify({ email, rolle, ...(name.trim() ? { name: name.trim() } : {}) }),
       })
 
       const data = await res.json()
@@ -60,6 +61,7 @@ export function EinladungsDialog({ open, onOpenChange, onSuccess }: EinladungsDi
       // Close dialog and refresh after short delay
       setTimeout(() => {
         setEmail('')
+        setName('')
         setRolle('buchhalter')
         setSuccess(false)
         onOpenChange(false)
@@ -74,6 +76,7 @@ export function EinladungsDialog({ open, onOpenChange, onSuccess }: EinladungsDi
   function handleOpenChange(newOpen: boolean) {
     if (!newOpen) {
       setEmail('')
+      setName('')
       setRolle('buchhalter')
       setError(null)
       setSuccess(false)
@@ -105,6 +108,17 @@ export function EinladungsDialog({ open, onOpenChange, onSuccess }: EinladungsDi
                   {error}
                 </div>
               )}
+
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-name">Name</Label>
+                <Input
+                  id="invite-name"
+                  type="text"
+                  placeholder="Max Mustermann"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="invite-email">E-Mail-Adresse</Label>

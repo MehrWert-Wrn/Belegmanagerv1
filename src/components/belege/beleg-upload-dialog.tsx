@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -42,26 +43,36 @@ const ACCEPTED_TYPES = {
 }
 
 const metadataSchema = z.object({
-  lieferant: z.string().optional(),
+  rechnungsname: z.string().optional(),
   rechnungsnummer: z.string().optional(),
+  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges']),
+  lieferant: z.string().optional(),
+  uid_lieferant: z.string().optional(),
+  lieferant_iban: z.string().optional(),
   bruttobetrag: z.union([z.number(), z.literal('')]).nullable().optional(),
   nettobetrag: z.union([z.number(), z.literal('')]).nullable().optional(),
   mwst_satz: z.union([z.number(), z.string()]).nullable().optional(),
   rechnungsdatum: z.string().nullable().optional(),
   faelligkeitsdatum: z.string().nullable().optional(),
+  beschreibung: z.string().max(100, 'Maximal 100 Zeichen').optional(),
 })
 
 type MetadataFormValues = z.infer<typeof metadataSchema>
 
 function cleanFormValues(values: MetadataFormValues) {
   return {
-    lieferant: values.lieferant || undefined,
+    rechnungsname: values.rechnungsname || undefined,
     rechnungsnummer: values.rechnungsnummer || undefined,
+    rechnungstyp: values.rechnungstyp,
+    lieferant: values.lieferant || undefined,
+    uid_lieferant: values.uid_lieferant || undefined,
+    lieferant_iban: values.lieferant_iban || undefined,
     bruttobetrag: values.bruttobetrag === '' ? null : values.bruttobetrag ? Number(values.bruttobetrag) : null,
     nettobetrag: values.nettobetrag === '' ? null : values.nettobetrag ? Number(values.nettobetrag) : null,
     mwst_satz: !values.mwst_satz || values.mwst_satz === 'none' ? null : Number(values.mwst_satz),
     rechnungsdatum: values.rechnungsdatum || null,
     faelligkeitsdatum: values.faelligkeitsdatum || null,
+    beschreibung: values.beschreibung || undefined,
   }
 }
 
@@ -84,15 +95,22 @@ export function BelegUploadDialog({
   const form = useForm<MetadataFormValues>({
     resolver: zodResolver(metadataSchema),
     defaultValues: {
-      lieferant: '',
+      rechnungsname: '',
       rechnungsnummer: '',
+      rechnungstyp: 'eingangsrechnung',
+      lieferant: '',
+      uid_lieferant: '',
+      lieferant_iban: '',
       bruttobetrag: null,
       nettobetrag: null,
       mwst_satz: null,
       rechnungsdatum: null,
       faelligkeitsdatum: null,
+      beschreibung: '',
     },
   })
+
+  const beschreibungValue = form.watch('beschreibung') ?? ''
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const selected = acceptedFiles[0]
@@ -191,12 +209,15 @@ export function BelegUploadDialog({
           storage_path: storagePath,
           original_filename: file.name,
           dateityp,
+          file_size: file.size,
           ...cleaned,
         }),
       })
 
       if (!response.ok) {
         const err = await response.json()
+        // Clean up orphaned storage file since metadata save failed
+        await supabase.storage.from('belege').remove([storagePath])
         toast.error(`Fehler beim Speichern: ${err.error || 'Unbekannter Fehler'}`)
         setUploading(false)
         return
@@ -215,13 +236,13 @@ export function BelegUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Beleg hochladen</DialogTitle>
           <DialogDescription>
             {step === 1
-              ? 'Datei auswahlen oder hierher ziehen (PDF, JPG, PNG, max. 10 MB)'
-              : 'Optional: Metadaten zum Beleg eingeben'}
+              ? 'Datei auswaehlen oder hierher ziehen (PDF, JPG, PNG, max. 10 MB)'
+              : 'Metadaten zum Beleg eingeben'}
           </DialogDescription>
         </DialogHeader>
 
@@ -234,7 +255,7 @@ export function BelegUploadDialog({
                 : 'border-muted-foreground/25 hover:border-emerald-400 hover:bg-muted/50'
             }`}
           >
-            <input {...getInputProps()} aria-label="Datei auswahlen" />
+            <input {...getInputProps()} aria-label="Datei auswaehlen" />
             <Upload className="h-10 w-10 text-muted-foreground" />
             <div className="text-center">
               <p className="text-sm font-medium">
@@ -285,143 +306,266 @@ export function BelegUploadDialog({
 
             {/* Metadata form */}
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="lieferant"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Lieferant</FormLabel>
-                        <FormControl>
-                          <Input placeholder="z.B. Amazon" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="rechnungsnummer"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Rechnungsnummer</FormLabel>
-                        <FormControl>
-                          <Input placeholder="z.B. RE-2024-001" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <FormField
-                    control={form.control}
-                    name="bruttobetrag"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Bruttobetrag</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={field.value ?? ''}
-                            onChange={(e) =>
-                              field.onChange(
-                                e.target.value === '' ? null : parseFloat(e.target.value)
-                              )
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="nettobetrag"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nettobetrag</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={field.value ?? ''}
-                            onChange={(e) =>
-                              field.onChange(
-                                e.target.value === '' ? null : parseFloat(e.target.value)
-                              )
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="mwst_satz"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>MwSt-Satz</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value?.toString() ?? 'none'}
-                        >
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                {/* Gruppe 1 - Beleginfo */}
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Beleginfo
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="rechnungsname"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rechnungsname</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Auswahlen" />
-                            </SelectTrigger>
+                            <Input placeholder="z.B. Bueromaterial Jaenner" {...field} />
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">Keine Angabe</SelectItem>
-                            <SelectItem value="20">20%</SelectItem>
-                            <SelectItem value="10">10%</SelectItem>
-                            <SelectItem value="0">0%</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="rechnungsnummer"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rechnungsnummer</FormLabel>
+                          <FormControl>
+                            <Input placeholder="z.B. RE-2024-001" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <FormField
+                      control={form.control}
+                      name="rechnungstyp"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            Rechnungstyp <span className="text-destructive">*</span>
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Typ auswaehlen" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="eingangsrechnung">Eingangsrechnung</SelectItem>
+                              <SelectItem value="ausgangsrechnung">Ausgangsrechnung</SelectItem>
+                              <SelectItem value="gutschrift">Gutschrift</SelectItem>
+                              <SelectItem value="sonstiges">Sonstiges</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                {/* Gruppe 2 - Lieferant */}
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Lieferant
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="lieferant"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="z.B. Amazon" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="uid_lieferant"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>UID Lieferant</FormLabel>
+                          <FormControl>
+                            <Input placeholder="z.B. ATU12345678" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="lieferant_iban"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>IBAN Lieferant</FormLabel>
+                          <FormControl>
+                            <Input placeholder="z.B. AT12 3456 ..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Gruppe 3 - Betraege */}
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Betraege
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="bruttobetrag"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Bruttobetrag</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={field.value ?? ''}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.value === '' ? null : parseFloat(e.target.value)
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="nettobetrag"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nettobetrag</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={field.value ?? ''}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.value === '' ? null : parseFloat(e.target.value)
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="mwst_satz"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>MwSt-Satz</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value?.toString() ?? 'none'}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Auswaehlen" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">Keine Angabe</SelectItem>
+                              <SelectItem value="20">20%</SelectItem>
+                              <SelectItem value="10">10%</SelectItem>
+                              <SelectItem value="0">0%</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Gruppe 4 - Datum */}
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Datum
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="rechnungsdatum"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rechnungsdatum</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="faelligkeitsdatum"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Faelligkeitsdatum</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Gruppe 5 - Beschreibung */}
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Beschreibung
+                  </p>
                   <FormField
                     control={form.control}
-                    name="rechnungsdatum"
+                    name="beschreibung"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Rechnungsdatum</FormLabel>
+                        <FormLabel>Beschreibung</FormLabel>
                         <FormControl>
-                          <Input
-                            type="date"
-                            value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value)}
+                          <Textarea
+                            placeholder="Optionale Beschreibung zum Beleg..."
+                            className="resize-none"
+                            maxLength={100}
+                            {...field}
                           />
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="faelligkeitsdatum"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Falligkeitsdatum</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="date"
-                            value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value)}
-                          />
-                        </FormControl>
-                        <FormMessage />
+                        <div className="flex justify-between">
+                          <FormMessage />
+                          <span className="text-xs text-muted-foreground">
+                            {beschreibungValue.length}/100
+                          </span>
+                        </div>
                       </FormItem>
                     )}
                   />

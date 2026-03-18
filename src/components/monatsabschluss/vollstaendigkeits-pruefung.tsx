@@ -7,6 +7,7 @@ import {
   Database,
   CreditCard,
   Wallet,
+  Scale,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -97,6 +98,31 @@ export function VollstaendigkeitsPruefung({ pruefung, loading }: Vollstaendigkei
           </span>
         </div>
 
+        {/* Kassabuch Saldo */}
+        {pruefung.kassa_saldo !== null && (
+          <div className={`flex items-center gap-3 rounded-lg border p-3 text-sm ${
+            pruefung.kassa_saldo_positiv
+              ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950'
+              : 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950'
+          }`}>
+            {pruefung.kassa_saldo_positiv ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            )}
+            <Scale className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className={
+              pruefung.kassa_saldo_positiv
+                ? 'text-emerald-700 dark:text-emerald-300'
+                : 'text-amber-700 dark:text-amber-300'
+            }>
+              Kassasaldo:{' '}
+              {pruefung.kassa_saldo.toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })}
+              {!pruefung.kassa_saldo_positiv && ' \u2014 negativer Saldo'}
+            </span>
+          </div>
+        )}
+
         {/* Gesamtzahl */}
         <div className="pt-1 text-xs text-muted-foreground">
           Gesamt: {pruefung.anzahl_transaktionen} Transaktionen in diesem Monat
@@ -127,8 +153,10 @@ function QuellenCheckItem({ quelle }: { quelle: QuellenPruefung }) {
           ? 'text-emerald-700 dark:text-emerald-300'
           : 'text-red-700 dark:text-red-300'
       }>
-        {quelle.quelle_name}:
-        {passed ? ' Import vorhanden' : ' Kein Import fuer diesen Monat'}
+        {quelle.quelle_name}:{' '}
+        {passed
+          ? `Import vorhanden${quelle.anzahl_offen > 0 ? ` (${quelle.anzahl_offen} offen)` : ''}`
+          : 'Kein Import fuer diesen Monat'}
       </span>
     </div>
   )

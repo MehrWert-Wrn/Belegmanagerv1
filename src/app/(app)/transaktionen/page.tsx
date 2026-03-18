@@ -38,8 +38,18 @@ export default function TransaktionenPage() {
   // Filters
   const [searchFilter, setSearchFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('alle')
+  const [quelleFilter, setQuelleFilter] = useState('alle')
   const [datumVon, setDatumVon] = useState('')
   const [datumBis, setDatumBis] = useState('')
+
+  // Zahlungsquellen für Filter-Dropdown
+  const [zahlungsquellen, setZahlungsquellen] = useState<{ id: string; name: string; typ: string }[]>([])
+  useEffect(() => {
+    fetch('/api/zahlungsquellen')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setZahlungsquellen(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
 
   // Manual assignment dialog
   const [zuordnungsDialogOpen, setZuordnungsDialogOpen] = useState(false)
@@ -65,6 +75,7 @@ export default function TransaktionenPage() {
       const params = new URLSearchParams()
       if (searchFilter) params.set('search', searchFilter)
       if (statusFilter !== 'alle') params.set('match_status', statusFilter)
+      if (quelleFilter !== 'alle') params.set('quelle_id', quelleFilter)
       if (datumVon) params.set('datum_von', datumVon)
       if (datumBis) params.set('datum_bis', datumBis)
 
@@ -82,26 +93,23 @@ export default function TransaktionenPage() {
     } finally {
       setLoading(false)
     }
-  }, [searchFilter, statusFilter, datumVon, datumBis])
+  }, [searchFilter, statusFilter, quelleFilter, datumVon, datumBis])
 
   useEffect(() => {
     fetchTransaktionen()
   }, [fetchTransaktionen])
 
-  // Clear selection when data changes
+  // BUG-PROJ6-006: Nur IDs entfernen, die nicht mehr in der Liste sind (nicht alles leeren)
   useEffect(() => {
-    setSelectedIds([])
+    setSelectedIds(prev => prev.filter(id => transaktionen.some(t => t.id === id)))
   }, [transaktionen])
 
-  // Compute matching stats from current data
+  // Compute matching stats from current data (kein_beleg excluded – not actionable)
   const matchingStats = useMemo(() => {
-    const stats = {
-      total: transaktionen.length,
-      bestaetigt: 0,
-      vorgeschlagen: 0,
-      offen: 0,
-    }
+    const stats = { total: 0, bestaetigt: 0, vorgeschlagen: 0, offen: 0 }
     for (const t of transaktionen) {
+      if (t.match_status === 'kein_beleg') continue
+      stats.total++
       if (t.match_status === 'bestaetigt') stats.bestaetigt++
       else if (t.match_status === 'vorgeschlagen') stats.vorgeschlagen++
       else stats.offen++
@@ -127,6 +135,7 @@ export default function TransaktionenPage() {
   function clearFilters() {
     setSearchFilter('')
     setStatusFilter('alle')
+    setQuelleFilter('alle')
     setDatumVon('')
     setDatumBis('')
   }
@@ -134,6 +143,7 @@ export default function TransaktionenPage() {
   const hasFilters =
     searchFilter !== '' ||
     statusFilter !== 'alle' ||
+    quelleFilter !== 'alle' ||
     datumVon !== '' ||
     datumBis !== ''
 
@@ -165,13 +175,29 @@ export default function TransaktionenPage() {
   }
 
   function handleBulkZuordnen() {
-    // For bulk assign, open the dialog for the first selected transaction
-    // (Users can then repeat for others or use "Kein Beleg" for batch)
     if (selectedIds.length === 0) return
     const first = transaktionen.find((t) => selectedIds.includes(t.id)) ?? null
     if (!first) return
     setZuordnungsTransaktion(first)
     setZuordnungsDialogOpen(true)
+  }
+
+  // BUG-PROJ6-006: Nach einer Bulk-Zuweisung die gerade erledigte ID entfernen
+  // und den Dialog für die nächste selektierte Transaktion öffnen
+  function handleBulkAssigned() {
+    const assignedId = zuordnungsTransaktion?.id
+    const remaining = assignedId
+      ? selectedIds.filter(id => id !== assignedId)
+      : selectedIds
+    setSelectedIds(remaining)
+    fetchTransaktionen()
+    if (remaining.length > 0) {
+      const next = transaktionen.find(t => remaining.includes(t.id) && t.id !== assignedId) ?? null
+      if (next) {
+        setZuordnungsTransaktion(next)
+        setZuordnungsDialogOpen(true)
+      }
+    }
   }
 
   // Determine which list to show based on active tab
@@ -329,6 +355,25 @@ export default function TransaktionenPage() {
                 </div>
               )}
 
+              {zahlungsquellen.length > 1 && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Quelle
+                  </label>
+                  <Select value={quelleFilter} onValueChange={setQuelleFilter}>
+                    <SelectTrigger className="w-full sm:w-40" aria-label="Zahlungsquelle filtern">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="alle">Alle Quellen</SelectItem>
+                      {zahlungsquellen.map(q => (
+                        <SelectItem key={q.id} value={q.id}>{q.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {hasFilters && (
                 <Button
                   variant="ghost"
@@ -390,7 +435,7 @@ export default function TransaktionenPage() {
         open={zuordnungsDialogOpen}
         onOpenChange={setZuordnungsDialogOpen}
         transaktion={zuordnungsTransaktion}
-        onAssigned={fetchTransaktionen}
+        onAssigned={selectedIds.length > 1 ? handleBulkAssigned : fetchTransaktionen}
       />
 
       {/* Transaktions-Detail Sheet */}

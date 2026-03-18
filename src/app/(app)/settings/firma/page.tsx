@@ -29,6 +29,8 @@ const schema = z.object({
   plz: z.string().optional(),
   ort: z.string().optional(),
   geschaeftsjahr_beginn: z.string(),
+  beraternummer: z.string().regex(/^(\d{5,7})?$/, 'Beraternummer: 5–7 Ziffern').optional().or(z.literal('')),
+  mandantennummer: z.string().regex(/^(\d{1,5})?$/, 'Mandantennummer: 1–5 Ziffern').optional().or(z.literal('')),
 })
 
 type FormData = z.infer<typeof schema>
@@ -38,7 +40,7 @@ export default function FirmaSettingsPage() {
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
 
-  const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, reset, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { geschaeftsjahr_beginn: '1' },
   })
@@ -56,6 +58,8 @@ export default function FirmaSettingsPage() {
           plz: data.plz ?? '',
           ort: data.ort ?? '',
           geschaeftsjahr_beginn: String(data.geschaeftsjahr_beginn),
+          beraternummer: data.beraternummer ?? '',
+          mandantennummer: data.mandantennummer ?? '',
         })
       }
       setFetching(false)
@@ -66,21 +70,26 @@ export default function FirmaSettingsPage() {
   async function onSubmit(data: FormData) {
     setSaved(false)
     setLoading(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
 
-    await supabase.from('mandanten').update({
-      firmenname: data.firmenname,
-      rechtsform: data.rechtsform || null,
-      uid_nummer: data.uid_nummer || null,
-      strasse: data.strasse || null,
-      plz: data.plz || null,
-      ort: data.ort || null,
-      geschaeftsjahr_beginn: parseInt(data.geschaeftsjahr_beginn),
-    }).eq('owner_id', user.id)
+    const response = await fetch('/api/firma', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firmenname: data.firmenname,
+        rechtsform: data.rechtsform || null,
+        uid_nummer: data.uid_nummer || null,
+        strasse: data.strasse || null,
+        plz: data.plz || null,
+        ort: data.ort || null,
+        geschaeftsjahr_beginn: parseInt(data.geschaeftsjahr_beginn),
+        beraternummer: data.beraternummer || null,
+        mandantennummer: data.mandantennummer || null,
+      }),
+    })
 
-    setSaved(true)
+    if (response.ok) {
+      setSaved(true)
+    }
     setLoading(false)
   }
 
@@ -107,7 +116,7 @@ export default function FirmaSettingsPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Rechtsform</Label>
-              <Select onValueChange={(v) => setValue('rechtsform', v)}>
+              <Select onValueChange={(v) => setValue('rechtsform', v)} value={watch('rechtsform') || ''}>
                 <SelectTrigger><SelectValue placeholder="Wählen..." /></SelectTrigger>
                 <SelectContent>
                   {RECHTSFORMEN.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
@@ -136,12 +145,31 @@ export default function FirmaSettingsPage() {
           </div>
           <div className="space-y-1.5">
             <Label>Beginn Geschäftsjahr</Label>
-            <Select onValueChange={(v) => setValue('geschaeftsjahr_beginn', v)}>
+            <Select onValueChange={(v) => setValue('geschaeftsjahr_beginn', v)} value={watch('geschaeftsjahr_beginn') || ''}>
               <SelectTrigger><SelectValue placeholder="Monat wählen..." /></SelectTrigger>
               <SelectContent>
                 {MONATE.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="pt-2 border-t">
+            <p className="text-sm font-medium mb-3">DATEV-Einstellungen</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              Beraternummer und Mandantennummer werden vom Steuerberater vergeben und im DATEV-Export-Header benötigt.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="beraternummer">Beraternummer</Label>
+                <Input id="beraternummer" placeholder="12345" maxLength={7} {...register('beraternummer')} />
+                {errors.beraternummer && <p className="text-xs text-destructive">{errors.beraternummer.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="mandantennummer">Mandantennummer</Label>
+                <Input id="mandantennummer" placeholder="1" maxLength={5} {...register('mandantennummer')} />
+                {errors.mandantennummer && <p className="text-xs text-destructive">{errors.mandantennummer.message}</p>}
+              </div>
+            </div>
           </div>
         </CardContent>
         <CardFooter>

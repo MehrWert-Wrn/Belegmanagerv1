@@ -17,10 +17,10 @@ export type MatchInput = {
   beleg: {
     id: string
     lieferant: string | null
+    lieferant_iban: string | null
     rechnungsnummer: string | null
     bruttobetrag: number | null
     rechnungsdatum: string | null // ISO date string
-    // Zukünftig: lieferant_iban für IBAN_GUARDED
   }
 }
 
@@ -83,8 +83,17 @@ function tryHardMatch(input: MatchInput): string | null {
   const desc = normalize(transaktion.beschreibung)
   const ref = normalize(transaktion.buchungsreferenz)
 
-  // RN_MATCH: Rechnungsnummer in Verwendungszweck
-  if (beleg.rechnungsnummer && normalize(beleg.rechnungsnummer).length > 3) {
+  const isPayPal = transaktion.beschreibung?.toLowerCase().includes('paypal') ?? false
+
+  // PAYPAL_ID_MATCH: PayPal-ID im Verwendungszweck (vor RN_MATCH prüfen, damit Label korrekt)
+  if (isPayPal && beleg.rechnungsnummer) {
+    if (desc.includes(normalize(beleg.rechnungsnummer))) {
+      return 'PAYPAL_ID_MATCH'
+    }
+  }
+
+  // RN_MATCH: Rechnungsnummer in Verwendungszweck (nur für Nicht-PayPal-Transaktionen)
+  if (!isPayPal && beleg.rechnungsnummer && normalize(beleg.rechnungsnummer).length > 3) {
     if (desc.includes(normalize(beleg.rechnungsnummer)) ||
         ref.includes(normalize(beleg.rechnungsnummer))) {
       return 'RN_MATCH'
@@ -98,10 +107,12 @@ function tryHardMatch(input: MatchInput): string | null {
     }
   }
 
-  // PAYPAL_ID_MATCH: PayPal-ID im Verwendungszweck
-  if (transaktion.beschreibung?.toLowerCase().includes('paypal') && beleg.rechnungsnummer) {
-    if (desc.includes(normalize(beleg.rechnungsnummer))) {
-      return 'PAYPAL_ID_MATCH'
+  // IBAN_GUARDED: IBAN der Transaktion stimmt mit Lieferant-IBAN des Belegs überein + exakter Betrag
+  if (transaktion.iban_gegenseite && beleg.lieferant_iban && beleg.bruttobetrag !== null) {
+    const ibanMatch = normalize(transaktion.iban_gegenseite) === normalize(beleg.lieferant_iban)
+    const amountMatch = Math.abs(Math.abs(transaktion.betrag) - beleg.bruttobetrag) < 0.01
+    if (ibanMatch && amountMatch) {
+      return 'IBAN_GUARDED'
     }
   }
 
@@ -168,8 +179,8 @@ export function matchTransaktion(
     return { transaktion_id: transaktion.id, beleg_id: null, match_status: 'offen', match_score: 0, match_type: null }
   }
 
-  // Tie bei Hard Match → Gelb für manuelle Auflösung
-  const effectiveScore = tieScore && bestScore === 100 ? 79 : bestScore
+  // Tie → Gelb für manuelle Auflösung (gilt für Hard Match und Score-Ties bei >= 80)
+  const effectiveScore = tieScore && bestScore >= 80 ? 79 : bestScore
 
   let match_status: MatchResult['match_status']
   if (effectiveScore >= 80) match_status = 'bestaetigt'

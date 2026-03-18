@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { isMonatGesperrt } from '@/lib/monat-lock'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -19,17 +20,36 @@ export async function POST(request: Request) {
 
   const { transaktion_id, beleg_id } = parsed.data
 
+  // Transaktion holen für Monat-Lock-Check und match_type-Erhalt
+  const { data: transaktion } = await supabase
+    .from('transaktionen')
+    .select('datum, mandant_id, match_type')
+    .eq('id', transaktion_id)
+    .single()
+
+  if (!transaktion) return NextResponse.json({ error: 'Transaktion nicht gefunden' }, { status: 404 })
+
+  // BUG-PROJ6-002: Monat-Lock prüfen
+  if (await isMonatGesperrt(supabase, transaktion.mandant_id, transaktion.datum)) {
+    return NextResponse.json({ error: 'Monat ist abgeschlossen' }, { status: 403 })
+  }
+
   // Transaktion auf bestaetigt setzen
-  const { error: tErr } = await supabase
+  // BUG-PROJ6-003: match_type der Engine beibehalten (nicht mit 'MANUAL' überschreiben)
+  // BUG-PROJ6-001: match_bestaetigt_am + match_bestaetigt_von setzen
+  const { data: updated, error: tErr } = await supabase
     .from('transaktionen')
     .update({
       match_status: 'bestaetigt',
       beleg_id,
-      match_type: 'MANUAL',
+      match_bestaetigt_am: new Date().toISOString(),
+      match_bestaetigt_von: user.id,
     })
     .eq('id', transaktion_id)
+    .select('id')
 
   if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
+  if (!updated?.length) return NextResponse.json({ error: 'Transaktion nicht gefunden oder keine Berechtigung' }, { status: 404 })
 
   // Beleg als zugeordnet markieren
   const { error: bErr } = await supabase

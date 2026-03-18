@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateKasseQuelle } from '@/lib/kassabuch'
+import { getMandantId } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 
 // GET /api/kassabuch/saldo – Aktueller Kassastand
@@ -8,9 +9,9 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: mandant } = await supabase
-    .from('mandanten').select('id').eq('owner_id', user.id).single()
-  if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandantId = await getMandantId(supabase)
+  if (!mandantId) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandant = { id: mandantId }
 
   const kasse = await getOrCreateKasseQuelle(supabase, mandant.id)
   if (!kasse) return NextResponse.json({ error: 'Kassaquelle nicht gefunden' }, { status: 500 })

@@ -1,11 +1,10 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -71,13 +70,41 @@ type WizardData = {
   geschaeftsjahr_beginn: string
 }
 
+const STORAGE_KEY = 'onboarding_wizard_data'
+
 function OnboardingWizard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const currentStep = Math.min(Math.max(parseInt(searchParams.get('step') || '1'), 1), TOTAL_STEPS)
   const [data, setData] = useState<Partial<WizardData>>({})
+
+  // Load persisted data after mount to avoid SSR hydration mismatch,
+  // then reset forms so react-hook-form picks up the restored values
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (!saved) return
+      const parsed: Partial<WizardData> = JSON.parse(saved)
+      setData(parsed)
+      form1.reset({ firmenname: parsed.firmenname || '', rechtsform: parsed.rechtsform || '', uid_nummer: parsed.uid_nummer || '' })
+      form2.reset({ strasse: parsed.strasse || '', plz: parsed.plz || '', ort: parsed.ort || '' })
+      form3.reset({ geschaeftsjahr_beginn: parsed.geschaeftsjahr_beginn || '1' })
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Guard: step 1 data (firmenname) must exist before accessing steps 2 or 3
+  useEffect(() => {
+    if (currentStep > 1 && !data.firmenname) {
+      setStep(1)
+    }
+  }, [currentStep, data.firmenname])
+
+  function persist(updated: Partial<WizardData>) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)) } catch { /* ignore */ }
+  }
 
   function setStep(step: number) {
     const url = new URL(window.location.href)
@@ -104,52 +131,53 @@ function OnboardingWizard() {
   })
 
   function handleStep1(values: Step1Data) {
-    setData(prev => ({ ...prev, ...values }))
+    const updated = { ...data, ...values }
+    setData(updated)
+    persist(updated)
     setStep(2)
   }
 
   function handleStep2(values: Step2Data) {
-    setData(prev => ({ ...prev, ...values }))
+    const updated = { ...data, ...values }
+    setData(updated)
+    persist(updated)
     setStep(3)
   }
 
   async function handleStep3(values: Step3Data) {
     setError(null)
     setLoading(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
 
     const merged = { ...data, ...values }
 
-    const { data: mandant, error } = await supabase.from('mandanten').upsert({
-      owner_id: user.id,
-      firmenname: merged.firmenname!,
-      rechtsform: merged.rechtsform || null,
-      uid_nummer: merged.uid_nummer || null,
-      strasse: merged.strasse || null,
-      plz: merged.plz || null,
-      ort: merged.ort || null,
-      land: 'AT',
-      geschaeftsjahr_beginn: parseInt(merged.geschaeftsjahr_beginn || '1'),
-      onboarding_abgeschlossen: true,
-    }, { onConflict: 'owner_id' }).select('id').single()
+    try {
+      const response = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firmenname: merged.firmenname,
+          rechtsform: merged.rechtsform || null,
+          uid_nummer: merged.uid_nummer || null,
+          strasse: merged.strasse || null,
+          plz: merged.plz || null,
+          ort: merged.ort || null,
+          geschaeftsjahr_beginn: parseInt(merged.geschaeftsjahr_beginn || '1'),
+        }),
+      })
 
-    if (error || !mandant) {
-      setError('Fehler beim Speichern. Bitte versuche es erneut.')
+      if (!response.ok) {
+        const err = await response.json()
+        setError(err.error || 'Fehler beim Speichern. Bitte versuche es erneut.')
+        setLoading(false)
+        return
+      }
+    } catch {
+      setError('Ein unerwarteter Fehler ist aufgetreten.')
       setLoading(false)
       return
     }
 
-    // Owner wird automatisch als Admin in mandant_users eingetragen
-    await supabase.from('mandant_users').upsert({
-      mandant_id: mandant.id,
-      user_id: user.id,
-      email: user.email ?? '',
-      rolle: 'admin',
-      aktiv: true,
-    }, { onConflict: 'mandant_id,user_id' }).throwOnError()
-
+    try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
     router.push('/dashboard')
     router.refresh()
   }
@@ -183,7 +211,7 @@ function OnboardingWizard() {
                 <Label htmlFor="rechtsform">Rechtsform *</Label>
                 <Select
                   onValueChange={(v) => form1.setValue('rechtsform', v)}
-                  defaultValue={data.rechtsform}
+                  value={form1.watch('rechtsform') || ''}
                 >
                   <SelectTrigger id="rechtsform">
                     <SelectValue placeholder="Bitte wählen..." />

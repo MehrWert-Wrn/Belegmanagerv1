@@ -1,7 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
+import { getMandantId } from '@/lib/auth-helpers'
 import { generateDATEVCSV } from '@/lib/datev'
 import { NextResponse } from 'next/server'
 import JSZip from 'jszip'
+import { z } from 'zod'
+
+const paramsSchema = z.object({
+  jahr: z.coerce.number().int().min(2000).max(2100),
+  monat: z.coerce.number().int().min(1).max(12),
+})
 
 type Params = { params: Promise<{ jahr: string; monat: string }> }
 
@@ -12,13 +19,17 @@ export async function POST(_request: Request, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { jahr: jahrStr, monat: monatStr } = await params
-  const jahr = parseInt(jahrStr)
-  const monat = parseInt(monatStr)
+  const parsed = paramsSchema.safeParse({ jahr: jahrStr, monat: monatStr })
+  if (!parsed.success) return NextResponse.json({ error: 'Ungueltige Parameter' }, { status: 400 })
+  const { jahr, monat } = parsed.data
+
+  const mandantId = await getMandantId(supabase)
+  if (!mandantId) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
 
   const { data: mandant } = await supabase
     .from('mandanten')
-    .select('id, firmenname, uid_nummer, geschaeftsjahr_beginn')
-    .eq('owner_id', user.id)
+    .select('id, firmenname, uid_nummer, geschaeftsjahr_beginn, beraternummer, mandantennummer')
+    .eq('id', mandantId)
     .single()
   if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
 
@@ -81,6 +92,20 @@ export async function POST(_request: Request, { params }: Params) {
     .map(t => t.beleg!)
     .filter((b, i, arr) => arr.findIndex(x => x.id === b.id) === i)
 
+  // BUG-PROJ9-005: Guard against timeouts on large exports (Vercel 10s limit)
+  // Async ZIP generation is planned for a future sprint; for now reject large requests.
+  const ZIP_BELEG_LIMIT = 50
+  if (uniqueBelege.length > ZIP_BELEG_LIMIT) {
+    return NextResponse.json(
+      {
+        error: `ZIP-Export ist auf ${ZIP_BELEG_LIMIT} Belege begrenzt. Bitte verwende den CSV-Export fuer diesen Monat.`,
+        anzahl_belege: uniqueBelege.length,
+        limit: ZIP_BELEG_LIMIT,
+      },
+      { status: 413 }
+    )
+  }
+
   await Promise.all(
     uniqueBelege.map(async (beleg) => {
       const { data, error } = await supabase.storage
@@ -93,7 +118,14 @@ export async function POST(_request: Request, { params }: Params) {
       }
 
       const arrayBuffer = await data.arrayBuffer()
-      belegeFolder.file(beleg.original_filename ?? `${beleg.id}.pdf`, arrayBuffer)
+      // Sanitize filename to prevent Zip Slip (CWE-22)
+      const rawName = beleg.original_filename ?? `${beleg.id}.pdf`
+      const safeFilename = rawName
+        .replace(/[/\\]/g, '_')     // strip path separators
+        .replace(/\.\./g, '_')       // strip ..
+        .replace(/[^\w\s.\-()]/g, '_') // strip special chars
+        .trim() || `${beleg.id}.pdf`
+      belegeFolder.file(safeFilename, arrayBuffer)
     })
   )
 

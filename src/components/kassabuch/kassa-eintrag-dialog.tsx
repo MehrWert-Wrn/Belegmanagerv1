@@ -56,9 +56,16 @@ export function KassaEintragDialog({
         const absAmount = Math.abs(eintrag.betrag)
         setBetrag(absAmount.toFixed(2))
         setVorzeichen(eintrag.betrag < 0 ? 'ausgabe' : 'einnahme')
-        setBeschreibung(eintrag.beschreibung ?? '')
-        // lieferant is in beschreibung for kassa entries
-        setLieferant('')
+        // Lieferant und Beschreibung wurden beim Speichern mit " - " verbunden
+        const desc = eintrag.beschreibung ?? ''
+        const sepIdx = desc.indexOf(' - ')
+        if (sepIdx > 0) {
+          setLieferant(desc.substring(0, sepIdx))
+          setBeschreibung(desc.substring(sepIdx + 3))
+        } else {
+          setLieferant('')
+          setBeschreibung(desc)
+        }
       } else {
         const today = new Date().toISOString().split('T')[0]
         setDatum(today)

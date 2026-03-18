@@ -14,7 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 const schema = z.object({
   email: z.string().email('Bitte gib eine gültige E-Mail-Adresse ein'),
-  password: z.string().min(1, 'Passwort ist erforderlich'),
+  password: z.string().min(8, 'Passwort muss mindestens 8 Zeichen lang sein'),
 })
 
 type FormData = z.infer<typeof schema>

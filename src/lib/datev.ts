@@ -23,6 +23,8 @@ export type DATEVMandant = {
   firmenname: string
   uid_nummer: string | null
   geschaeftsjahr_beginn: number
+  beraternummer?: string | null
+  mandantennummer?: string | null
 }
 
 // DATEV-Datum-Format: DDMM (z.B. 14.03 → 1403)
@@ -69,8 +71,8 @@ export function generateDATEVCSV(
     '"Belegmanager"',  // Herkunft
     '',                // Exportiert von
     '',
-    `"${clean(mandant.firmenname)}"`, // Beraternummer (vereinfacht: Firmenname)
-    '1',               // Mandantennummer
+    mandant.beraternummer ?? '00000', // Beraternummer (5-7 Stellen, numerisch)
+    mandant.mandantennummer ?? '1',   // Mandantennummer (1-5 Stellen)
     wjBeginn,          // Wirtschaftsjahr-Beginn
     '4',               // Sachkontenlänge
     datumVon,          // Datum von
@@ -122,8 +124,8 @@ export function generateDATEVCSV(
       '',     // Kurs
       '',     // Basis-Umsatz
       '',     // WKZ Basis-Umsatz
-      '',     // Konto (Mandant muss selbst pflegen)
-      '',     // Gegenkonto
+      '',     // Konto – intentionally empty; Steuerberater pflegt Sachkonten in DATEV
+      '',     // Gegenkonto – intentionally empty
       '',     // BU-Schlüssel
       formatDATEVDatum(t.datum),
       belegfeld1 ? `"${belegfeld1}"` : '',

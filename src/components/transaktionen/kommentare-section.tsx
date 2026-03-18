@@ -167,26 +167,28 @@ export function KommentareSection({ transaktionId }: KommentareSectionProps) {
 
       {/* New comment form */}
       <form onSubmit={handleSubmit} className="space-y-2">
-        <div className="relative">
+        <div>
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Kommentar hinzufuegen..."
-            maxLength={MAX_CHARS + 10} // Allow slight overflow for UX, validation handles it
-            className="min-h-[60px] resize-none pr-12 text-sm"
+            maxLength={MAX_CHARS}
+            className="min-h-[60px] resize-none text-sm"
             disabled={submitting}
           />
-          <span
-            className={`absolute bottom-2 right-2 text-[10px] ${
-              isOverLimit
-                ? 'text-destructive font-medium'
-                : charCount > MAX_CHARS * 0.9
-                  ? 'text-amber-500'
-                  : 'text-muted-foreground'
-            }`}
-          >
-            {charCount} / {MAX_CHARS}
-          </span>
+          <div className="flex justify-end mt-1">
+            <span
+              className={`text-[10px] ${
+                isOverLimit
+                  ? 'text-destructive font-medium'
+                  : charCount > MAX_CHARS * 0.9
+                    ? 'text-amber-500'
+                    : 'text-muted-foreground'
+              }`}
+            >
+              {charCount} / {MAX_CHARS}
+            </span>
+          </div>
         </div>
         <div className="flex justify-end">
           <Button

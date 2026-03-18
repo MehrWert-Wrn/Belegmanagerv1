@@ -84,11 +84,13 @@ export function detectEncoding(file: File): Promise<string> {
 
 /**
  * Parse a CSV file client-side using papaparse.
+ * @param hasHeaderRow - When false, treats all rows as data and generates column names ("Spalte 1", "Spalte 2", ...)
  */
 export function parseCsvFile(
   file: File,
   encoding: string = 'UTF-8',
-  delimiter: string = ''
+  delimiter: string = '',
+  hasHeaderRow: boolean = true
 ): Promise<CsvParseResult> {
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
@@ -102,9 +104,18 @@ export function parseCsvFile(
           return
         }
 
-        const headers = data[0] ?? []
-        const rows = data.slice(1)
         const detectedDelimiter = results.meta.delimiter
+
+        let headers: string[]
+        let rows: string[][]
+        if (hasHeaderRow) {
+          headers = data[0] ?? []
+          rows = data.slice(1)
+        } else {
+          const colCount = Math.max(...data.map((r) => r.length))
+          headers = Array.from({ length: colCount }, (_, i) => `Spalte ${i + 1}`)
+          rows = data
+        }
 
         resolve({
           headers,

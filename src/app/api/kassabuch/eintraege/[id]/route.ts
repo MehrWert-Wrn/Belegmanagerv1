@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { isMonatGesperrt } from '@/lib/monat-lock'
+import { requireAdmin } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -9,7 +10,6 @@ const updateSchema = z.object({
   datum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   betrag: z.number().refine(v => v !== 0).optional(),
   beschreibung: z.string().optional(),
-  lieferant: z.string().optional(),
 })
 
 // PATCH /api/kassabuch/eintraege/[id] – Eintrag bearbeiten
@@ -28,6 +28,13 @@ export async function PATCH(request: Request, { params }: Params) {
 
   if (!transaktion || transaktion.geloescht_am) {
     return NextResponse.json({ error: 'Eintrag nicht gefunden' }, { status: 404 })
+  }
+
+  // Sicherstellen, dass es sich um einen Kassaeintrag handelt
+  const { data: quelle } = await supabase
+    .from('zahlungsquellen').select('typ').eq('id', transaktion.quelle_id).single()
+  if (!quelle || quelle.typ !== 'kassa') {
+    return NextResponse.json({ error: 'Nur Kassaeintraege koennen bearbeitet werden' }, { status: 403 })
   }
 
   if (await isMonatGesperrt(supabase, transaktion.mandant_id, transaktion.datum)) {
@@ -62,16 +69,26 @@ export async function DELETE(_request: Request, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const admin = await requireAdmin(supabase)
+  if (admin.error) return admin.error
+
   const { id } = await params
 
   const { data: transaktion } = await supabase
     .from('transaktionen')
-    .select('datum, mandant_id, beleg_id, geloescht_am')
+    .select('datum, mandant_id, beleg_id, geloescht_am, quelle_id')
     .eq('id', id)
     .single()
 
   if (!transaktion || transaktion.geloescht_am) {
     return NextResponse.json({ error: 'Eintrag nicht gefunden' }, { status: 404 })
+  }
+
+  // Sicherstellen, dass es sich um einen Kassaeintrag handelt
+  const { data: quelleDelete } = await supabase
+    .from('zahlungsquellen').select('typ').eq('id', transaktion.quelle_id).single()
+  if (!quelleDelete || quelleDelete.typ !== 'kassa') {
+    return NextResponse.json({ error: 'Nur Kassaeintraege koennen geloescht werden' }, { status: 403 })
   }
 
   if (await isMonatGesperrt(supabase, transaktion.mandant_id, transaktion.datum)) {

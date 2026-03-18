@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateKasseQuelle } from '@/lib/kassabuch'
 import { isMonatGesperrt } from '@/lib/monat-lock'
+import { getMandantId } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -8,7 +9,6 @@ const schema = z.object({
   datum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   betrag: z.number().refine(v => v !== 0, 'Betrag darf nicht 0 sein'),
   beschreibung: z.string().optional(),
-  lieferant: z.string().optional(),
   beleg_id: z.string().uuid().optional(),
 })
 
@@ -18,9 +18,9 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: mandant } = await supabase
-    .from('mandanten').select('id').eq('owner_id', user.id).single()
-  if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandantId = await getMandantId(supabase)
+  if (!mandantId) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandant = { id: mandantId }
 
   const kasse = await getOrCreateKasseQuelle(supabase, mandant.id)
   if (!kasse) return NextResponse.json({ error: 'Kassaquelle konnte nicht angelegt werden' }, { status: 500 })
@@ -55,9 +55,9 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: mandant } = await supabase
-    .from('mandanten').select('id').eq('owner_id', user.id).single()
-  if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandantId = await getMandantId(supabase)
+  if (!mandantId) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandant = { id: mandantId }
 
   const body = await request.json()
   const parsed = schema.safeParse(body)

@@ -1,11 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
+import { getMandantId, requireAdmin } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+
+const ibanSchema = z
+  .string()
+  .optional()
+  .transform((v) => v?.replace(/\s+/g, '').toUpperCase() || undefined)
+  .refine(
+    (v) => !v || /^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/.test(v),
+    { message: 'Ungültiges IBAN-Format' }
+  )
 
 const schema = z.object({
   name: z.string().min(1),
   typ: z.enum(['kontoauszug', 'kassa', 'kreditkarte', 'paypal', 'sonstige']),
-  iban: z.string().optional(),
+  iban: ibanSchema,
   csv_mapping: z.record(z.string(), z.unknown()).optional(),
 })
 
@@ -49,17 +59,48 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const admin = await requireAdmin(supabase)
+  if (admin.error) return admin.error
+
   const body = await request.json()
   const parsed = schema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
-  const { data: mandant } = await supabase
-    .from('mandanten').select('id').eq('owner_id', user.id).single()
-  if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandantId = await getMandantId(supabase)
+  if (!mandantId) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+
+  // Rate limit: max 5 new sources per mandant per minute
+  const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString()
+  const { count: recentCount } = await supabase
+    .from('zahlungsquellen')
+    .select('id', { count: 'exact', head: true })
+    .eq('mandant_id', mandantId)
+    .gte('erstellt_am', oneMinuteAgo)
+
+  if ((recentCount ?? 0) >= 5) {
+    return NextResponse.json(
+      { error: 'Zu viele Anfragen. Bitte warte eine Minute.' },
+      { status: 429 }
+    )
+  }
+
+  // Server-side limit: max 10 active sources
+  const { count } = await supabase
+    .from('zahlungsquellen')
+    .select('id', { count: 'exact', head: true })
+    .eq('mandant_id', mandantId)
+    .eq('aktiv', true)
+
+  if ((count ?? 0) >= 10) {
+    return NextResponse.json(
+      { error: 'Maximale Anzahl aktiver Zahlungsquellen (10) erreicht.' },
+      { status: 400 }
+    )
+  }
 
   const { data, error } = await supabase
     .from('zahlungsquellen')
-    .insert({ ...parsed.data, mandant_id: mandant.id })
+    .insert({ ...parsed.data, mandant_id: mandantId })
     .select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

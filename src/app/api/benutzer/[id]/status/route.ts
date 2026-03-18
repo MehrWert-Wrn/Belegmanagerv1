@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth, requireAdmin, getMandantId } from '@/lib/auth-helpers'
@@ -93,7 +94,7 @@ export async function PATCH(request: Request, { params }: Params) {
     }
   }
 
-  // Update status
+  // Update status in DB
   const { error: updateError } = await supabase
     .from('mandant_users')
     .update({ aktiv })
@@ -102,6 +103,15 @@ export async function PATCH(request: Request, { params }: Params) {
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
+  }
+
+  // Sync ban state in Supabase Auth so the user cannot log in while deactivated.
+  // Only applies to users who have accepted their invite (user_id is set).
+  if (targetUser.user_id) {
+    const adminClient = createAdminClient()
+    await adminClient.auth.admin.updateUserById(targetUser.user_id, {
+      ban_duration: aktiv ? 'none' : '876600h',
+    })
   }
 
   return NextResponse.json({ success: true })

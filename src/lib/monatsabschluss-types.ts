@@ -9,6 +9,7 @@ export interface QuellenPruefung {
   quelle_name: string
   typ: string
   hat_transaktionen: boolean
+  anzahl_offen: number
 }
 
 export interface Pruefung {
@@ -17,6 +18,8 @@ export interface Pruefung {
   anzahl_offen: number
   anzahl_transaktionen: number
   alle_quellen_haben_import: boolean
+  kassa_saldo: number | null
+  kassa_saldo_positiv: boolean | null
 }
 
 export interface Abschluss {

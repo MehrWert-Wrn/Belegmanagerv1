@@ -37,6 +37,21 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
+      // Link invited user to their mandant_users record
+      if (searchParams.get('type') === 'invite') {
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (authUser?.email) {
+          await supabase
+            .from('mandant_users')
+            .update({
+              user_id: authUser.id,
+              einladung_angenommen_am: new Date().toISOString(),
+            })
+            .eq('email', authUser.email.toLowerCase())
+            .is('user_id', null)
+            .eq('aktiv', true)
+        }
+      }
       return NextResponse.redirect(`${origin}${redirectTo}`)
     }
   }

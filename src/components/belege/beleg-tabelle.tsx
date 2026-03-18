@@ -1,8 +1,10 @@
 'use client'
 
 import { MoreHorizontal, Eye, Pencil, Trash2, FileText } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,11 +20,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { Beleg } from '@/lib/supabase/types'
+import type { Beleg, Rechnungstyp } from '@/lib/supabase/types'
 
 interface BelegTabelleProps {
   belege: Beleg[]
   loading: boolean
+  selectedIds: Set<string>
+  onSelectChange: (id: string, checked: boolean) => void
+  onSelectAll: (checked: boolean) => void
   onSelect: (beleg: Beleg) => void
   onEdit: (beleg: Beleg) => void
   onDelete: (beleg: Beleg) => void
@@ -45,9 +50,55 @@ function formatDate(value: string | null): string {
   }).format(new Date(value))
 }
 
+const rechnungstypConfig: Record<Rechnungstyp, { label: string; className: string }> = {
+  eingangsrechnung: {
+    label: 'Eingangsrechnung',
+    className: 'bg-blue-100 text-blue-800 hover:bg-blue-100',
+  },
+  ausgangsrechnung: {
+    label: 'Ausgangsrechnung',
+    className: 'bg-purple-100 text-purple-800 hover:bg-purple-100',
+  },
+  gutschrift: {
+    label: 'Gutschrift',
+    className: 'bg-orange-100 text-orange-800 hover:bg-orange-100',
+  },
+  sonstiges: {
+    label: 'Sonstiges',
+    className: 'bg-gray-100 text-gray-800 hover:bg-gray-100',
+  },
+}
+
+function RechnungstypBadge({ typ }: { typ: Rechnungstyp | undefined }) {
+  if (!typ) return <span className="text-muted-foreground">-</span>
+  const config = rechnungstypConfig[typ]
+  return <Badge className={config.className}>{config.label}</Badge>
+}
+
+async function handleOpenDocument(belegId: string) {
+  try {
+    const response = await fetch(`/api/belege/${belegId}/signed-url`)
+    if (!response.ok) {
+      toast.error('Dokument konnte nicht geladen werden.')
+      return
+    }
+    const data = await response.json()
+    if (data.url) {
+      window.open(data.url, '_blank', 'noopener,noreferrer')
+    } else {
+      toast.error('Dokument-URL nicht verfuegbar.')
+    }
+  } catch {
+    toast.error('Fehler beim Laden des Dokuments.')
+  }
+}
+
 export function BelegTabelle({
   belege,
   loading,
+  selectedIds,
+  onSelectChange,
+  onSelectAll,
   onSelect,
   onEdit,
   onDelete,
@@ -78,15 +129,28 @@ export function BelegTabelle({
     )
   }
 
+  const allSelected = belege.length > 0 && belege.every((b) => selectedIds.has(b.id))
+  const someSelected = belege.some((b) => selectedIds.has(b.id)) && !allSelected
+
   return (
     <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Lieferant</TableHead>
-            <TableHead className="hidden sm:table-cell">Rechnungsnr.</TableHead>
-            <TableHead className="text-right">Betrag</TableHead>
+            <TableHead className="w-[40px]">
+              <Checkbox
+                checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                onCheckedChange={(checked) => onSelectAll(checked === true)}
+                aria-label="Alle auswaehlen"
+              />
+            </TableHead>
+            <TableHead>Rechnungsname</TableHead>
             <TableHead className="hidden md:table-cell">Datum</TableHead>
+            <TableHead className="hidden sm:table-cell">Lieferant</TableHead>
+            <TableHead className="hidden lg:table-cell text-right">Netto</TableHead>
+            <TableHead className="text-right">Brutto</TableHead>
+            <TableHead className="hidden lg:table-cell">Typ</TableHead>
+            <TableHead className="w-[50px]">Dok.</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="w-[50px]">
               <span className="sr-only">Aktionen</span>
@@ -98,19 +162,51 @@ export function BelegTabelle({
             <TableRow
               key={beleg.id}
               className="cursor-pointer"
+              data-state={selectedIds.has(beleg.id) ? 'selected' : undefined}
               onClick={() => onSelect(beleg)}
             >
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={selectedIds.has(beleg.id)}
+                  onCheckedChange={(checked) => onSelectChange(beleg.id, checked === true)}
+                  aria-label={`Beleg ${beleg.rechnungsname || beleg.original_filename} auswaehlen`}
+                />
+              </TableCell>
               <TableCell className="font-medium">
-                {beleg.lieferant || 'Unbekannt'}
+                {beleg.rechnungsname || beleg.original_filename || 'Unbekannt'}
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                {formatDate(beleg.rechnungsdatum)}
               </TableCell>
               <TableCell className="hidden sm:table-cell">
-                {beleg.rechnungsnummer || '-'}
+                {beleg.lieferant || '-'}
+              </TableCell>
+              <TableCell className="hidden lg:table-cell text-right">
+                {formatCurrency(beleg.nettobetrag)}
               </TableCell>
               <TableCell className="text-right">
                 {formatCurrency(beleg.bruttobetrag)}
               </TableCell>
-              <TableCell className="hidden md:table-cell">
-                {formatDate(beleg.rechnungsdatum)}
+              <TableCell className="hidden lg:table-cell">
+                <RechnungstypBadge typ={beleg.rechnungstyp} />
+              </TableCell>
+              <TableCell>
+                {beleg.storage_path ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleOpenDocument(beleg.id)
+                    }}
+                    aria-label="Dokument oeffnen"
+                  >
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">-</span>
+                )}
               </TableCell>
               <TableCell>
                 {beleg.zuordnungsstatus === 'zugeordnet' ? (

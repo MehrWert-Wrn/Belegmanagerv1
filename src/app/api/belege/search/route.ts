@@ -18,13 +18,13 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('belege')
-    .select('id, lieferant, rechnungsnummer, bruttobetrag, rechnungsdatum, zuordnungsstatus, original_filename')
+    .select('id, lieferant, rechnungsnummer, rechnungsname, bruttobetrag, rechnungsdatum, zuordnungsstatus, original_filename')
     .is('geloescht_am', null)
     .order('rechnungsdatum', { ascending: false })
     .limit(100)
 
   if (nurOffen) query = query.eq('zuordnungsstatus', 'offen')
-  if (q) query = query.or(`lieferant.ilike.%${q}%,rechnungsnummer.ilike.%${q}%`)
+  if (q) query = query.or(`lieferant.ilike.%${q}%,rechnungsnummer.ilike.%${q}%,rechnungsname.ilike.%${q}%`)
   if (betragVon) query = query.gte('bruttobetrag', parseFloat(betragVon))
   if (betragBis) query = query.lte('bruttobetrag', parseFloat(betragBis))
   if (datumVon) query = query.gte('rechnungsdatum', datumVon)

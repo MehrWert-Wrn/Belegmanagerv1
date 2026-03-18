@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const securityHeaders = [
+  // CSP is set per-request in middleware.ts with a nonce (no static CSP here)
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

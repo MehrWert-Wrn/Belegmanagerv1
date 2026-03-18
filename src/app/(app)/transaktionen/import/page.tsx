@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -40,6 +41,34 @@ import {
 } from '@/lib/csv-parser'
 import type { Zahlungsquelle } from '@/lib/supabase/types'
 
+/**
+ * Converts stored column name mapping (strings) to column index mapping (numbers).
+ * Falls back to autoDetectMapping for any field not found in the stored mapping.
+ */
+function resolveMapping(
+  headers: string[],
+  storedCsvMapping: Record<string, unknown> | null | undefined
+): ColumnMapping {
+  const auto = autoDetectMapping(headers)
+  if (!storedCsvMapping) return auto
+
+  function findIndex(storedName: unknown): number | null {
+    if (typeof storedName !== 'string' || !storedName.trim()) return null
+    const idx = headers.findIndex(
+      (h) => h.trim().toLowerCase() === storedName.trim().toLowerCase()
+    )
+    return idx !== -1 ? idx : null
+  }
+
+  return {
+    datum: findIndex(storedCsvMapping.datum) ?? auto.datum,
+    betrag: findIndex(storedCsvMapping.betrag) ?? auto.betrag,
+    beschreibung: findIndex(storedCsvMapping.beschreibung) ?? auto.beschreibung,
+    iban: findIndex(storedCsvMapping.iban) ?? auto.iban,
+    referenz: findIndex(storedCsvMapping.referenz) ?? auto.referenz,
+  }
+}
+
 type WizardStep = 1 | 2 | 3
 
 const STEPS = [
@@ -50,6 +79,7 @@ const STEPS = [
 
 export default function ImportPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Wizard state
   const [step, setStep] = useState<WizardStep>(1)
@@ -59,12 +89,18 @@ export default function ImportPage() {
   const [quellenLoading, setQuellenLoading] = useState(true)
   const [quellenError, setQuellenError] = useState<string | null>(null)
   const [selectedQuelleId, setSelectedQuelleId] = useState<string | null>(null)
+  // Ref to always access current selected source inside useCallback without stale closure
+  const selectedQuelleRef = useRef<Zahlungsquelle | null>(null)
+  useEffect(() => {
+    selectedQuelleRef.current = quellen.find((q) => q.id === selectedQuelleId) ?? null
+  }, [quellen, selectedQuelleId])
 
   // Step 1: File
   const [file, setFile] = useState<File | null>(null)
   const [csvData, setCsvData] = useState<CsvParseResult | null>(null)
   const [encoding, setEncoding] = useState('auto')
   const [delimiter, setDelimiter] = useState('auto')
+  const [hasHeaderRow, setHasHeaderRow] = useState(true)
   const [parseLoading, setParseLoading] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
 
@@ -92,31 +128,14 @@ export default function ImportPage() {
         }
         const data: Zahlungsquelle[] = await response.json()
 
-        // Filter for kontoauszug type sources
-        const kontoauszugQuellen = data.filter((q) => q.typ === 'kontoauszug')
-
-        if (kontoauszugQuellen.length === 0) {
-          // Auto-create a default Kontoauszug source
-          const createResponse = await fetch('/api/zahlungsquellen', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: 'Kontoauszug',
-              typ: 'kontoauszug',
-            }),
-          })
-
-          if (!createResponse.ok) {
-            throw new Error('Standard-Zahlungsquelle konnte nicht erstellt werden.')
-          }
-
-          const newQuelle: Zahlungsquelle = await createResponse.json()
-          setQuellen([newQuelle])
-          setSelectedQuelleId(newQuelle.id)
-        } else {
-          setQuellen(kontoauszugQuellen)
-          setSelectedQuelleId(kontoauszugQuellen[0].id)
+        if (data.length === 0) {
+          throw new Error('Keine aktiven Zahlungsquellen vorhanden. Bitte zuerst eine Zahlungsquelle anlegen.')
         }
+
+        setQuellen(data)
+        const preselectedId = searchParams.get('quelle_id')
+        const match = preselectedId ? data.find((q) => q.id === preselectedId) : null
+        setSelectedQuelleId(match ? match.id : data[0].id)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unbekannter Fehler'
         setQuellenError(message)
@@ -136,11 +155,12 @@ export default function ImportPage() {
   const validTransactions = parsedTransactions.filter((t) => !t.error)
   const errorTransactions = parsedTransactions.filter((t) => t.error)
 
-  // Re-parse helper that accepts explicit encoding/delimiter values
+  // Re-parse helper that accepts explicit encoding/delimiter/hasHeaderRow values
   const reParseWith = useCallback(async (
     currentFile: File,
     enc: string,
-    delim: string
+    delim: string,
+    headerRow: boolean
   ) => {
     setParseLoading(true)
     setParseError(null)
@@ -149,11 +169,11 @@ export default function ImportPage() {
       const resolvedEnc = enc === 'auto' ? await detectEncoding(currentFile) : enc
       const resolvedDelim = delim === 'auto' ? '' : delim
 
-      const result = await parseCsvFile(currentFile, resolvedEnc, resolvedDelim)
+      const result = await parseCsvFile(currentFile, resolvedEnc, resolvedDelim, headerRow)
       setCsvData(result)
 
-      const autoMapping = autoDetectMapping(result.headers)
-      setMapping(autoMapping)
+      const storedCsvMapping = selectedQuelleRef.current?.csv_mapping as Record<string, unknown> | null
+      setMapping(resolveMapping(result.headers, storedCsvMapping))
     } catch (err) {
       setParseError(
         err instanceof Error ? err.message : 'Fehler beim Lesen der Datei.'
@@ -173,7 +193,7 @@ export default function ImportPage() {
       const enc = encoding === 'auto' ? await detectEncoding(newFile) : encoding
       const delim = delimiter === 'auto' ? '' : delimiter
 
-      const result = await parseCsvFile(newFile, enc, delim)
+      const result = await parseCsvFile(newFile, enc, delim, hasHeaderRow)
 
       if (result.rows.length === 0) {
         throw new Error('Die CSV-Datei enthalt keine Datenzeilen.')
@@ -181,9 +201,9 @@ export default function ImportPage() {
 
       setCsvData(result)
 
-      // Auto-detect column mapping
-      const autoMapping = autoDetectMapping(result.headers)
-      setMapping(autoMapping)
+      // Apply stored mapping from selected source, fall back to auto-detect for missing fields
+      const storedCsvMapping = selectedQuelleRef.current?.csv_mapping as Record<string, unknown> | null
+      setMapping(resolveMapping(result.headers, storedCsvMapping))
 
       // Auto-advance to step 2
       setStep(2)
@@ -277,7 +297,7 @@ export default function ImportPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Kontoauszug importieren
+            CSV importieren
           </h1>
           <p className="text-sm text-muted-foreground">
             CSV-Datei hochladen und Spalten zuordnen.
@@ -394,7 +414,7 @@ export default function ImportPage() {
                   value={encoding}
                   onValueChange={(v) => {
                     setEncoding(v)
-                    if (file) reParseWith(file, v, delimiter)
+                    if (file) reParseWith(file, v, delimiter, hasHeaderRow)
                   }}
                 >
                   <SelectTrigger id="encoding">
@@ -418,7 +438,7 @@ export default function ImportPage() {
                   value={delimiter}
                   onValueChange={(v) => {
                     setDelimiter(v)
-                    if (file) reParseWith(file, encoding, v)
+                    if (file) reParseWith(file, encoding, v, hasHeaderRow)
                   }}
                 >
                   <SelectTrigger id="delimiter">
@@ -432,6 +452,21 @@ export default function ImportPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Header row toggle */}
+            <div className="flex items-center gap-3">
+              <Switch
+                id="header-row"
+                checked={hasHeaderRow}
+                onCheckedChange={(v) => {
+                  setHasHeaderRow(v)
+                  if (file) reParseWith(file, encoding, delimiter, v)
+                }}
+              />
+              <Label htmlFor="header-row" className="text-sm cursor-pointer">
+                Erste Zeile enthalt Spaltenuberschriften
+              </Label>
             </div>
 
             {/* File info after parsing */}

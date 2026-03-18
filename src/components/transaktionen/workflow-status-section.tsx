@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircle2, MessageCircleQuestion, Minus } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -46,6 +46,11 @@ export function WorkflowStatusSection({
 }: WorkflowStatusSectionProps) {
   const [status, setStatus] = useState<WorkflowStatus>(initialStatus)
   const [saving, setSaving] = useState(false)
+
+  // Sync with parent when a different transaction is shown in the same mounted sheet
+  useEffect(() => {
+    setStatus(initialStatus)
+  }, [initialStatus])
 
   async function handleChange(newStatus: WorkflowStatus) {
     const previousStatus = status

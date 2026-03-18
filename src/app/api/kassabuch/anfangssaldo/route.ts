@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateKasseQuelle } from '@/lib/kassabuch'
+import { getMandantId } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -13,9 +14,9 @@ export async function PATCH(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: mandant } = await supabase
-    .from('mandanten').select('id').eq('owner_id', user.id).single()
-  if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandantId = await getMandantId(supabase)
+  if (!mandantId) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandant = { id: mandantId }
 
   const body = await request.json()
   const parsed = schema.safeParse(body)

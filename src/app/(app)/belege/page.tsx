@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, X } from 'lucide-react'
+import { Plus, Search, X, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -24,11 +24,20 @@ export default function BelegePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
   // Filters
+  const [rechnungsnameFilter, setRechnungsnameFilter] = useState('')
   const [lieferantFilter, setLieferantFilter] = useState('')
+  const [rechnungstypFilter, setRechnungstypFilter] = useState('alle')
   const [statusFilter, setStatusFilter] = useState('alle')
   const [datumVon, setDatumVon] = useState('')
   const [datumBis, setDatumBis] = useState('')
+  const [betragNettoVon, setBetragNettoVon] = useState('')
+  const [betragNettoBis, setBetragNettoBis] = useState('')
+  const [betragBruttoVon, setBetragBruttoVon] = useState('')
+  const [betragBruttoBis, setBetragBruttoBis] = useState('')
 
   // Dialog states
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -36,6 +45,7 @@ export default function BelegePage() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [deleteBeleg, setDeleteBeleg] = useState<Beleg | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   const fetchBelege = useCallback(async () => {
     setLoading(true)
@@ -43,10 +53,16 @@ export default function BelegePage() {
 
     try {
       const params = new URLSearchParams()
+      if (rechnungsnameFilter) params.set('rechnungsname', rechnungsnameFilter)
       if (lieferantFilter) params.set('lieferant', lieferantFilter)
+      if (rechnungstypFilter !== 'alle') params.set('rechnungstyp', rechnungstypFilter)
       if (statusFilter !== 'alle') params.set('status', statusFilter)
       if (datumVon) params.set('datum_von', datumVon)
       if (datumBis) params.set('datum_bis', datumBis)
+      if (betragNettoVon) params.set('betrag_netto_von', betragNettoVon)
+      if (betragNettoBis) params.set('betrag_netto_bis', betragNettoBis)
+      if (betragBruttoVon) params.set('betrag_von', betragBruttoVon)
+      if (betragBruttoBis) params.set('betrag_bis', betragBruttoBis)
 
       const response = await fetch(`/api/belege?${params.toString()}`)
       if (!response.ok) {
@@ -55,6 +71,15 @@ export default function BelegePage() {
 
       const data = await response.json()
       setBelege(data)
+      // Clear selections that are no longer in the result set
+      setSelectedIds((prev) => {
+        const dataIds = new Set(data.map((b: Beleg) => b.id))
+        const next = new Set<string>()
+        prev.forEach((id) => {
+          if (dataIds.has(id)) next.add(id)
+        })
+        return next
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler'
       setError(message)
@@ -62,11 +87,32 @@ export default function BelegePage() {
     } finally {
       setLoading(false)
     }
-  }, [lieferantFilter, statusFilter, datumVon, datumBis])
+  }, [rechnungsnameFilter, lieferantFilter, rechnungstypFilter, statusFilter, datumVon, datumBis, betragNettoVon, betragNettoBis, betragBruttoVon, betragBruttoBis])
 
   useEffect(() => {
     fetchBelege()
   }, [fetchBelege])
+
+  // Selection handlers
+  function handleSelectChange(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        next.add(id)
+      } else {
+        next.delete(id)
+      }
+      return next
+    })
+  }
+
+  function handleSelectAll(checked: boolean) {
+    if (checked) {
+      setSelectedIds(new Set(belege.map((b) => b.id)))
+    } else {
+      setSelectedIds(new Set())
+    }
+  }
 
   function handleSelect(beleg: Beleg) {
     setSelectedBeleg(beleg)
@@ -83,18 +129,44 @@ export default function BelegePage() {
     setDeleteOpen(true)
   }
 
+  function handleBulkDeleteRequest() {
+    if (selectedIds.size === 0) return
+    setBulkDeleteOpen(true)
+  }
+
+  function handleBulkDeleted() {
+    setSelectedIds(new Set())
+    fetchBelege()
+  }
+
+  const hasMatchedBelegeInSelection = belege.some(
+    (b) => selectedIds.has(b.id) && b.zuordnungsstatus === 'zugeordnet'
+  )
+
   function clearFilters() {
+    setRechnungsnameFilter('')
     setLieferantFilter('')
+    setRechnungstypFilter('alle')
     setStatusFilter('alle')
     setDatumVon('')
     setDatumBis('')
+    setBetragNettoVon('')
+    setBetragNettoBis('')
+    setBetragBruttoVon('')
+    setBetragBruttoBis('')
   }
 
   const hasFilters =
+    rechnungsnameFilter !== '' ||
     lieferantFilter !== '' ||
+    rechnungstypFilter !== 'alle' ||
     statusFilter !== 'alle' ||
     datumVon !== '' ||
-    datumBis !== ''
+    datumBis !== '' ||
+    betragNettoVon !== '' ||
+    betragNettoBis !== '' ||
+    betragBruttoVon !== '' ||
+    betragBruttoBis !== ''
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8">
@@ -106,83 +178,198 @@ export default function BelegePage() {
             Verwalten Sie Ihre Eingangsrechnungen und Belege.
           </p>
         </div>
-        <Button onClick={() => setUploadOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Beleg hochladen
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <Button
+              variant="destructive"
+              onClick={handleBulkDeleteRequest}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {selectedIds.size} loschen
+            </Button>
+          )}
+          <Button onClick={() => setUploadOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Beleg hochladen
+          </Button>
+        </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-end">
-        <div className="flex-1 space-y-1">
-          <label htmlFor="filter-lieferant" className="text-xs font-medium text-muted-foreground">
-            Lieferant
-          </label>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="filter-lieferant"
-              placeholder="Suchen..."
-              value={lieferantFilter}
-              onChange={(e) => setLieferantFilter(e.target.value)}
-              className="pl-8"
-            />
+      {/* Filter bar - 2 rows */}
+      <div className="space-y-3 rounded-lg border bg-card p-4">
+        {/* Row 1: Text filters + Dropdowns */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1 space-y-1">
+            <label htmlFor="filter-rechnungsname" className="text-xs font-medium text-muted-foreground">
+              Rechnungsname
+            </label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="filter-rechnungsname"
+                placeholder="Suchen..."
+                value={rechnungsnameFilter}
+                onChange={(e) => setRechnungsnameFilter(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-1">
+            <label htmlFor="filter-lieferant" className="text-xs font-medium text-muted-foreground">
+              Lieferant
+            </label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="filter-lieferant"
+                placeholder="Suchen..."
+                value={lieferantFilter}
+                onChange={(e) => setLieferantFilter(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Rechnungstyp
+            </label>
+            <Select value={rechnungstypFilter} onValueChange={setRechnungstypFilter}>
+              <SelectTrigger className="w-full sm:w-44" aria-label="Rechnungstyp filtern">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alle">Alle</SelectItem>
+                <SelectItem value="eingangsrechnung">Eingangsrechnung</SelectItem>
+                <SelectItem value="ausgangsrechnung">Ausgangsrechnung</SelectItem>
+                <SelectItem value="gutschrift">Gutschrift</SelectItem>
+                <SelectItem value="sonstiges">Sonstiges</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Status
+            </label>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-36" aria-label="Status filtern">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alle">Alle</SelectItem>
+                <SelectItem value="offen">Offen</SelectItem>
+                <SelectItem value="zugeordnet">Zugeordnet</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label htmlFor="filter-datum-von" className="text-xs font-medium text-muted-foreground">
-            Datum von
-          </label>
-          <Input
-            id="filter-datum-von"
-            type="date"
-            value={datumVon}
-            onChange={(e) => setDatumVon(e.target.value)}
-            className="w-full sm:w-40"
-          />
-        </div>
+        {/* Row 2: Date + Amount range filters */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="space-y-1">
+            <label htmlFor="filter-datum-von" className="text-xs font-medium text-muted-foreground">
+              Datum von
+            </label>
+            <Input
+              id="filter-datum-von"
+              type="date"
+              value={datumVon}
+              onChange={(e) => setDatumVon(e.target.value)}
+              className="w-full sm:w-40"
+            />
+          </div>
 
-        <div className="space-y-1">
-          <label htmlFor="filter-datum-bis" className="text-xs font-medium text-muted-foreground">
-            Datum bis
-          </label>
-          <Input
-            id="filter-datum-bis"
-            type="date"
-            value={datumBis}
-            onChange={(e) => setDatumBis(e.target.value)}
-            className="w-full sm:w-40"
-          />
-        </div>
+          <div className="space-y-1">
+            <label htmlFor="filter-datum-bis" className="text-xs font-medium text-muted-foreground">
+              Datum bis
+            </label>
+            <Input
+              id="filter-datum-bis"
+              type="date"
+              value={datumBis}
+              onChange={(e) => setDatumBis(e.target.value)}
+              className="w-full sm:w-40"
+            />
+          </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Status
-          </label>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-36" aria-label="Status filtern">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="alle">Alle</SelectItem>
-              <SelectItem value="offen">Offen</SelectItem>
-              <SelectItem value="zugeordnet">Zugeordnet</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+          <div className="space-y-1">
+            <label htmlFor="filter-netto-von" className="text-xs font-medium text-muted-foreground">
+              Netto von
+            </label>
+            <Input
+              id="filter-netto-von"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={betragNettoVon}
+              onChange={(e) => setBetragNettoVon(e.target.value)}
+              className="w-full sm:w-28"
+            />
+          </div>
 
-        {hasFilters && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={clearFilters}
-            className="shrink-0"
-            aria-label="Filter zurucksetzen"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
+          <div className="space-y-1">
+            <label htmlFor="filter-netto-bis" className="text-xs font-medium text-muted-foreground">
+              Netto bis
+            </label>
+            <Input
+              id="filter-netto-bis"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={betragNettoBis}
+              onChange={(e) => setBetragNettoBis(e.target.value)}
+              className="w-full sm:w-28"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="filter-brutto-von" className="text-xs font-medium text-muted-foreground">
+              Brutto von
+            </label>
+            <Input
+              id="filter-brutto-von"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={betragBruttoVon}
+              onChange={(e) => setBetragBruttoVon(e.target.value)}
+              className="w-full sm:w-28"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="filter-brutto-bis" className="text-xs font-medium text-muted-foreground">
+              Brutto bis
+            </label>
+            <Input
+              id="filter-brutto-bis"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={betragBruttoBis}
+              onChange={(e) => setBetragBruttoBis(e.target.value)}
+              className="w-full sm:w-28"
+            />
+          </div>
+
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={clearFilters}
+              className="shrink-0"
+              aria-label="Filter zuruecksetzen"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Error state */}
@@ -203,6 +390,9 @@ export default function BelegePage() {
       <BelegTabelle
         belege={belege}
         loading={loading}
+        selectedIds={selectedIds}
+        onSelectChange={handleSelectChange}
+        onSelectAll={handleSelectAll}
         onSelect={handleSelect}
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
@@ -222,11 +412,23 @@ export default function BelegePage() {
         onUpdated={fetchBelege}
       />
 
+      {/* Single delete dialog */}
       <BelegLoeschenDialog
         beleg={deleteBeleg}
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         onDeleted={fetchBelege}
+      />
+
+      {/* Bulk delete dialog */}
+      <BelegLoeschenDialog
+        mode="bulk"
+        belegIds={Array.from(selectedIds)}
+        belegCount={selectedIds.size}
+        hasMatchedBelege={hasMatchedBelegeInSelection}
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        onDeleted={handleBulkDeleted}
       />
     </div>
   )

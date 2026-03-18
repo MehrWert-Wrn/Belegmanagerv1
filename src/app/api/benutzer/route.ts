@@ -24,7 +24,7 @@ export async function GET() {
   // Fetch mandant_users for this mandant
   const { data: users, error } = await supabase
     .from('mandant_users')
-    .select('id, user_id, email, rolle, aktiv, eingeladen_am, einladung_angenommen_am')
+    .select('id, user_id, email, name, rolle, aktiv, eingeladen_am, einladung_angenommen_am')
     .eq('mandant_id', mandantId)
     .order('eingeladen_am', { ascending: true })
 
@@ -37,16 +37,23 @@ export async function GET() {
   const userIds = (users ?? []).filter(u => u.user_id).map(u => u.user_id as string)
 
   const signInMap: Record<string, string | null> = {}
+  const nameMap: Record<string, string | null> = {}
   if (userIds.length > 0) {
-    // Fetch all users from auth in one call
-    const { data: authData } = await adminClient.auth.admin.listUsers({
-      perPage: 100,
-    })
-    if (authData?.users) {
-      for (const authUser of authData.users) {
-        if (userIds.includes(authUser.id)) {
-          signInMap[authUser.id] = authUser.last_sign_in_at ?? null
-        }
+    // Query only the specific auth users we need — never fetch across tenants
+    const { data: authUsers } = await adminClient
+      .schema('auth')
+      .from('users')
+      .select('id, last_sign_in_at, raw_user_meta_data')
+      .in('id', userIds)
+
+    if (authUsers) {
+      for (const authUser of authUsers) {
+        signInMap[authUser.id] = authUser.last_sign_in_at ?? null
+        const meta = authUser.raw_user_meta_data as Record<string, unknown> | null
+        nameMap[authUser.id] =
+          (meta?.full_name as string | undefined) ??
+          (meta?.name as string | undefined) ??
+          null
       }
     }
   }
@@ -55,6 +62,7 @@ export async function GET() {
     id: u.id,
     user_id: u.user_id,
     email: u.email,
+    name: u.name ?? (u.user_id ? (nameMap[u.user_id] ?? null) : null),
     rolle: u.rolle,
     aktiv: u.aktiv,
     eingeladen_am: u.eingeladen_am,

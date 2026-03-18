@@ -95,7 +95,7 @@ export function MatchingStatusBar({
             </div>
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <CircleDot className="h-3.5 w-3.5 text-red-500" />
-              <span>{stats.offen + (stats.total - stats.bestaetigt - stats.vorgeschlagen - stats.offen)} offen</span>
+              <span>{stats.offen} offen</span>
             </div>
           </div>
 

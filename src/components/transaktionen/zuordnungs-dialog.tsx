@@ -119,7 +119,7 @@ export function ZuordnungsDialog({
       const transaktionAbs = Math.abs(transaktion.betrag)
       const diff = Math.abs(transaktionAbs - selectedBeleg.bruttobetrag)
       const pct = selectedBeleg.bruttobetrag > 0 ? diff / selectedBeleg.bruttobetrag : 0
-      if (pct > 0.05) {
+      if (pct >= 0.1) {
         w.push(
           `Betragsabweichung: Transaktion ${formatCurrency(transaktionAbs)} vs. Beleg ${formatCurrency(selectedBeleg.bruttobetrag)} (${Math.round(pct * 100)}% Differenz)`
         )
@@ -276,7 +276,7 @@ export function ZuordnungsDialog({
                       amountDiff !== null &&
                       beleg.bruttobetrag !== null &&
                       beleg.bruttobetrag > 0 &&
-                      amountDiff / beleg.bruttobetrag > 0.05
+                      amountDiff / beleg.bruttobetrag >= 0.1
 
                     return (
                       <button

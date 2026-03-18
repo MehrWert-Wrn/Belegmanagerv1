@@ -17,37 +17,70 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { Beleg } from '@/lib/supabase/types'
 
-interface BelegLoeschenDialogProps {
+interface BelegLoeschenDialogSingleProps {
+  mode?: 'single'
   beleg: Beleg | null
+  belegIds?: never
+  belegCount?: never
+  hasMatchedBelege?: never
   open: boolean
   onOpenChange: (open: boolean) => void
   onDeleted: () => void
 }
 
-export function BelegLoeschenDialog({
-  beleg,
-  open,
-  onOpenChange,
-  onDeleted,
-}: BelegLoeschenDialogProps) {
+interface BelegLoeschenDialogBulkProps {
+  mode: 'bulk'
+  beleg?: never
+  belegIds: string[]
+  belegCount: number
+  hasMatchedBelege: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onDeleted: () => void
+}
+
+type BelegLoeschenDialogProps = BelegLoeschenDialogSingleProps | BelegLoeschenDialogBulkProps
+
+export function BelegLoeschenDialog(props: BelegLoeschenDialogProps) {
+  const { open, onOpenChange, onDeleted } = props
   const [deleting, setDeleting] = useState(false)
 
+  const isBulk = props.mode === 'bulk'
+
   async function handleDelete() {
-    if (!beleg) return
     setDeleting(true)
 
     try {
-      const response = await fetch(`/api/belege/${beleg.id}`, {
-        method: 'DELETE',
-      })
+      if (isBulk) {
+        const response = await fetch('/api/belege', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: props.belegIds }),
+        })
 
-      if (!response.ok) {
-        const err = await response.json()
-        toast.error(`Fehler beim Loschen: ${err.error || 'Unbekannter Fehler'}`)
-        return
+        if (!response.ok) {
+          const err = await response.json()
+          toast.error(`Fehler beim Loschen: ${err.error || 'Unbekannter Fehler'}`)
+          return
+        }
+
+        toast.success(`${props.belegCount} Belege wurden geloscht`)
+      } else {
+        if (!props.beleg) return
+
+        const response = await fetch(`/api/belege/${props.beleg.id}`, {
+          method: 'DELETE',
+        })
+
+        if (!response.ok) {
+          const err = await response.json()
+          toast.error(`Fehler beim Loschen: ${err.error || 'Unbekannter Fehler'}`)
+          return
+        }
+
+        toast.success('Beleg wurde geloscht')
       }
 
-      toast.success('Beleg wurde geloscht')
       onOpenChange(false)
       onDeleted()
     } catch {
@@ -57,25 +90,33 @@ export function BelegLoeschenDialog({
     }
   }
 
-  const isMatched = beleg?.zuordnungsstatus === 'zugeordnet'
+  const showMatchWarning = isBulk
+    ? props.hasMatchedBelege
+    : props.beleg?.zuordnungsstatus === 'zugeordnet'
+
+  const title = isBulk
+    ? `${props.belegCount} Belege loschen?`
+    : 'Beleg loschen?'
+
+  const description = isBulk
+    ? `Moechten Sie wirklich ${props.belegCount} Belege loschen? Diese Aktion kann nicht rueckgaengig gemacht werden.`
+    : `Moechten Sie den Beleg "${props.beleg?.rechnungsname || props.beleg?.original_filename}" wirklich loschen? Diese Aktion kann nicht rueckgaengig gemacht werden.`
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Beleg loschen?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Mochten Sie den Beleg &quot;{beleg?.original_filename}&quot; wirklich loschen?
-            Diese Aktion kann nicht ruckgangig gemacht werden.
-          </AlertDialogDescription>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
 
-        {isMatched && (
+        {showMatchWarning && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Dieser Beleg ist bereits einer Transaktion zugeordnet.
-              Die Zuordnung wird aufgehoben, wenn Sie fortfahren.
+              {isBulk
+                ? 'Einige der ausgewaehlten Belege sind bereits Transaktionen zugeordnet. Die Zuordnungen werden aufgehoben, wenn Sie fortfahren.'
+                : 'Dieser Beleg ist bereits einer Transaktion zugeordnet. Die Zuordnung wird aufgehoben, wenn Sie fortfahren.'}
             </AlertDescription>
           </Alert>
         )}

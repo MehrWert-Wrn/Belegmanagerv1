@@ -147,6 +147,7 @@ export function BenutzerTabelle({ users, loading, onRefresh }: BenutzerTabellePr
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Name</TableHead>
             <TableHead>E-Mail</TableHead>
             <TableHead>Rolle</TableHead>
             <TableHead>Status</TableHead>
@@ -158,7 +159,10 @@ export function BenutzerTabelle({ users, loading, onRefresh }: BenutzerTabellePr
         <TableBody>
           {users.map((user) => (
             <TableRow key={user.id}>
-              <TableCell className="font-medium">{user.email}</TableCell>
+              <TableCell className="font-medium">
+                {user.name ?? <span className="text-muted-foreground">-</span>}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">{user.email}</TableCell>
               <TableCell>
                 <RolleBadge rolle={user.rolle} />
               </TableCell>

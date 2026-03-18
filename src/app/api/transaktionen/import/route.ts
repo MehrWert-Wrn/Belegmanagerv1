@@ -4,17 +4,17 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 const transaktionSchema = z.object({
-  datum: z.string(),
+  datum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Datum muss im Format JJJJ-MM-TT sein'),
   betrag: z.number(),
-  beschreibung: z.string().optional(),
-  iban_gegenseite: z.string().optional(),
-  bic_gegenseite: z.string().optional(),
-  buchungsreferenz: z.string().optional(),
+  beschreibung: z.string().max(1000).optional(),
+  iban_gegenseite: z.string().max(34).optional(),
+  bic_gegenseite: z.string().max(11).optional(),
+  buchungsreferenz: z.string().max(255).optional(),
 })
 
 const importSchema = z.object({
   quelle_id: z.string().uuid(),
-  dateiname: z.string(),
+  dateiname: z.string().max(255),
   transaktionen: z.array(transaktionSchema).min(1).max(5000),
 })
 
@@ -30,14 +30,45 @@ export async function POST(request: Request) {
 
   const { quelle_id, dateiname, transaktionen } = parsed.data
 
-  const { data: mandant } = await supabase
-    .from('mandanten').select('id').eq('owner_id', user.id).single()
-  if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const { data: mandant_id } = await supabase.rpc('get_mandant_id')
+  if (!mandant_id) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
 
-  const mandant_id = mandant.id
+  // quelle_id muss zum Mandanten des Users gehören
+  const { data: quelle } = await supabase
+    .from('zahlungsquellen')
+    .select('id')
+    .eq('id', quelle_id)
+    .eq('mandant_id', mandant_id)
+    .single()
+  if (!quelle) return NextResponse.json({ error: 'Zahlungsquelle nicht gefunden' }, { status: 404 })
+
   let anzahl_importiert = 0
   let anzahl_duplikate = 0
   let anzahl_fehler = 0
+  let anzahl_gesperrte_monate = 0
+
+  // Schritt 0: Gesperrte Monate prüfen (Monatsabschluss-Lock)
+  const uniqueMonths = new Set(
+    transaktionen
+      .filter(t => /^\d{4}-\d{2}-\d{2}$/.test(t.datum))
+      .map(t => {
+        const [year, month] = t.datum.split('-')
+        return `${year}-${month}`
+      })
+  )
+  const closedMonths = new Set<string>()
+  if (uniqueMonths.size > 0) {
+    const uniqueJahre = [...new Set([...uniqueMonths].map(m => parseInt(m.split('-')[0])))]
+    const { data: abschluesse } = await supabase
+      .from('monatsabschluesse')
+      .select('jahr, monat')
+      .eq('mandant_id', mandant_id)
+      .eq('status', 'abgeschlossen')
+      .in('jahr', uniqueJahre)
+    for (const a of (abschluesse ?? [])) {
+      closedMonths.add(`${a.jahr}-${String(a.monat).padStart(2, '0')}`)
+    }
+  }
 
   // Schritt 1: Bestehende Transaktionen für Duplikat-Check laden
   // (nur Datum+Betrag+Referenz-Kombinationen des letzten Jahres für Performance)
@@ -64,6 +95,13 @@ export async function POST(request: Request) {
   for (const t of transaktionen) {
     if (!t.datum || t.betrag === undefined) { anzahl_fehler++; continue }
 
+    // Gesperrten Monat prüfen
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t.datum)) {
+      const [year, month] = t.datum.split('-')
+      const monthKey = `${year}-${month}`
+      if (closedMonths.has(monthKey)) { anzahl_gesperrte_monate++; continue }
+    }
+
     const key = `${t.datum}|${t.betrag}|${t.buchungsreferenz ?? ''}|${t.beschreibung ?? ''}`
     if (existingSet.has(key)) { anzahl_duplikate++; continue }
 
@@ -79,22 +117,30 @@ export async function POST(request: Request) {
     })
   }
 
-  // Schritt 3: Batch-Insert (in 500er-Chunks für große Dateien)
-  const CHUNK_SIZE = 500
-  for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
-    const chunk = toInsert.slice(i, i + CHUNK_SIZE)
+  // Schritt 3: Einzelner Batch-Insert (atomar – entweder alle oder keine)
+  // Bei DB-Unique-Verletzung (Race Condition): Fallback auf Zeile-für-Zeile
+  if (toInsert.length > 0) {
     const { error } = await supabase
       .from('transaktionen')
-      .insert(chunk)
-      // ON CONFLICT ignorieren (DB-seitiger Duplikatschutz als Fallback)
-      // Supabase unterstützt kein upsert-ignore nativ, daher via onConflict do nothing
-      .select('id')
+      .insert(toInsert)
 
-    if (error) {
-      // Zähle fehlgeschlagene Rows als Fehler
-      anzahl_fehler += chunk.length
+    if (!error) {
+      anzahl_importiert += toInsert.length
+    } else if (error.code === '23505') {
+      // Unique-Verletzung durch Race Condition (zwei parallele Imports)
+      // Zeile-für-Zeile einfügen, um Duplikate exakt zu zählen
+      for (const row of toInsert) {
+        const { error: rowError } = await supabase.from('transaktionen').insert(row)
+        if (!rowError) {
+          anzahl_importiert++
+        } else if (rowError.code === '23505') {
+          anzahl_duplikate++
+        } else {
+          anzahl_fehler++
+        }
+      }
     } else {
-      anzahl_importiert += chunk.length
+      anzahl_fehler += toInsert.length
     }
   }
 
@@ -121,7 +167,7 @@ export async function POST(request: Request) {
 
     const { data: offeneBelege } = await supabase
       .from('belege')
-      .select('id, lieferant, rechnungsnummer, bruttobetrag, rechnungsdatum')
+      .select('id, lieferant, lieferant_iban, rechnungsnummer, bruttobetrag, rechnungsdatum')
       .eq('mandant_id', mandant_id)
       .eq('zuordnungsstatus', 'offen')
       .is('geloescht_am', null)
@@ -153,6 +199,7 @@ export async function POST(request: Request) {
     anzahl_importiert,
     anzahl_duplikate,
     anzahl_fehler,
+    anzahl_gesperrte_monate,
     gesamt: transaktionen.length,
     matching_quote,
   })

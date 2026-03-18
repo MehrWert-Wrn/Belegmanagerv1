@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { isMonatGesperrt } from '@/lib/monat-lock'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -19,12 +20,19 @@ export async function POST(request: Request) {
 
   const { transaktion_id, beleg_id } = parsed.data
 
-  // Aktuell abgelehnte Belege holen
+  // Transaktion holen für Monat-Lock-Check und Ablehnungsliste
   const { data: transaktion } = await supabase
     .from('transaktionen')
-    .select('match_abgelehnte_beleg_ids')
+    .select('datum, mandant_id, match_abgelehnte_beleg_ids')
     .eq('id', transaktion_id)
     .single()
+
+  if (!transaktion) return NextResponse.json({ error: 'Transaktion nicht gefunden' }, { status: 404 })
+
+  // BUG-PROJ6-004: Monat-Lock prüfen
+  if (await isMonatGesperrt(supabase, transaktion.mandant_id, transaktion.datum)) {
+    return NextResponse.json({ error: 'Monat ist abgeschlossen' }, { status: 403 })
+  }
 
   const abgelehnte = [
     ...(transaktion?.match_abgelehnte_beleg_ids ?? []),
@@ -32,7 +40,7 @@ export async function POST(request: Request) {
   ]
 
   // Transaktion zurück auf offen + Beleg-ID in Ablehnungsliste
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('transaktionen')
     .update({
       match_status: 'offen',
@@ -42,8 +50,10 @@ export async function POST(request: Request) {
       match_abgelehnte_beleg_ids: abgelehnte,
     })
     .eq('id', transaktion_id)
+    .select('id')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!updated?.length) return NextResponse.json({ error: 'Transaktion nicht gefunden oder keine Berechtigung' }, { status: 404 })
 
   // Beleg wieder auf offen (falls er durch diesen Match zugeordnet war)
   await supabase

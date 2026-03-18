@@ -1,5 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
+import { getMandantId } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
+
+const paramsSchema = z.object({
+  jahr: z.coerce.number().int().min(2000).max(2100),
+  monat: z.coerce.number().int().min(1).max(12),
+})
 
 type Params = { params: Promise<{ jahr: string; monat: string }> }
 
@@ -10,12 +17,13 @@ export async function GET(_request: Request, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { jahr: jahrStr, monat: monatStr } = await params
-  const jahr = parseInt(jahrStr)
-  const monat = parseInt(monatStr)
+  const parsed = paramsSchema.safeParse({ jahr: jahrStr, monat: monatStr })
+  if (!parsed.success) return NextResponse.json({ error: 'Ungueltige Parameter' }, { status: 400 })
+  const { jahr, monat } = parsed.data
 
-  const { data: mandant } = await supabase
-    .from('mandanten').select('id').eq('owner_id', user.id).single()
-  if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandantId = await getMandantId(supabase)
+  if (!mandantId) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+  const mandant = { id: mandantId }
 
   // Monat muss abgeschlossen sein
   const { data: abschluss } = await supabase

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { requireAuth, requireAdmin, getMandantId } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -12,21 +13,26 @@ type Params = { params: Promise<{ jahr: string; monat: string }> }
 // POST /api/monatsabschluss/[jahr]/[monat]/schliessen
 export async function POST(request: Request, { params }: Params) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const auth = await requireAuth(supabase)
+  if (auth.error) return auth.error
+  const user = auth.user!
+
+  const admin = await requireAdmin(supabase)
+  if (admin.error) return admin.error
 
   const { jahr: jahrStr, monat: monatStr } = await params
   const jahr = parseInt(jahrStr)
   const monat = parseInt(monatStr)
+  if (isNaN(jahr) || isNaN(monat) || monat < 1 || monat > 12 || jahr < 2000 || jahr > 2100) {
+    return NextResponse.json({ error: 'Ungültige Parameter' }, { status: 400 })
+  }
 
   const body = await request.json().catch(() => ({}))
   const { force } = schema.parse(body)
 
-  const { data: mandant } = await supabase
-    .from('mandanten').select('id').eq('owner_id', user.id).single()
-  if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
-
-  const mandant_id = mandant.id
+  const mandant_id = await getMandantId(supabase)
+  if (!mandant_id) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
 
   // Bereits abgeschlossen?
   const { data: existing } = await supabase

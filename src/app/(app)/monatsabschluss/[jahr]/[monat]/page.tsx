@@ -159,6 +159,8 @@ export default function MonatsDetailPage() {
             anzahl_offen: 0,
             anzahl_transaktionen: 0,
             alle_quellen_haben_import: false,
+            kassa_saldo: null,
+            kassa_saldo_positiv: null,
           }}
           loading={loading}
         />

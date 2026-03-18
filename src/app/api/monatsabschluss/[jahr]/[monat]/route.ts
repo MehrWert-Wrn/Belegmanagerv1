@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { getMandantId } from '@/lib/auth-helpers'
+import { getOrCreateKasseQuelle } from '@/lib/kassabuch'
 import { NextResponse } from 'next/server'
 
 type Params = { params: Promise<{ jahr: string; monat: string }> }
@@ -12,13 +14,12 @@ export async function GET(_request: Request, { params }: Params) {
   const { jahr: jahrStr, monat: monatStr } = await params
   const jahr = parseInt(jahrStr)
   const monat = parseInt(monatStr)
-  if (isNaN(jahr) || isNaN(monat)) return NextResponse.json({ error: 'Ungültige Parameter' }, { status: 400 })
+  if (isNaN(jahr) || isNaN(monat) || monat < 1 || monat > 12 || jahr < 2000 || jahr > 2100) {
+    return NextResponse.json({ error: 'Ungültige Parameter' }, { status: 400 })
+  }
 
-  const { data: mandant } = await supabase
-    .from('mandanten').select('id').eq('owner_id', user.id).single()
-  if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
-
-  const mandant_id = mandant.id
+  const mandant_id = await getMandantId(supabase)
+  if (!mandant_id) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
 
   // Monatsabschluss-Record (lazy – kann noch nicht existieren)
   const { data: abschluss } = await supabase
@@ -52,19 +53,39 @@ export async function GET(_request: Request, { params }: Params) {
   const quellenMitTransaktionen = new Set((transaktionen ?? []).map(t => t.quelle_id))
   const offeneTransaktionen = (transaktionen ?? []).filter(t => t.match_status === 'offen')
 
+  // BUG-PROJ8-002 fix: anzahl_offen pro Zahlungsquelle
   const quellenPruefung = (quellen ?? []).map(q => ({
     quelle_id: q.id,
     quelle_name: q.name,
     typ: q.typ,
     hat_transaktionen: quellenMitTransaktionen.has(q.id),
+    anzahl_offen: (transaktionen ?? []).filter(t => t.quelle_id === q.id && t.match_status === 'offen').length,
   }))
 
   const alleQuellenHabenImport = quellenPruefung.every(q => q.hat_transaktionen)
   const anzahlOffen = offeneTransaktionen.length
 
+  // BUG-PROJ8-001 fix: Kassabuch-Saldo am Monatsende prüfen
+  let kassa_saldo: number | null = null
+  let kassa_saldo_positiv: boolean | null = null
+  const kasse = await getOrCreateKasseQuelle(supabase, mandant_id)
+  if (kasse) {
+    const { data: kassaEintraege } = await supabase
+      .from('transaktionen')
+      .select('betrag')
+      .eq('quelle_id', kasse.id)
+      .lte('datum', bisDatum)
+      .is('geloescht_am', null)
+
+    if (kassaEintraege) {
+      kassa_saldo = kasse.anfangssaldo + kassaEintraege.reduce((acc, t) => acc + t.betrag, 0)
+      kassa_saldo_positiv = kassa_saldo >= 0
+    }
+  }
+
   // Ampelstatus der Prüfung
   let pruefung_ampel: 'gruen' | 'gelb' | 'rot'
-  if (alleQuellenHabenImport && anzahlOffen === 0) pruefung_ampel = 'gruen'
+  if (alleQuellenHabenImport && anzahlOffen === 0 && kassa_saldo_positiv !== false) pruefung_ampel = 'gruen'
   else if (!alleQuellenHabenImport) pruefung_ampel = 'rot'
   else pruefung_ampel = 'gelb'
 
@@ -81,6 +102,8 @@ export async function GET(_request: Request, { params }: Params) {
       anzahl_offen: anzahlOffen,
       anzahl_transaktionen: (transaktionen ?? []).length,
       alle_quellen_haben_import: alleQuellenHabenImport,
+      kassa_saldo,
+      kassa_saldo_positiv,
     },
   })
 }

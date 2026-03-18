@@ -9,6 +9,7 @@ const einladungSchema = z.object({
   rolle: z.enum(['admin', 'buchhalter'], {
     error: 'Rolle muss "admin" oder "buchhalter" sein',
   }),
+  name: z.string().max(255).optional(),
 })
 
 // POST /api/benutzer/einladen - Invite a new user to the mandant
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const { email, rolle } = parsed.data
+  const { email, rolle, name } = parsed.data
 
   // Get mandant_id
   const mandantId = await getMandantId(supabase)
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
       mandant_id: mandantId,
       email: email.toLowerCase(),
       rolle,
+      ...(name ? { name } : {}),
     })
     .select('id, email, rolle, aktiv, eingeladen_am, einladung_angenommen_am, einladung_token')
     .single()
@@ -99,26 +101,48 @@ export async function POST(request: Request) {
   const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
     email.toLowerCase(),
     {
-      redirectTo: `${siteUrl}/login?invited=true`,
+      redirectTo: `${siteUrl}/auth/callback?type=invite&next=/dashboard`,
     }
   )
 
-  // If invite fails because user already exists, that's okay
-  if (inviteError && !inviteError.message.includes('already been registered')) {
+  // If the email is already registered, link the existing auth user immediately
+  // so mandant_users.user_id is populated without waiting for a callback.
+  let linkedUserId: string | null = null
+  let linkedAt: string | null = null
+
+  if (inviteError?.message.includes('already been registered')) {
+    const { data: existingAuthUser } = await adminClient
+      .schema('auth')
+      .from('users')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .maybeSingle()
+
+    if (existingAuthUser?.id) {
+      linkedUserId = existingAuthUser.id
+      linkedAt = new Date().toISOString()
+      await supabase
+        .from('mandant_users')
+        .update({
+          user_id: linkedUserId,
+          einladung_angenommen_am: linkedAt,
+        })
+        .eq('id', newUser.id)
+    }
+  } else if (inviteError) {
     console.error('Invite email error:', inviteError.message)
-    // Don't fail the request - the user record was created successfully
   }
 
   return NextResponse.json(
     {
       data: {
         id: newUser.id,
-        user_id: null,
+        user_id: linkedUserId,
         email: newUser.email,
         rolle: newUser.rolle,
         aktiv: newUser.aktiv,
         eingeladen_am: newUser.eingeladen_am,
-        einladung_angenommen_am: newUser.einladung_angenommen_am,
+        einladung_angenommen_am: linkedAt,
         last_sign_in_at: null,
       },
     },

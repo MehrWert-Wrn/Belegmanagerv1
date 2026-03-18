@@ -115,7 +115,11 @@ export function ExportDialog({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        throw new Error(errorData?.error ?? `Export fehlgeschlagen (${response.status})`)
+        const msg = errorData?.error ?? `Export fehlgeschlagen (${response.status})`
+        if (response.status === 413) {
+          throw new Error(`${msg} (${errorData?.anzahl_belege ?? '?'} Belege vorhanden)`)
+        }
+        throw new Error(msg)
       }
 
       setExportProgress(90)
@@ -392,7 +396,7 @@ export function ExportDialog({
           {vorschau && !vorschauLoading && (
             <Button
               onClick={handleExport}
-              disabled={exporting || vorschauLoading}
+              disabled={exporting || vorschauLoading || !hatTransaktionen}
             >
               {exporting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

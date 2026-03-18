@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Building2,
   CreditCard,
@@ -10,6 +11,7 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
+  Upload,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -67,6 +69,7 @@ export function QuelleKarte({
   onToggled,
   canActivate,
 }: QuelleKarteProps) {
+  const router = useRouter()
   const [toggling, setToggling] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -156,6 +159,17 @@ export function QuelleKarte({
               aria-label={`${quelle.name} ${quelle.aktiv ? 'deaktivieren' : 'aktivieren'}`}
             />
           </div>
+          {quelle.aktiv && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => router.push(`/transaktionen/import?quelle_id=${quelle.id}`)}
+            >
+              <Upload className="mr-2 h-3.5 w-3.5" />
+              CSV importieren
+            </Button>
+          )}
         </CardContent>
       </Card>
 

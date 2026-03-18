@@ -11,46 +11,63 @@ export type Database = {
     Tables: {
       belege: {
         Row: {
+          beschreibung: string | null
           bruttobetrag: number | null
           dateityp: string
           erstellt_am: string
           faelligkeitsdatum: string | null
           geloescht_am: string | null
           id: string
+          import_quelle: Database['public']['Enums']['import_quelle']
           lieferant: string | null
+          lieferant_iban: string | null
           mandant_id: string
           mwst_satz: number | null
           nettobetrag: number | null
           original_filename: string
           rechnungsdatum: string | null
+          rechnungsname: string | null
           rechnungsnummer: string | null
+          rechnungstyp: Database['public']['Enums']['rechnungstyp']
           storage_path: string
+          uid_lieferant: string | null
           zuordnungsstatus: Database['public']['Enums']['zuordnungsstatus']
         }
         Insert: {
+          beschreibung?: string | null
           bruttobetrag?: number | null
           dateityp: string
           faelligkeitsdatum?: string | null
           id?: string
+          import_quelle?: Database['public']['Enums']['import_quelle']
           lieferant?: string | null
+          lieferant_iban?: string | null
           mandant_id: string
           mwst_satz?: number | null
           nettobetrag?: number | null
           original_filename: string
           rechnungsdatum?: string | null
+          rechnungsname?: string | null
           rechnungsnummer?: string | null
+          rechnungstyp?: Database['public']['Enums']['rechnungstyp']
           storage_path: string
+          uid_lieferant?: string | null
           zuordnungsstatus?: Database['public']['Enums']['zuordnungsstatus']
         }
         Update: {
+          beschreibung?: string | null
           bruttobetrag?: number | null
           faelligkeitsdatum?: string | null
           geloescht_am?: string | null
           lieferant?: string | null
+          lieferant_iban?: string | null
           mwst_satz?: number | null
           nettobetrag?: number | null
           rechnungsdatum?: string | null
+          rechnungsname?: string | null
           rechnungsnummer?: string | null
+          rechnungstyp?: Database['public']['Enums']['rechnungstyp']
+          uid_lieferant?: string | null
           zuordnungsstatus?: Database['public']['Enums']['zuordnungsstatus']
         }
       }
@@ -243,6 +260,8 @@ export type Database = {
     }
     Enums: {
       match_status: 'offen' | 'vorgeschlagen' | 'bestaetigt' | 'kein_beleg'
+      rechnungstyp: 'eingangsrechnung' | 'ausgangsrechnung' | 'gutschrift' | 'sonstiges'
+      import_quelle: 'manuell' | 'n8n_import'
       workflow_status: 'normal' | 'rueckfrage' | 'erledigt'
       zahlungsquelle_typ: 'kontoauszug' | 'kassa' | 'kreditkarte' | 'paypal' | 'sonstige'
       zuordnungsstatus: 'offen' | 'zugeordnet'
@@ -267,6 +286,8 @@ export type Zuordnungsstatus = Database['public']['Enums']['zuordnungsstatus']
 export type MatchStatus = Database['public']['Enums']['match_status']
 export type WorkflowStatus = Database['public']['Enums']['workflow_status']
 export type ZahlungsquelleTyp = Database['public']['Enums']['zahlungsquelle_typ']
+export type Rechnungstyp = Database['public']['Enums']['rechnungstyp']
+export type ImportQuelle = Database['public']['Enums']['import_quelle']
 
 // MandantUser type
 export type MandantUser = Database['public']['Tables']['mandant_users']['Row']
@@ -278,6 +299,7 @@ export type BenutzerListItem = {
   id: string
   user_id: string | null
   email: string
+  name: string | null
   rolle: UserRolle
   aktiv: boolean
   eingeladen_am: string

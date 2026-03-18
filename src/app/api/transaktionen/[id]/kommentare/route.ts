@@ -4,6 +4,23 @@ import { z } from 'zod'
 
 type Params = { params: Promise<{ id: string }> }
 
+// Simple in-memory rate limiter: max 10 comments per user per minute
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT = 10
+const RATE_WINDOW_MS = 60_000
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(userId)
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_WINDOW_MS })
+    return true
+  }
+  if (entry.count >= RATE_LIMIT) return false
+  entry.count++
+  return true
+}
+
 const kommentarSchema = z.object({
   text: z
     .string()
@@ -83,6 +100,13 @@ export async function POST(request: Request, { params }: Params) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  if (!checkRateLimit(user.id)) {
+    return NextResponse.json(
+      { error: 'Zu viele Kommentare. Bitte warte einen Moment.' },
+      { status: 429 }
+    )
+  }
+
   const { id } = await params
 
   // Parse and validate body
@@ -99,6 +123,13 @@ export async function POST(request: Request, { params }: Params) {
       { error: parsed.error.issues[0]?.message ?? 'Validierungsfehler' },
       { status: 400 }
     )
+  }
+
+  // Strip HTML tags (defense-in-depth; React auto-escapes on render but data
+  // may be used in non-React contexts like PDF exports or emails in future)
+  const sanitizedText = parsed.data.text.replace(/<[^>]*>/g, '').trim()
+  if (sanitizedText.length === 0) {
+    return NextResponse.json({ error: 'Kommentar darf nicht leer sein' }, { status: 400 })
   }
 
   // Verify transaction exists and get mandant_id (RLS scoped)
@@ -119,7 +150,7 @@ export async function POST(request: Request, { params }: Params) {
       transaktion_id: id,
       mandant_id: transaktion.mandant_id,
       user_id: user.id,
-      text: parsed.data.text,
+      text: sanitizedText,
     })
     .select('id, text, created_at')
     .single()

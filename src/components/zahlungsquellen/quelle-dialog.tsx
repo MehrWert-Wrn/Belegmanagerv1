@@ -23,6 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { ChevronDown } from 'lucide-react'
 import type { ZahlungsquelleWithMeta } from '@/app/(app)/settings/zahlungsquellen/page'
 import type { ZahlungsquelleTyp } from '@/lib/supabase/types'
 
@@ -43,6 +49,22 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
+interface CsvMapping {
+  datum: string
+  betrag: string
+  beschreibung: string
+  iban: string
+  referenz: string
+}
+
+const EMPTY_CSV_MAPPING: CsvMapping = {
+  datum: '',
+  betrag: '',
+  beschreibung: '',
+  iban: '',
+  referenz: '',
+}
+
 interface QuelleDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -58,6 +80,8 @@ export function QuelleDialog({
 }: QuelleDialogProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [csvMapping, setCsvMapping] = useState<CsvMapping>(EMPTY_CSV_MAPPING)
+  const [csvMappingOpen, setCsvMappingOpen] = useState(false)
   const isEdit = !!quelle
 
   const {
@@ -78,6 +102,7 @@ export function QuelleDialog({
   })
 
   const aktiv = watch('aktiv')
+  const typ = watch('typ')
 
   useEffect(() => {
     if (open) {
@@ -88,6 +113,14 @@ export function QuelleDialog({
           iban: quelle.iban ?? '',
           aktiv: quelle.aktiv,
         })
+        const existing = quelle.csv_mapping as Record<string, unknown> | null
+        setCsvMapping({
+          datum: (existing?.datum as string) ?? '',
+          betrag: (existing?.betrag as string) ?? '',
+          beschreibung: (existing?.beschreibung as string) ?? '',
+          iban: (existing?.iban as string) ?? '',
+          referenz: (existing?.referenz as string) ?? '',
+        })
       } else {
         reset({
           name: '',
@@ -95,7 +128,9 @@ export function QuelleDialog({
           iban: '',
           aktiv: true,
         })
+        setCsvMapping(EMPTY_CSV_MAPPING)
       }
+      setCsvMappingOpen(false)
       setError(null)
     }
   }, [open, quelle, reset])
@@ -110,9 +145,18 @@ export function QuelleDialog({
         : '/api/zahlungsquellen'
       const method = isEdit ? 'PATCH' : 'POST'
 
+      // Only include csv_mapping if at least one field is filled
+      const hasCsvMapping = Object.values(csvMapping).some((v) => v.trim() !== '')
+      const mappingPayload = hasCsvMapping
+        ? Object.fromEntries(
+            Object.entries(csvMapping).filter(([, v]) => v.trim() !== '')
+          )
+        : undefined
+
       const body: Record<string, unknown> = {
         name: data.name,
         iban: data.iban || undefined,
+        csv_mapping: mappingPayload,
       }
       if (!isEdit) {
         body.typ = data.typ
@@ -142,7 +186,7 @@ export function QuelleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? 'Zahlungsquelle bearbeiten' : 'Neue Zahlungsquelle'}
@@ -176,7 +220,7 @@ export function QuelleDialog({
           <div className="space-y-1.5">
             <Label>Typ {isEdit && <span className="text-muted-foreground">(nicht änderbar)</span>}</Label>
             <Select
-              defaultValue={quelle?.typ ?? 'kontoauszug'}
+              value={typ}
               onValueChange={(v) => setValue('typ', v as ZahlungsquelleTyp)}
               disabled={isEdit}
             >
@@ -212,6 +256,41 @@ export function QuelleDialog({
               />
             </div>
           )}
+
+          {/* CSV-Spalten-Mapping */}
+          <Collapsible open={csvMappingOpen} onOpenChange={setCsvMappingOpen}>
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="ghost" className="w-full justify-between px-0 font-normal">
+                <span className="text-sm text-muted-foreground">CSV-Spaltenzuordnung (optional)</span>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${csvMappingOpen ? 'rotate-180' : ''}`} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-3 pt-2">
+              <p className="text-xs text-muted-foreground">
+                Gib die genauen Spaltenbezeichnungen aus deiner CSV-Datei an. Diese werden beim Import automatisch erkannt.
+              </p>
+              {(
+                [
+                  { field: 'datum', label: 'Datum-Spalte', placeholder: 'z.B. Buchungsdatum' },
+                  { field: 'betrag', label: 'Betrags-Spalte', placeholder: 'z.B. Betrag' },
+                  { field: 'beschreibung', label: 'Beschreibungs-Spalte', placeholder: 'z.B. Verwendungszweck' },
+                  { field: 'iban', label: 'IBAN-Spalte (Gegenseite)', placeholder: 'z.B. Gegenkonto IBAN' },
+                  { field: 'referenz', label: 'Referenz-Spalte', placeholder: 'z.B. Auftragsnummer' },
+                ] as const
+              ).map(({ field, label, placeholder }) => (
+                <div key={field} className="space-y-1">
+                  <Label className="text-xs">{label}</Label>
+                  <Input
+                    placeholder={placeholder}
+                    value={csvMapping[field]}
+                    onChange={(e) =>
+                      setCsvMapping((prev) => ({ ...prev, [field]: e.target.value }))
+                    }
+                  />
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
 
           <DialogFooter>
             <Button

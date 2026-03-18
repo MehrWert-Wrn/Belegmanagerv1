@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   const datumVon = searchParams.get('datum_von')
   const datumBis = searchParams.get('datum_bis')
   const nurOffen = searchParams.get('nur_offen') === 'true'
+  const search = searchParams.get('search')?.trim() ?? ''
   const page = parseInt(searchParams.get('page') ?? '1')
   const pageSize = Math.min(parseInt(searchParams.get('page_size') ?? '50'), 200)
   const offset = (page - 1) * pageSize
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
       belege ( lieferant, rechnungsnummer, bruttobetrag ),
       zahlungsquellen ( name, typ )
     `, { count: 'exact' })
+    .is('geloescht_am', null)
     .order('datum', { ascending: false })
     .range(offset, offset + pageSize - 1)
 
@@ -34,6 +36,11 @@ export async function GET(request: Request) {
   if (datumVon) query = query.gte('datum', datumVon)
   if (datumBis) query = query.lte('datum', datumBis)
   if (nurOffen) query = query.in('match_status', ['offen', 'vorgeschlagen'])
+  if (search) {
+    // BUG-PROJ6-008: Wildcards escapen damit sie nicht als SQL-Pattern interpretiert werden
+    const escaped = search.replace(/%/g, '\\%').replace(/_/g, '\\_')
+    query = query.ilike('beschreibung', `%${escaped}%`)
+  }
 
   const { data, error, count } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
