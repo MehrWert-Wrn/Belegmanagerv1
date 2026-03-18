@@ -45,6 +45,15 @@ function buildCsp(nonce: string): string {
 }
 
 export async function middleware(request: NextRequest) {
+  try {
+  return await middlewareInner(request)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message + '\n' + err.stack : String(err)
+    return NextResponse.json({ error: 'MIDDLEWARE_DEBUG', detail: msg }, { status: 500 })
+  }
+}
+
+async function middlewareInner(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Rate-limit sensitive API endpoints
