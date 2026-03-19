@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckCircle2, XCircle, AlertTriangle, Copy, Zap } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertTriangle, Copy, Zap, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 
@@ -8,6 +8,7 @@ export interface ImportResult {
   importiert: number
   duplikate: number
   fehler: number
+  gesperrte_monate: number
   matching_quote?: number
 }
 
@@ -22,9 +23,10 @@ export function ImportErgebnis({
   fileName,
   onClose,
 }: ImportErgebnisProps) {
-  const total = result.importiert + result.duplikate + result.fehler
+  const total = result.importiert + result.duplikate + result.fehler + result.gesperrte_monate
   const hasErrors = result.fehler > 0
   const hasDuplicates = result.duplikate > 0
+  const hasGesperrte = result.gesperrte_monate > 0
   const hasMatching = result.matching_quote !== undefined && result.importiert > 0
 
   return (
@@ -47,7 +49,7 @@ export function ImportErgebnis({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className={`grid gap-4 ${hasGesperrte ? 'grid-cols-4' : 'grid-cols-3'}`}>
         <div className="flex flex-col items-center gap-1 rounded-lg border p-4">
           <CheckCircle2 className="h-5 w-5 text-emerald-500" />
           <span className="text-2xl font-bold">{result.importiert}</span>
@@ -63,6 +65,13 @@ export function ImportErgebnis({
           <span className="text-2xl font-bold">{result.fehler}</span>
           <span className="text-xs text-muted-foreground">Fehler</span>
         </div>
+        {hasGesperrte && (
+          <div className="flex flex-col items-center gap-1 rounded-lg border p-4">
+            <Lock className="h-5 w-5 text-muted-foreground" />
+            <span className="text-2xl font-bold">{result.gesperrte_monate}</span>
+            <span className="text-xs text-muted-foreground">Gesperrt</span>
+          </div>
+        )}
       </div>
 
       {/* Matching result */}
@@ -99,6 +108,11 @@ export function ImportErgebnis({
           <p className="text-destructive">
             {result.fehler} Zeile(n) konnten nicht importiert werden (fehlende
             Pflichtfelder).
+          </p>
+        )}
+        {hasGesperrte && (
+          <p className="text-muted-foreground">
+            {result.gesperrte_monate} Transaktion(en) wurden uebersprungen, da der jeweilige Monat bereits abgeschlossen ist.
           </p>
         )}
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -98,6 +98,7 @@ export default function ImportPage() {
   // Step 1: File
   const [file, setFile] = useState<File | null>(null)
   const [csvData, setCsvData] = useState<CsvParseResult | null>(null)
+  const [rawPreviewLines, setRawPreviewLines] = useState<string[]>([])
   const [encoding, setEncoding] = useState('auto')
   const [delimiter, setDelimiter] = useState('auto')
   const [hasHeaderRow, setHasHeaderRow] = useState(true)
@@ -155,70 +156,34 @@ export default function ImportPage() {
   const validTransactions = parsedTransactions.filter((t) => !t.error)
   const errorTransactions = parsedTransactions.filter((t) => t.error)
 
-  // Re-parse helper that accepts explicit encoding/delimiter/hasHeaderRow values
-  const reParseWith = useCallback(async (
-    currentFile: File,
-    enc: string,
-    delim: string,
-    headerRow: boolean
-  ) => {
-    setParseLoading(true)
-    setParseError(null)
-
+  // Read raw preview lines from file (first 3 lines, unparsed)
+  async function readRawPreview(f: File, enc?: string) {
     try {
-      const resolvedEnc = enc === 'auto' ? await detectEncoding(currentFile) : enc
-      const resolvedDelim = delim === 'auto' ? '' : delim
-
-      const result = await parseCsvFile(currentFile, resolvedEnc, resolvedDelim, headerRow)
-      setCsvData(result)
-
-      const storedCsvMapping = selectedQuelleRef.current?.csv_mapping as Record<string, unknown> | null
-      setMapping(resolveMapping(result.headers, storedCsvMapping))
-    } catch (err) {
-      setParseError(
-        err instanceof Error ? err.message : 'Fehler beim Lesen der Datei.'
-      )
-    } finally {
-      setParseLoading(false)
+      const resolvedEnc = enc || (encoding === 'auto' ? await detectEncoding(f) : encoding)
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error('Datei konnte nicht gelesen werden.'))
+        reader.readAsText(f.slice(0, 10000), resolvedEnc)
+      })
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '').slice(0, 3)
+      setRawPreviewLines(lines)
+    } catch {
+      setRawPreviewLines([])
     }
-  }, [])
+  }
 
-  // Handle file selection
+  // Handle file selection – store file and show raw preview, do NOT auto-advance
   async function handleFileAccepted(newFile: File) {
     setFile(newFile)
-    setParseLoading(true)
+    setCsvData(null)
     setParseError(null)
-
-    try {
-      const enc = encoding === 'auto' ? await detectEncoding(newFile) : encoding
-      const delim = delimiter === 'auto' ? '' : delimiter
-
-      const result = await parseCsvFile(newFile, enc, delim, hasHeaderRow)
-
-      if (result.rows.length === 0) {
-        throw new Error('Die CSV-Datei enthalt keine Datenzeilen.')
-      }
-
-      setCsvData(result)
-
-      // Apply stored mapping from selected source, fall back to auto-detect for missing fields
-      const storedCsvMapping = selectedQuelleRef.current?.csv_mapping as Record<string, unknown> | null
-      setMapping(resolveMapping(result.headers, storedCsvMapping))
-
-      // Auto-advance to step 2
-      setStep(2)
-    } catch (err) {
-      setParseError(
-        err instanceof Error ? err.message : 'Fehler beim Lesen der Datei.'
-      )
-    } finally {
-      setParseLoading(false)
-    }
+    await readRawPreview(newFile)
   }
 
   // Validate step can proceed
   function canProceed(): boolean {
-    if (step === 1) return csvData !== null && selectedQuelleId !== null
+    if (step === 1) return file !== null && selectedQuelleId !== null
     if (step === 2) return mapping.datum !== null && mapping.betrag !== null && validTransactions.length > 0
     return false
   }
@@ -260,6 +225,7 @@ export default function ImportPage() {
         importiert: result.anzahl_importiert ?? 0,
         duplikate: result.anzahl_duplikate ?? 0,
         fehler: errorTransactions.length + (result.anzahl_fehler ?? 0),
+        gesperrte_monate: result.anzahl_gesperrte_monate ?? 0,
         matching_quote: result.matching_quote ?? 0,
       })
       setStep(3)
@@ -279,8 +245,36 @@ export default function ImportPage() {
     if (step === 2) setStep(1)
   }
 
-  function handleNext() {
-    if (step === 1 && canProceed()) setStep(2)
+  async function handleNext() {
+    if (step === 1 && canProceed() && file) {
+      setParseLoading(true)
+      setParseError(null)
+
+      try {
+        const enc = encoding === 'auto' ? await detectEncoding(file) : encoding
+        const delim = delimiter === 'auto' ? '' : delimiter
+
+        const result = await parseCsvFile(file, enc, delim, hasHeaderRow)
+
+        if (result.rows.length === 0) {
+          throw new Error('Die CSV-Datei enthalt keine Datenzeilen.')
+        }
+
+        setCsvData(result)
+
+        // Apply stored mapping from selected source, fall back to auto-detect
+        const storedCsvMapping = selectedQuelleRef.current?.csv_mapping as Record<string, unknown> | null
+        setMapping(resolveMapping(result.headers, storedCsvMapping))
+
+        setStep(2)
+      } catch (err) {
+        setParseError(
+          err instanceof Error ? err.message : 'Fehler beim Lesen der Datei.'
+        )
+      } finally {
+        setParseLoading(false)
+      }
+    }
   }
 
   return (
@@ -414,7 +408,7 @@ export default function ImportPage() {
                   value={encoding}
                   onValueChange={(v) => {
                     setEncoding(v)
-                    if (file) reParseWith(file, v, delimiter, hasHeaderRow)
+                    if (file) readRawPreview(file, v === 'auto' ? undefined : v)
                   }}
                 >
                   <SelectTrigger id="encoding">
@@ -436,10 +430,7 @@ export default function ImportPage() {
                 </Label>
                 <Select
                   value={delimiter}
-                  onValueChange={(v) => {
-                    setDelimiter(v)
-                    if (file) reParseWith(file, encoding, v, hasHeaderRow)
-                  }}
+                  onValueChange={setDelimiter}
                 >
                   <SelectTrigger id="delimiter">
                     <SelectValue />
@@ -459,30 +450,50 @@ export default function ImportPage() {
               <Switch
                 id="header-row"
                 checked={hasHeaderRow}
-                onCheckedChange={(v) => {
-                  setHasHeaderRow(v)
-                  if (file) reParseWith(file, encoding, delimiter, v)
-                }}
+                onCheckedChange={setHasHeaderRow}
               />
               <Label htmlFor="header-row" className="text-sm cursor-pointer">
                 Erste Zeile enthalt Spaltenuberschriften
               </Label>
             </div>
 
-            {/* File info after parsing */}
-            {csvData && file && (
+            {/* File info */}
+            {file && (
               <div className="flex flex-wrap gap-2 text-sm">
                 <Badge variant="outline">{file.name}</Badge>
                 <Badge variant="secondary">
-                  {csvData.rows.length} Zeilen
+                  {(file.size / 1024).toFixed(1)} KB
                 </Badge>
-                <Badge variant="secondary">
-                  {csvData.headers.length} Spalten
-                </Badge>
-                <Badge variant="secondary">{csvData.encoding}</Badge>
-                <Badge variant="secondary">
-                  Trennzeichen: {csvData.delimiter === ';' ? 'Semikolon' : csvData.delimiter === ',' ? 'Komma' : csvData.delimiter}
-                </Badge>
+              </div>
+            )}
+
+            {/* Raw CSV preview (first 3 lines, unparsed) */}
+            {rawPreviewLines.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-medium text-muted-foreground">
+                    Rohvorschau (erste {rawPreviewLines.length} Zeilen)
+                  </h4>
+                  <span className="text-xs text-muted-foreground">
+                    Trennzeichen:{' '}
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                      {delimiter === 'auto' ? 'auto' : delimiter === '\t' ? 'Tab' : delimiter}
+                    </code>
+                  </span>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3 overflow-x-auto">
+                  <pre className="text-xs font-mono whitespace-pre leading-relaxed">
+                    {rawPreviewLines.map((line, i) => (
+                      <div key={i} className="py-0.5">
+                        <span className="text-muted-foreground mr-3 select-none">{i + 1}</span>
+                        {line}
+                      </div>
+                    ))}
+                  </pre>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Pruefen Sie, ob Umlaute und Trennzeichen korrekt dargestellt werden. Falls nicht, aendern Sie die Einstellungen oben.
+                </p>
               </div>
             )}
           </CardContent>
@@ -540,9 +551,18 @@ export default function ImportPage() {
           </Button>
 
           {step === 1 && (
-            <Button onClick={handleNext} disabled={!canProceed()}>
-              Weiter
-              <ArrowRight className="ml-2 h-4 w-4" />
+            <Button onClick={handleNext} disabled={!canProceed() || parseLoading}>
+              {parseLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Wird verarbeitet...
+                </>
+              ) : (
+                <>
+                  Weiter
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
             </Button>
           )}
 

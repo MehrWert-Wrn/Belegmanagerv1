@@ -39,9 +39,7 @@ const COLUMN_CONFIG: {
 }[] = [
   { key: 'datum', label: 'Datum', required: true },
   { key: 'betrag', label: 'Betrag', required: true },
-  { key: 'beschreibung', label: 'Beschreibung', required: false },
-  { key: 'iban', label: 'IBAN', required: false },
-  { key: 'referenz', label: 'Buchungsreferenz', required: false },
+  { key: 'beschreibung', label: 'Beschreibung / Verwendungszweck', required: true },
 ]
 
 export function SpaltenMapping({
@@ -142,8 +140,6 @@ export function SpaltenMapping({
                   <TableHead>Datum</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                   <TableHead>Beschreibung</TableHead>
-                  <TableHead>IBAN</TableHead>
-                  <TableHead>Referenz</TableHead>
                   <TableHead className="w-20">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -173,12 +169,6 @@ export function SpaltenMapping({
                     </TableCell>
                     <TableCell className="text-sm max-w-[200px] truncate">
                       {row.beschreibung || '-'}
-                    </TableCell>
-                    <TableCell className="text-sm font-mono text-xs">
-                      {row.iban_gegenseite || '-'}
-                    </TableCell>
-                    <TableCell className="text-sm text-xs">
-                      {row.buchungsreferenz || '-'}
                     </TableCell>
                     <TableCell>
                       {row.error ? (
