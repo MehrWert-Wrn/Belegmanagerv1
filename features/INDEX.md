@@ -16,7 +16,7 @@
 | PROJ-2 | Mandant-Onboarding | Deployed | [PROJ-2-mandant-onboarding.md](PROJ-2-mandant-onboarding.md) | 2026-03-13 |
 | PROJ-3 | Belegverwaltung | Deployed | [PROJ-3-belegverwaltung.md](PROJ-3-belegverwaltung.md) | 2026-03-13 |
 | PROJ-4 | Kontoauszug-Import | In Review | [PROJ-4-kontoauszug-import.md](PROJ-4-kontoauszug-import.md) | 2026-03-13 |
-| PROJ-5 | Matching-Engine | In Review | [PROJ-5-matching-engine.md](PROJ-5-matching-engine.md) | 2026-03-13 |
+| PROJ-5 | Matching-Engine | Deployed | [PROJ-5-matching-engine.md](PROJ-5-matching-engine.md) | 2026-03-13 |
 | PROJ-6 | Manuelle Zuordnung | In Review | [PROJ-6-manuelle-zuordnung.md](PROJ-6-manuelle-zuordnung.md) | 2026-03-13 |
 | PROJ-7 | Kassabuch | In Review | [PROJ-7-kassabuch.md](PROJ-7-kassabuch.md) | 2026-03-13 |
 | PROJ-8 | Monatsabschluss-Workflow | In Review | [PROJ-8-monatsabschluss.md](PROJ-8-monatsabschluss.md) | 2026-03-13 |

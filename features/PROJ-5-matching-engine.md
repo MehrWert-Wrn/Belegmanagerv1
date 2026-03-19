@@ -1,8 +1,8 @@
 # PROJ-5: Matching-Engine
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-03-13
-**Last Updated:** 2026-03-18
+**Last Updated:** 2026-03-19
 
 ## Dependencies
 - Requires: PROJ-3 (Belegverwaltung) – Belege mit Metadaten müssen vorhanden sein
@@ -409,4 +409,24 @@ In matching.ts, RN_MATCH checks if rechnungsnummer (>3 chars) appears in beschre
 - **Production Ready:** NO -- 1 High bug (search non-functional) and 4 Medium bugs must be addressed first.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-03-19
+**Production URL:** https://belegmanagerv1.vercel.app
+**Git Tag:** v1.5.0-PROJ-5
+
+### QA Summary (Round 3 – Final)
+- **Acceptance Criteria:** 9/9 PASSED
+- **All 12 bugs resolved** (9 Round 2 + 3 Round 3)
+- **Migration applied:** `20260318000006_add_lieferant_iban_to_belege` (Supabase EU Central)
+- **New files:** `src/lib/execute-matching.ts` (shared matching helper with deduplication)
+
+### Key Changes Deployed
+- `GET /api/transaktionen`: search filter (`?search=`) functional with wildcard escaping
+- `GET /api/belege`: wildcard escaping on lieferant/rechnungsname ilike filters
+- `POST /api/belege`: auto-triggers matching after beleg upload
+- `POST /api/matching/run`: uses shared `executeMatching()` helper
+- `POST /api/transaktionen/import`: uses `executeMatching()` (no more inline loop, dedup included)
+- `src/lib/matching.ts`: IBAN_GUARDED implemented, PAYPAL_ID_MATCH priority fixed, tie detection fixed
+- `src/lib/execute-matching.ts`: deduplication via `assignedBelegIds`, conflicts flagged as `vorgeschlagen`
+- `middleware.ts`: `/api/matching` rate-limited
+- `MatchingStatusBar`: `kein_beleg` excluded from offen count and total
