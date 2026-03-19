@@ -412,7 +412,7 @@ In matching.ts, RN_MATCH checks if rechnungsnummer (>3 chars) appears in beschre
 
 **Deployed:** 2026-03-19
 **Production URL:** https://belegmanagerv1.vercel.app
-**Git Tag:** v1.5.0-PROJ-5
+**Git Tag:** v1.5.0-PROJ-5 (initial) · v1.5.1-PROJ-5 (QA Round 4 fixes)
 
 ### QA Summary (Round 3 – Final)
 - **Acceptance Criteria:** 9/9 PASSED
