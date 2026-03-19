@@ -1,6 +1,6 @@
 # PROJ-4: Kontoauszug-Import
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-03-13
 **Last Updated:** 2026-03-18
 
@@ -419,5 +419,244 @@ Code review for responsive behavior:
 - **Production Ready:** NO -- 2 High and 3 Medium bugs must be resolved first
 - **Recommendation:** Fix BUG-PROJ4-002 and BUG-PROJ4-004 (High) first, then BUG-PROJ4-003 and BUG-PROJ4-005 and BUG-PROJ4-008 (Medium)
 
+---
+
+### Round 3 (2026-03-19)
+**Tester:** QA Engineer (AI)
+**Method:** Static code review + build verification + security audit
+**Build Status:** PASS (npm run build succeeds, no compilation errors)
+**Context:** Re-testing all Round 2 bugs after fixes shipped in PROJ-14 and related commits.
+
+### Round 2 Bug Resolution Status
+
+#### BUG-PROJ4-001: No "No Header Row" Option (was Low) -- FIXED
+- `parseCsvFile()` in `csv-parser.ts` now accepts `hasHeaderRow` parameter (line 93)
+- When `hasHeaderRow=false`, all rows are treated as data and synthetic headers ("Spalte 1", "Spalte 2", ...) are generated (lines 114-117)
+- UI provides a Switch toggle "Erste Zeile enthalt Spaltenuberschriften" on import page (line 450-458)
+- **Status:** RESOLVED
+
+#### BUG-PROJ4-002: Import Bypasses Month Lock (was High) -- FIXED
+- Import route now performs month lock check (lines 50-71 of route.ts)
+- Extracts unique year-month combinations from transaction dates
+- Queries `monatsabschluesse` table for `status='abgeschlossen'` entries
+- Transactions in closed months are skipped with `anzahl_gesperrte_monate` counter (line 102)
+- ImportErgebnis component displays locked month count with Lock icon (import-ergebnis.tsx lines 68-74, 113-116)
+- **Status:** RESOLVED
+
+#### BUG-PROJ4-003: Invited Users Cannot Import (was Medium) -- FIXED
+- Import route now uses `supabase.rpc('get_mandant_id')` (line 33) instead of direct `mandanten.owner_id = user.id` query
+- `get_mandant_id()` function (migration 20260318000000) falls back to `mandant_users` for active invited members
+- **Status:** RESOLVED
+
+#### BUG-PROJ4-004: Missing DB UNIQUE Constraint (was High) -- FIXED
+- Migration `20260318000005_add_transaktionen_unique_constraint.sql` creates `idx_transaktionen_duplikat_check` unique index on `(mandant_id, quelle_id, datum, betrag, COALESCE(buchungsreferenz, ''), COALESCE(beschreibung, ''))`
+- Import route handles `23505` (unique violation) errors with row-by-row fallback (lines 129-141)
+- **Status:** RESOLVED
+
+#### BUG-PROJ4-005: quelle_id Not Validated Against User's Mandant (was Medium) -- FIXED
+- Import route now queries `zahlungsquellen` with `.eq('id', quelle_id).eq('mandant_id', mandant_id)` (lines 37-43)
+- Returns 404 "Zahlungsquelle nicht gefunden" if the quelle does not belong to the user's mandant
+- **Status:** RESOLVED
+
+#### BUG-PROJ4-006: No Date Format Validation in Zod (was Low) -- FIXED
+- `datum` field now uses `z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Datum muss im Format JJJJ-MM-TT sein')` (line 7)
+- Invalid date strings are rejected at Zod validation level with clear error message
+- **Status:** RESOLVED
+
+#### BUG-PROJ4-007: No Max Length on dateiname and beschreibung (was Low) -- FIXED
+- `dateiname` now has `.max(255)` (line 17)
+- `beschreibung` now has `.max(1000)` (line 9)
+- `iban_gegenseite` has `.max(34)`, `bic_gegenseite` has `.max(11)`, `buchungsreferenz` has `.max(255)` (lines 10-12)
+- **Status:** RESOLVED
+
+#### BUG-PROJ4-008: Import Endpoint Not Rate-Limited (was Medium) -- FIXED
+- Middleware rate limiting now covers `/api/transaktionen` alongside `/api/belege`, `/api/matching`, `/api/monatsabschluss`, `/api/export` (middleware.ts line 54)
+- **Status:** RESOLVED
+
+#### BUG-PROJ4-009: No Atomic Transaction for Batch Insert (was Medium) -- ADDRESSED
+- Import route now performs a single `.insert(toInsert)` call instead of chunked inserts (line 123-125)
+- If the single insert fails with unique violation (`23505`), it falls back to row-by-row insert to count exact duplicates (lines 129-141)
+- This is atomic for the success path (all-or-nothing on the single insert). The fallback path is still non-atomic per-row but only triggers on race conditions.
+- **Status:** IMPROVED (single-batch insert is atomic; race condition fallback is per-row but acceptable for MVP)
+
+### Round 3 Acceptance Criteria Re-test
+
+#### AC-1: CSV Upload (UTF-8 / Latin-1, semicolon / comma) -- PASS
+- Unchanged from Round 2. All sub-criteria still passing.
+
+#### AC-2: Auto-detect + manual column mapping -- PASS
+- Unchanged from Round 2. `KNOWN_FORMATS` dead code still present (cosmetic).
+
+#### AC-3: Preview table (max 10 rows) -- PASS
+- Unchanged. Preview shows correctly in step 2.
+
+#### AC-4: Transactions saved with mandant_id and quelle_id -- PASS (upgraded from PARTIAL)
+- Now uses `rpc('get_mandant_id')` which supports both owners and invited users.
+- `quelle_id` validated against user's mandant before insert.
+
+#### AC-5: Required fields present -- PASS
+- Unchanged. Zod schema now also validates date format and field lengths.
+
+#### AC-6: Duplicate detection -- PASS (upgraded from PARTIAL)
+- Application-level check still works as before.
+- DB-level UNIQUE index now exists (`idx_transaktionen_duplikat_check`).
+- Race condition handling: import route catches `23505` and falls back to row-by-row.
+- Two-tier duplikat protection as designed is now fully implemented.
+
+#### AC-7: Import summary -- PASS
+- Now also includes `anzahl_gesperrte_monate` for transactions in closed months.
+- UI displays this with a dedicated Lock icon tile.
+
+#### AC-8: Import history stored -- PASS
+- Unchanged from Round 2. Minor note: `importiert_von` user name still not displayed (only implicit via RLS). Cosmetic gap, not functional.
+
+#### AC-9: RLS scoped to mandant_id -- PASS
+- Unchanged. RLS policies cover SELECT/INSERT/UPDATE. No DELETE policy exists but this is by design (soft-delete via `geloescht_am`).
+
+### Round 3 Edge Cases Re-test
+
+#### EC-1: CSV with no header row -- PASS (upgraded from FAIL)
+- `parseCsvFile()` now accepts `hasHeaderRow` parameter.
+- UI provides toggle. When disabled, synthetic headers are generated.
+
+#### EC-2: Missing required fields -- PASS
+- Unchanged.
+
+#### EC-3: Negative vs positive amounts -- PASS
+- Unchanged.
+
+#### EC-4: Re-importing same file -- PASS (upgraded from PARTIAL)
+- Both application-level and DB-level duplicate detection now active.
+
+#### EC-5: Large CSV (1000+ rows) -- PARTIAL PASS
+- Single batch insert (no chunking) improves atomicity.
+- [ ] BUG-PROJ4-010: No progress indicator for large imports. Spec says "progress indicator shown" for 1000+ rows. UI only shows a spinner with "Importiere..." text. For 5000-row imports, the user has no feedback on how long it will take. Carried from Round 2 note.
+- Functional but UX gap remains.
+
+#### EC-6: Encoding issues -- PASS
+- Unchanged.
+
+#### EC-7: Different Austrian banks -- PASS
+- Unchanged.
+
+### Round 3 Security Audit
+
+#### Authentication -- PASS
+- POST /api/transaktionen/import checks `supabase.auth.getUser()` and returns 401
+- GET /api/transaktionen/import/history checks auth similarly
+- Middleware redirects unauthenticated users
+
+#### Authorization (Multi-Tenant Isolation) -- PASS (upgraded)
+- `mandant_id` derived server-side via `rpc('get_mandant_id')`, not from request body
+- `quelle_id` validated against user's own mandant before any insert
+- RLS policies enforce mandant scoping on all operations
+- Month lock check queries only the user's own mandant's `monatsabschluesse`
+
+#### Input Validation -- PASS (upgraded)
+- `datum` validated as ISO date format via regex
+- `dateiname` max 255 chars, `beschreibung` max 1000, `iban_gegenseite` max 34, `bic_gegenseite` max 11, `buchungsreferenz` max 255
+- Transaction array limited to 1-5000 items
+
+#### Rate Limiting -- PASS (upgraded)
+- Middleware now covers `/api/transaktionen` (line 54)
+- POST limited to 20 requests per minute per IP
+
+#### Batch Insert Safety -- IMPROVED
+- Single batch insert is atomic. Unique violation fallback is per-row but only for race conditions.
+
+#### Month Lock Enforcement -- PASS (upgraded)
+- Import route checks `monatsabschluesse` table for closed months
+- Transactions in closed months are skipped and reported in summary
+
+#### Exposed Secrets / Data Leaks -- PASS
+- Unchanged. No secrets exposed.
+
+#### New Security Finding: IP Spoofing via x-forwarded-for
+- [ ] BUG-PROJ4-011: Rate limiter uses `x-forwarded-for` header (middleware.ts line 55-58) which can be spoofed by a direct attacker bypassing the load balancer. However, Vercel's edge network sets this header server-side, so this is only exploitable if the application is accessed directly (not through Vercel). Low risk in production behind Vercel.
+- **Severity:** Low
+- **Priority:** Acceptable for MVP behind Vercel edge
+
+### Round 3 New Bugs Found
+
+#### BUG-PROJ4-010: No Progress Indicator for Large Imports (Low)
+- **Severity:** Low
+- **Description:** For imports with 1000+ rows, the UI only shows a spinner with "Importiere..." text. The spec requires a progress indicator. Users have no feedback on how long a large import will take.
+- **File:** `src/app/(app)/transaktionen/import/page.tsx` lines 583-586
+- **Steps to Reproduce:**
+  1. Upload a CSV with 1000+ rows
+  2. Click import
+  3. Expected: Progress bar or percentage indicator
+  4. Actual: Only a spinning loader with "Importiere..." text
+- **Priority:** Nice to have (functional, UX gap only)
+
+#### BUG-PROJ4-011: Rate Limiter IP Spoofable via x-forwarded-for (Low)
+- **Severity:** Low
+- **Description:** Rate limiter trusts `x-forwarded-for` header for IP identification. An attacker could rotate this header value to bypass rate limits. In production behind Vercel this is mitigated because Vercel sets the header server-side. Only exploitable via direct access bypassing Vercel.
+- **File:** `middleware.ts` lines 55-58
+- **Priority:** Acceptable for MVP (mitigated by Vercel infrastructure)
+
+#### BUG-PROJ4-012: Import History Does Not Show User Name (Low)
+- **Severity:** Low
+- **Description:** The import history endpoint returns `importiert_von` as a raw UUID (via RLS, it is the auth user ID). The UI table does not display a "Benutzer" column with the user's name/email. The spec says "Benutzer" should be shown. In a multi-user scenario, it is unclear who performed which import.
+- **File:** `src/app/api/transaktionen/import/history/route.ts` -- no JOIN to auth.users or mandant_users for user name; `src/components/transaktionen/import-historie.tsx` -- no Benutzer column.
+- **Priority:** Nice to have (only relevant for multi-user mandants)
+
+#### BUG-PROJ4-013: Duplicate Check Has No Upper Date Bound (Low)
+- **Severity:** Low
+- **Description:** The duplicate check query uses `.gte('datum', minDatum)` (line 85 of import route) without a corresponding `.lte('datum', maxDatum)`. For mandants with many historical transactions, this loads more data than necessary into the duplicate-check Set. Not a correctness issue, but a performance concern for large datasets.
+- **File:** `src/app/api/transaktionen/import/route.ts` line 85
+- **Priority:** Nice to have (performance optimization)
+
+### Round 3 Cross-Browser Testing
+- Cannot perform live cross-browser testing (static code review only).
+- No new browser-specific code introduced since Round 2.
+- **EXPECTED PASS** (pending live testing in Chrome, Firefox, Safari)
+
+### Round 3 Responsive Testing
+- Code review confirms responsive patterns unchanged: `max-w-4xl`, responsive grid, `overflow-x-auto`, hidden elements on mobile.
+- New elements (raw preview, header toggle, gesperrte_monate tile) follow existing responsive patterns.
+- **EXPECTED PASS** (pending live testing at 375px, 768px, 1440px)
+
+### Round 3 Regression Testing
+- PROJ-1 (Authentifizierung): Auth flow unchanged. PASS.
+- PROJ-2 (Mandant-Onboarding): Onboarding flow unchanged. PASS.
+- PROJ-3 (Belegverwaltung): Beleg management unchanged. PASS.
+- PROJ-5 (Matching-Engine): `executeMatching` still called after import (line 161). Date filter fix in transaktionen page also benefits matching views. No regression.
+- PROJ-6 (Manuelle Zuordnung): ZuordnungsDialog and bulk actions unchanged. No regression.
+
+### Round 3 Summary
+- **Acceptance Criteria:** 9/9 PASSED (all previously partial/failed criteria now resolved)
+- **Edge Cases:** 6/7 passed, 1 partial pass (EC-5 progress indicator, cosmetic)
+- **Round 2 Bugs Resolved:** 9/9 (all fixed or adequately addressed)
+- **New Bugs Found:** 4 total (0 critical, 0 high, 0 medium, 4 low)
+  - Low: BUG-PROJ4-010 (no progress indicator), BUG-PROJ4-011 (IP spoofing in rate limiter), BUG-PROJ4-012 (no user name in history), BUG-PROJ4-013 (no upper date bound in dup check)
+- **Security:** PASS -- all previously identified security issues resolved. New finding (BUG-PROJ4-011) is low severity and mitigated by Vercel infrastructure.
+- **Production Ready:** YES -- no Critical or High bugs remaining. All 4 remaining bugs are Low severity and acceptable for MVP.
+- **Recommendation:** Deploy. Address Low-severity bugs in a future sprint if desired.
+
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-03-19
+**Production URL:** https://belegmanagerv1.vercel.app
+**Git Tag:** v1.4.0-PROJ-4
+**QA Round:** 3 — Production Ready: YES (0 Critical, 0 High, 0 Medium, 4 Low)
+
+### What was deployed
+- CSV Import Wizard (3-step: upload → column mapping → confirm)
+- Auto-detect encoding (UTF-8 / Latin-1) and delimiter (;, ,)
+- No-header-row toggle (BUG-PROJ4-001 fix)
+- Month lock enforcement: transactions in closed months skipped (BUG-PROJ4-002 fix)
+- Invited users can import via `rpc('get_mandant_id')` (BUG-PROJ4-003 fix)
+- DB-level UNIQUE index for duplicate protection (BUG-PROJ4-004 fix)
+- `quelle_id` validated against user's mandant (BUG-PROJ4-005 fix)
+- ISO date format validation in Zod schema (BUG-PROJ4-006 fix)
+- Max length constraints on all string fields (BUG-PROJ4-007 fix)
+- Rate limiting on `/api/transaktionen` (BUG-PROJ4-008 fix)
+- Single atomic batch insert with 23505 fallback (BUG-PROJ4-009 improvement)
+- Progress animation for imports > 100 rows (BUG-PROJ4-010 addressed)
+- `x-real-ip` priority over `x-forwarded-for` in rate limiter (BUG-PROJ4-011 fix)
+- Import history "Importiert von" column (BUG-PROJ4-012 fix)
+- Upper date bound in duplicate check query (BUG-PROJ4-013 fix)
+
+### Open Low-Severity Bugs (deferred)
+All 4 Round 3 Low bugs were fixed before deploy. No open bugs remain.
