@@ -1,6 +1,6 @@
 # PROJ-14: Kontoauszug-Import Verbesserungen
 
-## Status: Planned
+## Status: Deployed
 **Created:** 2026-03-19
 **Last Updated:** 2026-03-19
 
@@ -80,10 +80,41 @@ Vier konkrete Probleme wurden beim produktiven Einsatz von PROJ-4 identifiziert:
 ---
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Frontend Changes (implemented by /frontend)
+
+**AC-1: Spalten-Zuordnung vereinfacht**
+- `src/components/transaktionen/spalten-mapping.tsx`: Removed IBAN and Buchungsreferenz from `COLUMN_CONFIG` (user-visible mapping selects) and from the preview table columns. The `ColumnMapping` type and `autoDetectMapping` in `csv-parser.ts` still populate these fields silently for the matching engine.
+
+**AC-2: CSV-Konfigurationsschritt**
+- `src/app/(app)/transaktionen/import/page.tsx`: File drop no longer auto-advances to step 2. Instead, user sees raw preview (first 3 lines, unparsed) and configures encoding/delimiter/header-row. Clicking "Weiter" triggers the CSV parse and advances to step 2. The `reParseWith` callback was removed; parsing now happens exclusively in `handleNext`.
+
+**AC-3: Datumsfilter fix**
+- `src/app/(app)/transaktionen/page.tsx`: Removed client-side filtering for "Offene Positionen" and "Rueckfragen" tabs. All filtering is now server-side via query params (`nur_offen=true`, `workflow_status=rueckfrage`). This ensures date filters work correctly with pagination.
+- `src/app/api/transaktionen/route.ts`: Added `workflow_status` query parameter support for server-side filtering.
+
+**AC-4: Granulare Duplikat-Erkennung**
+- Backend already handles this correctly (per-row duplicate detection in `POST /api/transaktionen/import`). No frontend changes needed -- the `ImportErgebnis` component already shows granular importiert/duplikate/fehler counts.
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA Round 1 – PASS (2026-03-19)**
+- Acceptance Criteria: 4/4 PASSED
+- Bugs Found: 3 (0 Critical, 0 High, 1 Medium, 2 Low) – all fixed before deployment
+  - BUG-PROJ14-001 (Medium): gesperrte Monate nicht im Import-Ergebnis → FIXED
+  - BUG-PROJ14-002 (Low): beschreibung als Pflichtfeld unklar → FIXED (required: true)
+  - BUG-PROJ14-003 (Low): Trennzeichen-Änderung kein visuelles Feedback → FIXED (Anzeige in Raw-Preview-Header)
+- Security: PASS
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-03-19
+**Production URL:** https://belegmanagerv1.vercel.app
+**Git Tag:** v1.14.0-PROJ-14
+
+### Changes Deployed
+- `spalten-mapping.tsx`: IBAN & Buchungsreferenz aus Spaltenzuordnung entfernt; beschreibung als Pflichtfeld
+- `import/page.tsx`: CSV-Konfigurationsschritt (Encoding, Trennzeichen, Header) vor Weiterleitung; Raw-Preview mit Trennzeichen-Anzeige
+- `transaktionen/page.tsx`: Datumsfilter korrigiert (server-side filtering für alle Tabs)
+- `api/transaktionen/route.ts`: workflow_status Query-Parameter ergänzt
+- `import-ergebnis.tsx`: gesperrte_monate als eigene Kachel mit Lock-Icon angezeigt
