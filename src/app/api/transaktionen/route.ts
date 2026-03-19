@@ -11,6 +11,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const quelleId = searchParams.get('quelle_id')
   const matchStatus = searchParams.get('match_status')
+  const workflowStatus = searchParams.get('workflow_status')
   const datumVon = searchParams.get('datum_von')
   const datumBis = searchParams.get('datum_bis')
   const nurOffen = searchParams.get('nur_offen') === 'true'
@@ -36,10 +37,12 @@ export async function GET(request: Request) {
   if (datumVon) query = query.gte('datum', datumVon)
   if (datumBis) query = query.lte('datum', datumBis)
   if (nurOffen) query = query.in('match_status', ['offen', 'vorgeschlagen'])
+  if (workflowStatus) query = query.eq('workflow_status', workflowStatus)
   if (search) {
-    // BUG-PROJ6-008: Wildcards escapen damit sie nicht als SQL-Pattern interpretiert werden
+    // BUG-PROJ5-R4-001: Wildcards escapen + search across beschreibung, buchungsreferenz, iban_gegenseite
     const escaped = search.replace(/%/g, '\\%').replace(/_/g, '\\_')
-    query = query.ilike('beschreibung', `%${escaped}%`)
+    const pattern = `%${escaped}%`
+    query = query.or(`beschreibung.ilike.${pattern},buchungsreferenz.ilike.${pattern},iban_gegenseite.ilike.${pattern}`)
   }
 
   const { data, error, count } = await query

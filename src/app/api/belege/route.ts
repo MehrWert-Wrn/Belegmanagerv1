@@ -100,7 +100,10 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // BUG-PROJ5-001: Trigger matching after beleg upload (fire-and-forget, errors non-fatal)
-  executeMatching(supabase, mandantId).catch(() => {/* non-fatal */})
+  // BUG-PROJ5-R4-005: Log errors so failures are visible in server logs
+  executeMatching(supabase, mandantId).catch((err) =>
+    console.error('[belege] Post-upload matching failed:', err)
+  )
 
   return NextResponse.json(data, { status: 201 })
 }

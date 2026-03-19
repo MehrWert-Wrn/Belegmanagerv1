@@ -95,5 +95,40 @@ export async function executeMatching(
     }
   }
 
+  // BUG-PROJ5-R4-004: Post-processing to resolve duplicate beleg assignments from concurrent runs.
+  // If two overlapping matching runs both assigned the same beleg, detect and revert the loser(s)
+  // to 'vorgeschlagen' so the user can resolve manually.
+  if (assignedBelegIds.size > 0) {
+    const { data: conflicts } = await supabase
+      .from('transaktionen')
+      .select('id, beleg_id, match_score')
+      .in('beleg_id', [...assignedBelegIds])
+      .eq('match_status', 'bestaetigt')
+      .is('geloescht_am', null)
+
+    if (conflicts && conflicts.length > 0) {
+      const grouped = new Map<string, Array<{ id: string; match_score: number | null }>>()
+      for (const t of conflicts) {
+        if (!t.beleg_id) continue
+        const list = grouped.get(t.beleg_id) ?? []
+        list.push(t)
+        grouped.set(t.beleg_id, list)
+      }
+      for (const txs of grouped.values()) {
+        if (txs.length <= 1) continue
+        // Keep highest score as 'bestaetigt', demote others to 'vorgeschlagen'
+        const sorted = [...txs].sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
+        for (const loser of sorted.slice(1)) {
+          await supabase
+            .from('transaktionen')
+            .update({ match_status: 'vorgeschlagen' })
+            .eq('id', loser.id)
+          matched = Math.max(0, matched - 1)
+          suggested++
+        }
+      }
+    }
+  }
+
   return { matched, suggested, unmatched, total: results.length }
 }

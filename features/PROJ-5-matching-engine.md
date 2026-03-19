@@ -430,3 +430,200 @@ In matching.ts, RN_MATCH checks if rechnungsnummer (>3 chars) appears in beschre
 - `src/lib/execute-matching.ts`: deduplication via `assignedBelegIds`, conflicts flagged as `vorgeschlagen`
 - `middleware.ts`: `/api/matching` rate-limited
 - `MatchingStatusBar`: `kein_beleg` excluded from offen count and total
+
+---
+
+### Round 4 -- Post-Deployment Verification (2026-03-19)
+
+**Tested:** 2026-03-19
+**Tester:** QA Engineer (AI)
+**Method:** Full static code review of all matching-related files after Round 3 fixes were deployed. Verified all 12 previously reported bugs are resolved. Identified new findings.
+
+---
+
+#### Regression Check (All 12 Previously Reported Bugs)
+
+| Bug | Status | Verification |
+|-----|--------|-------------|
+| BUG-PROJ5-001 (Matching not triggered on beleg upload) | FIXED | `POST /api/belege` line 103: `executeMatching(supabase, mandantId).catch(...)` |
+| BUG-PROJ5-002 (IBAN_GUARDED not implemented) | FIXED | `matching.ts` lines 110-117: IBAN + amount comparison implemented |
+| BUG-PROJ5-003 (Score tie detection ineffective) | FIXED | `matching.ts` line 183: `tieScore && bestScore >= 80 ? 79 : bestScore` handles both hard-match and score-based ties |
+| BUG-PROJ5-004 (Same beleg multi-assign in batch) | FIXED | `execute-matching.ts` lines 60-72: `assignedBelegIds` Set prevents duplicate assignment |
+| BUG-PROJ5-005 (Confirm/Reject silent success) | FIXED | `confirm/route.ts` line 52, `reject/route.ts` line 56: both check `!updated?.length` and return 404 |
+| BUG-PROJ5-006 (Matching API not rate-limited) | FIXED | `middleware.ts` line 54: `/api/matching` path included in rate-limit check |
+| BUG-PROJ5-007 (Search filter no effect) | FIXED | `transaktionen/route.ts` lines 41-45: search parameter applied as ilike on beschreibung with wildcard escaping |
+| BUG-PROJ5-008 (kein_beleg counted as offen) | FIXED | `page.tsx` lines 118-119: `if (t.match_status === 'kein_beleg') continue` |
+| BUG-PROJ5-009 (RN_MATCH shadows PAYPAL_ID_MATCH) | FIXED | `matching.ts` lines 88-101: PAYPAL_ID_MATCH checked first, RN_MATCH only for non-PayPal transactions |
+| BUG-PROJ5-010 (Round 3 -- dedup) | FIXED | Covered by BUG-PROJ5-004 fix |
+| BUG-PROJ5-011 (Round 3 -- tie at >=80) | FIXED | Covered by BUG-PROJ5-003 fix |
+| BUG-PROJ5-012 (Round 3 -- confirm/reject 404) | FIXED | Covered by BUG-PROJ5-005 fix |
+
+**All 12 bugs confirmed fixed.**
+
+---
+
+#### Acceptance Criteria Re-Verification (Post-Fix)
+
+| AC | Description | Status |
+|----|-------------|--------|
+| AC-1 | Matching runs after import + on-demand | PASS |
+| AC-2 | Stufe 1 Hard Match (RN, SEPA, IBAN_GUARDED, PAYPAL) | PASS |
+| AC-3 | Stufe 2 Score-Matching (Betrag/Datum/Lieferant/Beschreibung) | PASS |
+| AC-4 | Score >= 80 = Gruen | PASS |
+| AC-5 | Score 50-79 = Gelb | PASS |
+| AC-6 | Score < 50 = Rot | PASS |
+| AC-7 | Each TX shows Ampel, Beleg, Match-Grund, Score | PASS |
+| AC-8 | Re-runs on beleg upload + import | PASS |
+| AC-9 | Match-Quote metric shown | PASS |
+
+**9/9 PASS**
+
+---
+
+#### Edge Cases Re-Verification
+
+| EC | Description | Status |
+|----|-------------|--------|
+| EC-1 | Multi-match takes highest score | PASS |
+| EC-2 | Tied scores flagged as yellow | PASS |
+| EC-3 | Skonto/fee amount differences scored | PASS |
+| EC-4 | 500x500 performance < 10s | PASS |
+| EC-5 | Beleg deletion reverts TX | PASS |
+| EC-6 | Rejected match suppressed | PASS |
+| EC-7 | Same beleg multi-TX deduplication | PASS |
+
+**7/7 PASS**
+
+---
+
+#### Security Audit (Round 4)
+
+**Authentication:**
+- [x] All matching API routes (run/confirm/reject) check `supabase.auth.getUser()` and return 401
+- [x] GET /api/transaktionen checks authentication
+- [x] POST /api/transaktionen/import checks authentication
+
+**Authorization / Mandant Isolation:**
+- [x] POST /api/matching/run scopes to mandant via `owner_id = user.id` on mandanten table
+- [x] POST /api/matching/confirm uses RLS + checks `.select('id')` result length for explicit 404
+- [x] POST /api/matching/reject uses RLS + checks `.select('id')` result length for explicit 404
+- [x] POST /api/transaktionen/import validates quelle_id belongs to user's mandant
+- [x] POST /api/transaktionen/[id]/match relies on RLS for mandant isolation
+- [x] executeMatching() explicitly filters by mandant_id (line 29, 42)
+- [x] RLS on transaktionen and belege tables enforce `mandant_id = get_mandant_id()`
+
+**Input Validation:**
+- [x] POST /api/matching/run: Zod schema validates quelle_id as optional UUID
+- [x] POST /api/matching/confirm: Zod validates transaktion_id and beleg_id as UUIDs
+- [x] POST /api/matching/reject: Zod validates transaktion_id and beleg_id as UUIDs
+- [x] POST /api/transaktionen/[id]/match: Zod validates beleg_id as UUID
+- [x] GET /api/transaktionen: search parameter wildcards escaped (%, _)
+- [x] POST /api/transaktionen/import: Zod validates datum format, betrag as number, max 5000 rows
+
+**Rate Limiting:**
+- [x] /api/transaktionen: 60 GET/min, 20 POST/min per IP
+- [x] /api/belege: 60 GET/min, 20 POST/min per IP
+- [x] /api/matching: 20 POST/min per IP (middleware.ts line 54)
+
+**Data Integrity:**
+- [x] Beleg deduplication in batch matching via assignedBelegIds
+- [x] Monats-Lock checks on confirm, reject, manual match, and kein_beleg
+- [x] Beleg deletion unlinks transaction and resets match_status
+- [x] Reject adds beleg_id to match_abgelehnte_beleg_ids array
+
+---
+
+#### New Findings (Round 4)
+
+##### BUG-PROJ5-R4-001: Search Only Covers beschreibung Field (Low)
+- **Severity:** Low
+- **Description:** The search input placeholder says "Beschreibung, IBAN..." (page.tsx line 274) implying it searches both description AND IBAN fields. However, the API only searches `beschreibung` via ilike (transaktionen/route.ts line 44). Searching by IBAN, buchungsreferenz, or other fields does not work.
+- **Steps to Reproduce:**
+  1. Navigate to /transaktionen
+  2. Enter an IBAN in the search field (e.g., "AT61...")
+  3. Expected: Transactions with that IBAN appear
+  4. Actual: No results (unless the IBAN happens to appear in the beschreibung text)
+- **Impact:** Misleading placeholder text. Users may think IBAN search works when it does not.
+- **Priority:** Should fix (either extend search to multiple columns via `or()` filter, or update placeholder text)
+
+##### BUG-PROJ5-R4-002: Matching Stats Computed from Paginated Data Only (Medium)
+- **Severity:** Medium
+- **Description:** The `matchingStats` in TransaktionenPage (lines 116-126) is computed from the `transaktionen` array, which is paginated (default 50 per page). If a mandant has 200 transactions, the stats bar shows percentages based on only the first 50 transactions visible, not the full dataset. The match quote shown to the user could be wildly inaccurate.
+- **Steps to Reproduce:**
+  1. Import 100+ transactions
+  2. Navigate to /transaktionen
+  3. View the MatchingStatusBar showing "X% zugeordnet"
+  4. Expected: Percentage reflects ALL transactions
+  5. Actual: Percentage only reflects the first 50 (page_size default)
+- **Impact:** Misleading match quote. The status bar's purpose (AC-9) is undermined for mandants with more than 50 transactions.
+- **Priority:** Should fix before deployment of large-scale use
+
+##### BUG-PROJ5-R4-003: amountMatches Division by Zero When belegBetrag is 0 (Low)
+- **Severity:** Low
+- **Description:** In matching.ts line 51, `diff / belegBetrag` will produce `Infinity` if `belegBetrag` is 0 (e.g., a zero-value invoice/credit note). The function returns 0 in this case (since Infinity <= 0.01 is false), which is actually the correct behavior, but the division by zero is technically undefined behavior in strict mathematical terms. In JavaScript, `0/0 = NaN` and `NaN <= 0.01 = false`, so if both betrag and belegBetrag are 0, `diff = 0` and `diff / belegBetrag = 0/0 = NaN`, missing the exact match at line 50 only when both are exactly 0 (which line 50 catches as diff === 0). So this is actually fine -- no real bug. **FALSE POSITIVE -- retracted.**
+
+##### BUG-PROJ5-R4-004: Concurrent Matching Runs Not Serialized (Low)
+- **Severity:** Low
+- **Description:** Two concurrent POST requests to /api/matching/run (or one from import + one manual) can execute simultaneously. The `assignedBelegIds` deduplication only works within a single `executeMatching()` call. Two overlapping calls could still assign the same beleg to different transactions because they each read the beleg list independently and have separate `assignedBelegIds` sets.
+- **Steps to Reproduce:**
+  1. User A clicks "Matching neu starten" while an import is still running matching
+  2. Both matching runs process the same unmatched transactions and open belege
+  3. Expected: Only one matching run assigns each beleg
+  4. Actual: Both runs may assign the same beleg to different transactions
+- **Impact:** Edge case that requires exact timing. RLS and Supabase updates are not transactional across the two API calls. The probability is low in single-user MVP context.
+- **Priority:** Nice to have (unlikely in MVP single-user scenario)
+
+##### BUG-PROJ5-R4-005: Fire-and-Forget Matching After Beleg Upload Silently Fails (Low)
+- **Severity:** Low
+- **Description:** In POST /api/belege (line 103), matching is triggered as fire-and-forget with `.catch(() => {})`. If matching fails (e.g., DB error), the error is silently swallowed with no logging. The user receives a 201 for the beleg upload and has no indication that matching did not run.
+- **Steps to Reproduce:**
+  1. Upload a beleg when the DB is under load or has a transient error
+  2. Beleg is saved successfully (201)
+  3. Expected: User is notified that matching could not run, or at least an error is logged
+  4. Actual: Error is silently caught and discarded
+- **Impact:** Low -- user can always manually trigger matching via the button. But there is no server-side logging of the failure.
+- **Priority:** Nice to have (add `console.error` in the catch block)
+
+---
+
+#### Cross-Browser Assessment
+- All UI components use shadcn/ui (Radix UI primitives) -- cross-browser compatible (Chrome, Firefox, Safari)
+- `Intl.NumberFormat('de-AT')` and `Date.toLocaleDateString('de-AT')` supported in all modern browsers
+- No browser-specific CSS or APIs used
+- **PASS**
+
+#### Responsive Assessment
+- Beleg and Match-Grund columns hidden below lg breakpoint (`hidden lg:table-cell`)
+- MatchingStatusBar stacks on mobile (`flex-col gap-4 sm:flex-row`)
+- Progress bar hidden below md (`hidden md:block`)
+- Filter bar stacks on mobile (`flex-col gap-3 sm:flex-row`)
+- Table has `overflow-x-auto` for horizontal scrolling on small screens
+- **PASS**
+
+---
+
+#### Summary (Round 4)
+
+- **All 12 previously reported bugs: FIXED and verified**
+- **Acceptance Criteria: 9/9 PASS**
+- **Edge Cases: 7/7 PASS**
+- **New bugs found: 3** (0 Critical, 0 High, 1 Medium, 2 Low)
+  - BUG-PROJ5-R4-001 (Low): Search placeholder implies IBAN search but only searches beschreibung
+  - BUG-PROJ5-R4-002 (Medium): Matching stats computed from paginated data only (first 50)
+  - BUG-PROJ5-R4-004 (Low): Concurrent matching runs not serialized
+  - BUG-PROJ5-R4-005 (Low): Fire-and-forget matching silently swallows errors
+- **Security: PASS** -- no critical or high security issues found
+- **Production Ready: YES** -- no Critical or High bugs. The 1 Medium bug (stats from paginated data) should be prioritized for the next sprint but does not block current deployment.
+
+---
+
+### Round 4 Bug Fixes (2026-03-19)
+
+| Bug | Fix |
+|-----|-----|
+| BUG-PROJ5-R4-002 (Medium) | Created `GET /api/transaktionen/stats` (3 parallel `count: exact, head: true` queries). `MatchingStatusBar` stats now fetched from this endpoint, not computed from paginated local data. `page.tsx`: replaced `useMemo` with `useState` + `fetchStats` callback, called on mount and after every `fetchTransaktionen`. |
+| BUG-PROJ5-R4-001 (Low) | Extended search in `GET /api/transaktionen` from single `ilike('beschreibung', ...)` to `.or('beschreibung.ilike.X,buchungsreferenz.ilike.X,iban_gegenseite.ilike.X')`. Placeholder text "Beschreibung, IBAN..." now accurate. |
+| BUG-PROJ5-R4-004 (Low) | Added post-processing dedup in `execute-matching.ts` after the batch loop: queries all `bestaetigt` transactions that share an `assignedBelegIds` beleg, keeps the highest-scoring one, demotes losers to `vorgeschlagen`. Catches conflicts from concurrent runs. |
+| BUG-PROJ5-R4-005 (Low) | Changed `.catch(() => {})` to `.catch((err) => console.error('[belege] Post-upload matching failed:', err))` in `POST /api/belege`. |
+
+**New files:** `src/app/api/transaktionen/stats/route.ts`

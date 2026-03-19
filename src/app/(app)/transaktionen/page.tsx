@@ -67,6 +67,22 @@ export default function TransaktionenPage() {
   // Active tab
   const [activeTab, setActiveTab] = useState('transaktionen')
 
+  // BUG-PROJ5-R4-002: Stats fetched from dedicated endpoint (full dataset, not paginated slice)
+  const [matchingStats, setMatchingStats] = useState({ total: 0, bestaetigt: 0, vorgeschlagen: 0, offen: 0 })
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/transaktionen/stats')
+      if (res.ok) setMatchingStats(await res.json())
+    } catch {
+      // non-fatal
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
+
   const fetchTransaktionen = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -74,10 +90,18 @@ export default function TransaktionenPage() {
     try {
       const params = new URLSearchParams()
       if (searchFilter) params.set('search', searchFilter)
-      if (statusFilter !== 'alle') params.set('match_status', statusFilter)
       if (quelleFilter !== 'alle') params.set('quelle_id', quelleFilter)
       if (datumVon) params.set('datum_von', datumVon)
       if (datumBis) params.set('datum_bis', datumBis)
+
+      // Server-side status filtering based on active tab
+      if (activeTab === 'offen') {
+        params.set('nur_offen', 'true')
+      } else if (activeTab === 'rueckfragen') {
+        params.set('workflow_status', 'rueckfrage')
+      } else if (statusFilter !== 'alle') {
+        params.set('match_status', statusFilter)
+      }
 
       const response = await fetch(`/api/transaktionen?${params.toString()}`)
       if (!response.ok) {
@@ -86,6 +110,7 @@ export default function TransaktionenPage() {
 
       const data = await response.json()
       setTransaktionen(data.data ?? [])
+      fetchStats()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler'
       setError(message)
@@ -93,7 +118,7 @@ export default function TransaktionenPage() {
     } finally {
       setLoading(false)
     }
-  }, [searchFilter, statusFilter, quelleFilter, datumVon, datumBis])
+  }, [searchFilter, statusFilter, quelleFilter, datumVon, datumBis, activeTab, fetchStats])
 
   useEffect(() => {
     fetchTransaktionen()
@@ -104,31 +129,16 @@ export default function TransaktionenPage() {
     setSelectedIds(prev => prev.filter(id => transaktionen.some(t => t.id === id)))
   }, [transaktionen])
 
-  // Compute matching stats from current data (kein_beleg excluded – not actionable)
-  const matchingStats = useMemo(() => {
-    const stats = { total: 0, bestaetigt: 0, vorgeschlagen: 0, offen: 0 }
-    for (const t of transaktionen) {
-      if (t.match_status === 'kein_beleg') continue
-      stats.total++
-      if (t.match_status === 'bestaetigt') stats.bestaetigt++
-      else if (t.match_status === 'vorgeschlagen') stats.vorgeschlagen++
-      else stats.offen++
-    }
-    return stats
-  }, [transaktionen])
-
-  // "Offene Positionen" tab: only red + yellow
-  const offeneTransaktionen = useMemo(
-    () =>
-      transaktionen.filter(
-        (t) => t.match_status === 'offen' || t.match_status === 'vorgeschlagen'
-      ),
+  // Count offene/rueckfragen for tab badges (computed from fetched data)
+  const offeneCount = useMemo(
+    () => transaktionen.filter(
+      (t) => t.match_status === 'offen' || t.match_status === 'vorgeschlagen'
+    ).length,
     [transaktionen]
   )
 
-  // "Rueckfragen" tab: workflow_status = rueckfrage
-  const rueckfragenTransaktionen = useMemo(
-    () => transaktionen.filter((t) => t.workflow_status === 'rueckfrage'),
+  const rueckfragenCount = useMemo(
+    () => transaktionen.filter((t) => t.workflow_status === 'rueckfrage').length,
     [transaktionen]
   )
 
@@ -200,14 +210,6 @@ export default function TransaktionenPage() {
     }
   }
 
-  // Determine which list to show based on active tab
-  const displayedTransaktionen =
-    activeTab === 'offen'
-      ? offeneTransaktionen
-      : activeTab === 'rueckfragen'
-        ? rueckfragenTransaktionen
-        : transaktionen
-
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8">
       {/* Header */}
@@ -236,17 +238,17 @@ export default function TransaktionenPage() {
           <TabsTrigger value="transaktionen">Alle Transaktionen</TabsTrigger>
           <TabsTrigger value="offen" className="gap-1.5">
             Offene Positionen
-            {offeneTransaktionen.length > 0 && (
+            {activeTab !== 'offen' && offeneCount > 0 && (
               <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900 dark:text-red-300">
-                {offeneTransaktionen.length}
+                {offeneCount}
               </span>
             )}
           </TabsTrigger>
           <TabsTrigger value="rueckfragen" className="gap-1.5">
             Rueckfragen
-            {rueckfragenTransaktionen.length > 0 && (
+            {activeTab !== 'rueckfragen' && rueckfragenCount > 0 && (
               <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                {rueckfragenTransaktionen.length}
+                {rueckfragenCount}
               </span>
             )}
           </TabsTrigger>
@@ -403,7 +405,7 @@ export default function TransaktionenPage() {
 
             {/* Table */}
             <TransaktionenTabelle
-              transaktionen={displayedTransaktionen}
+              transaktionen={transaktionen}
               loading={loading}
               onActionComplete={fetchTransaktionen}
               onManualAssign={handleManualAssign}
