@@ -62,14 +62,13 @@ export async function executeMatching(
   let matched = 0, suggested = 0, unmatched = 0
 
   for (const result of results) {
-    // BUG-PROJ5-004: skip if beleg was already assigned to a higher-priority transaction
+    // BUG-PROJ5-004/010: beleg already taken → flag as vorgeschlagen (orange) for manual resolution
     if (result.beleg_id && assignedBelegIds.has(result.beleg_id)) {
-      // Downgrade to offen — beleg already taken
       await supabase
         .from('transaktionen')
-        .update({ match_status: 'offen', match_score: 0, match_type: null, beleg_id: null })
+        .update({ match_status: 'vorgeschlagen', match_score: result.match_score, match_type: result.match_type, beleg_id: result.beleg_id })
         .eq('id', result.transaktion_id)
-      unmatched++
+      suggested++
       continue
     }
 

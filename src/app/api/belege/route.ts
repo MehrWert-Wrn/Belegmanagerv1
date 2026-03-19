@@ -55,8 +55,9 @@ export async function GET(request: Request) {
     .is('geloescht_am', null)
     .order('erstellt_am', { ascending: false })
 
-  if (lieferant) query = query.ilike('lieferant', `%${lieferant}%`)
-  if (rechnungsname) query = query.ilike('rechnungsname', `%${rechnungsname}%`)
+  const esc = (s: string) => s.replace(/%/g, '\\%').replace(/_/g, '\\_')
+  if (lieferant) query = query.ilike('lieferant', `%${esc(lieferant)}%`)
+  if (rechnungsname) query = query.ilike('rechnungsname', `%${esc(rechnungsname)}%`)
   if (rechnungstyp) query = query.eq('rechnungstyp', rechnungstyp)
   if (status) query = query.eq('zuordnungsstatus', status)
   if (datumVon) query = query.gte('rechnungsdatum', datumVon)

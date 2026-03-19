@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { runMatchingBatch } from '@/lib/matching'
+import { executeMatching } from '@/lib/execute-matching'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -155,43 +155,12 @@ export async function POST(request: Request) {
     importiert_von: user.id,
   })
 
-  // Schritt 5: Matching direkt inline ausführen
+  // Schritt 5: Matching ausführen (mit Beleg-Deduplication via executeMatching)
   let matching_quote = 0
   if (anzahl_importiert > 0) {
-    const { data: newTransaktionen } = await supabase
-      .from('transaktionen')
-      .select('id, datum, betrag, beschreibung, iban_gegenseite, buchungsreferenz, match_abgelehnte_beleg_ids')
-      .eq('mandant_id', mandant_id)
-      .eq('quelle_id', quelle_id)
-      .eq('match_status', 'offen')
-
-    const { data: offeneBelege } = await supabase
-      .from('belege')
-      .select('id, lieferant, lieferant_iban, rechnungsnummer, bruttobetrag, rechnungsdatum')
-      .eq('mandant_id', mandant_id)
-      .eq('zuordnungsstatus', 'offen')
-      .is('geloescht_am', null)
-
-    if (newTransaktionen?.length && offeneBelege?.length) {
-      const results = runMatchingBatch(
-        newTransaktionen.map(t => ({ ...t, match_abgelehnte_beleg_ids: t.match_abgelehnte_beleg_ids ?? [] })),
-        offeneBelege
-      )
-      let autoMatched = 0
-      for (const result of results) {
-        await supabase.from('transaktionen').update({
-          match_status: result.match_status,
-          match_score: result.match_score,
-          match_type: result.match_type,
-          beleg_id: result.beleg_id,
-        }).eq('id', result.transaktion_id)
-
-        if (result.match_status === 'bestaetigt' && result.beleg_id) {
-          autoMatched++
-          await supabase.from('belege').update({ zuordnungsstatus: 'zugeordnet' }).eq('id', result.beleg_id)
-        }
-      }
-      matching_quote = Math.round((autoMatched / results.length) * 100)
+    const stats = await executeMatching(supabase, mandant_id, quelle_id).catch(() => null)
+    if (stats && stats.total > 0) {
+      matching_quote = Math.round((stats.matched / stats.total) * 100)
     }
   }
 
