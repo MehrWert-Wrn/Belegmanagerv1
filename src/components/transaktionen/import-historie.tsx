@@ -16,6 +16,7 @@ interface ImportHistoryEntry {
   id: string
   dateiname: string
   importiert_am: string
+  importiert_von_name: string | null
   anzahl_importiert: number
   anzahl_duplikate: number
   anzahl_fehler: number
@@ -86,6 +87,7 @@ export function ImportHistorie() {
           <TableRow>
             <TableHead>Dateiname</TableHead>
             <TableHead className="hidden sm:table-cell">Quelle</TableHead>
+            <TableHead className="hidden md:table-cell">Importiert von</TableHead>
             <TableHead>Importiert am</TableHead>
             <TableHead className="text-right">Importiert</TableHead>
             <TableHead className="text-right">Duplikate</TableHead>
@@ -100,6 +102,9 @@ export function ImportHistorie() {
               </TableCell>
               <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                 {imp.zahlungsquellen?.name ?? '-'}
+              </TableCell>
+              <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                {imp.importiert_von_name ?? '-'}
               </TableCell>
               <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                 {new Date(imp.importiert_am).toLocaleDateString('de-AT', {

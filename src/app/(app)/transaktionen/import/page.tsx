@@ -117,6 +117,7 @@ export default function ImportPage() {
 
   // Step 3: Import
   const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState(0)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
 
   // Fetch available Zahlungsquellen on mount
@@ -193,6 +194,21 @@ export default function ImportPage() {
     if (validTransactions.length === 0 || !file || !selectedQuelleId) return
 
     setImporting(true)
+    setImportProgress(0)
+
+    // Simulate progress: ramp to 85% over ~(rowCount * 10ms), then wait for response
+    const rowCount = validTransactions.length
+    const totalMs = Math.min(Math.max(rowCount * 8, 1500), 12000)
+    const intervalMs = 200
+    const steps = totalMs / intervalMs
+    let tick = 0
+    const progressTimer = setInterval(() => {
+      tick++
+      // Ease-out curve: slows down near 85%
+      const pct = 85 * (1 - Math.pow(1 - tick / steps, 2))
+      setImportProgress(Math.min(pct, 85))
+      if (tick >= steps) clearInterval(progressTimer)
+    }, intervalMs)
 
     try {
       const payload = {
@@ -220,6 +236,8 @@ export default function ImportPage() {
         )
       }
 
+      clearInterval(progressTimer)
+      setImportProgress(100)
       const result = await response.json()
       setImportResult({
         importiert: result.anzahl_importiert ?? 0,
@@ -233,6 +251,8 @@ export default function ImportPage() {
         `${result.anzahl_importiert ?? 0} Transaktionen importiert.`
       )
     } catch (err) {
+      clearInterval(progressTimer)
+      setImportProgress(0)
       const message =
         err instanceof Error ? err.message : 'Unbekannter Fehler beim Import.'
       toast.error(message)
@@ -567,32 +587,42 @@ export default function ImportPage() {
           )}
 
           {step === 2 && (
-            <div className="flex items-center gap-3">
-              <div className="text-sm text-muted-foreground hidden sm:block">
-                {validTransactions.length} gueltige Zeilen
-                {errorTransactions.length > 0 && (
-                  <span className="text-destructive">
-                    , {errorTransactions.length} Fehler
-                  </span>
-                )}
+            <>
+              <div className="flex items-center gap-3">
+                <div className="text-sm text-muted-foreground hidden sm:block">
+                  {validTransactions.length} gueltige Zeilen
+                  {errorTransactions.length > 0 && (
+                    <span className="text-destructive">
+                      , {errorTransactions.length} Fehler
+                    </span>
+                  )}
+                </div>
+                <Button
+                  onClick={handleImport}
+                  disabled={!canProceed() || importing}
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Importiere...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="mr-2 h-4 w-4" />
+                      {validTransactions.length} Transaktionen importieren
+                    </>
+                  )}
+                </Button>
               </div>
-              <Button
-                onClick={handleImport}
-                disabled={!canProceed() || importing}
-              >
-                {importing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Importiere...
-                  </>
-                ) : (
-                  <>
-                    <Check className="mr-2 h-4 w-4" />
-                    {validTransactions.length} Transaktionen importieren
-                  </>
-                )}
-              </Button>
-            </div>
+              {importing && validTransactions.length > 100 && (
+                <div className="w-48 space-y-1">
+                  <Progress value={importProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground text-center">
+                    {validTransactions.length} Zeilen…
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

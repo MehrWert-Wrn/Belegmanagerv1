@@ -52,9 +52,11 @@ export async function middleware(request: NextRequest) {
 
   // Rate-limit sensitive API endpoints
   if (pathname.startsWith('/api/belege') || pathname.startsWith('/api/transaktionen') || pathname.startsWith('/api/matching') || pathname.startsWith('/api/monatsabschluss') || pathname.startsWith('/api/export')) {
+    // Vercel sets x-real-ip reliably; x-forwarded-for last entry is Vercel's ingress IP.
+    // Prefer x-real-ip (set by Vercel infrastructure, not spoofable by clients).
     const ip =
-      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
       request.headers.get('x-real-ip') ??
+      request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ??
       'unknown'
 
     if (isRateLimited(ip, request.method)) {

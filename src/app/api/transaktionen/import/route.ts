@@ -71,9 +71,13 @@ export async function POST(request: Request) {
   }
 
   // Schritt 1: Bestehende Transaktionen für Duplikat-Check laden
-  // (nur Datum+Betrag+Referenz-Kombinationen des letzten Jahres für Performance)
+  // Nur den Datumsbereich der CSV abfragen (min–max) für Performance
   const minDatum = transaktionen.reduce(
     (min, t) => t.datum < min ? t.datum : min,
+    transaktionen[0].datum
+  )
+  const maxDatum = transaktionen.reduce(
+    (max, t) => t.datum > max ? t.datum : max,
     transaktionen[0].datum
   )
 
@@ -83,6 +87,7 @@ export async function POST(request: Request) {
     .eq('mandant_id', mandant_id)
     .eq('quelle_id', quelle_id)
     .gte('datum', minDatum)
+    .lte('datum', maxDatum)
 
   const existingSet = new Set(
     (existing ?? []).map(t =>

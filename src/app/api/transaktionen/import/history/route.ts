@@ -13,6 +13,7 @@ export async function GET() {
       id,
       dateiname,
       importiert_am,
+      importiert_von,
       anzahl_importiert,
       anzahl_duplikate,
       anzahl_fehler,
@@ -22,5 +23,23 @@ export async function GET() {
     .limit(50)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  if (!data?.length) return NextResponse.json([])
+
+  // Resolve user names from mandant_users
+  const userIds = [...new Set(data.map(r => r.importiert_von).filter(Boolean))]
+  const { data: users } = await supabase
+    .from('mandant_users')
+    .select('user_id, name, email')
+    .in('user_id', userIds)
+
+  const userMap = Object.fromEntries(
+    (users ?? []).map(u => [u.user_id, u.name || u.email || null])
+  )
+
+  return NextResponse.json(
+    data.map(r => ({
+      ...r,
+      importiert_von_name: userMap[r.importiert_von] ?? null,
+    }))
+  )
 }
