@@ -25,7 +25,8 @@
 | PROJ-11 | Kommentare & Workflow-Status | In Review | [PROJ-11-kommentare-workflow.md](PROJ-11-kommentare-workflow.md) | 2026-03-13 |
 | PROJ-12 | Multi-Tenant User-Rollen | In Review | [PROJ-12-user-rollen.md](PROJ-12-user-rollen.md) | 2026-03-13 |
 | PROJ-13 | Reisekostenabrechnung | Planned | [PROJ-13-reisekostenabrechnung.md](PROJ-13-reisekostenabrechnung.md) | 2026-03-13 |
+| PROJ-14 | Kontoauszug-Import Verbesserungen | Planned | [PROJ-14-kontoauszug-import-verbesserungen.md](PROJ-14-kontoauszug-import-verbesserungen.md) | 2026-03-19 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-14
+## Next Available ID: PROJ-15
