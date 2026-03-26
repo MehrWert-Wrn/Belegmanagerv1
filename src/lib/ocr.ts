@@ -158,8 +158,11 @@ export async function performOcr(
         : 0,
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = error instanceof Error ? error.message : String(error)
     console.error(`[OCR] Failed: ${message}`)
+    if (error && typeof error === 'object' && 'status' in error) {
+      console.error(`[OCR] API error status: ${(error as {status: number}).status}`)
+    }
     return EMPTY_RESULT
   }
 }
