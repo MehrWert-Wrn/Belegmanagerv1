@@ -90,9 +90,6 @@ function roundTwo(val: number): number {
   return Math.round(val * 100) / 100
 }
 
-/** Fields that OCR can populate */
-const OCR_FIELDS = ['lieferant', 'rechnungsnummer', 'rechnungsdatum'] as const
-const OCR_STEUER_FIELDS = ['nettobetrag', 'bruttobetrag', 'mwst_satz'] as const
 
 export type MassImportResult = {
   belegIds: string[]
@@ -262,10 +259,15 @@ export function BelegUploadDialog({
 
       const result: OcrResult = await response.json()
       if (result.confidence === 0) {
+        if (result.error) {
+          console.error('[OCR] Server error:', result.error)
+          toast.error(`OCR Fehler: ${result.error}`)
+        }
         return null
       }
       return result
-    } catch {
+    } catch (e) {
+      console.error('[OCR] Request failed:', e)
       return null
     }
   }

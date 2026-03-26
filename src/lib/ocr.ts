@@ -12,6 +12,7 @@ export interface OcrResult {
   nettobetrag: number | null
   mwst_satz: number | null
   confidence: number
+  error?: string
 }
 
 const EMPTY_RESULT: OcrResult = {
@@ -70,18 +71,18 @@ export async function performOcr(
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     console.error('[OCR] ANTHROPIC_API_KEY not configured')
-    return EMPTY_RESULT
+    return { ...EMPTY_RESULT, error: 'ANTHROPIC_API_KEY fehlt' }
   }
 
   const mediaType = MEDIA_TYPE_MAP[mimeType]
   if (!mediaType) {
     console.error(`[OCR] Unsupported MIME type: ${mimeType}`)
-    return EMPTY_RESULT
+    return { ...EMPTY_RESULT, error: `Dateityp nicht unterstuetzt: ${mimeType}` }
   }
 
   if (fileBuffer.length > OCR_MAX_FILE_SIZE) {
     console.error(`[OCR] File too large: ${fileBuffer.length} bytes (max ${OCR_MAX_FILE_SIZE})`)
-    return EMPTY_RESULT
+    return { ...EMPTY_RESULT, error: 'Datei zu gross' }
   }
 
   const base64Data = fileBuffer.toString('base64')
@@ -159,11 +160,11 @@ export async function performOcr(
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.error(`[OCR] Failed: ${message}`)
-    if (error && typeof error === 'object' && 'status' in error) {
-      console.error(`[OCR] API error status: ${(error as {status: number}).status}`)
-    }
-    return EMPTY_RESULT
+    const status = (error && typeof error === 'object' && 'status' in error)
+      ? ` (HTTP ${(error as {status: number}).status})`
+      : ''
+    console.error(`[OCR] Failed: ${message}${status}`)
+    return { ...EMPTY_RESULT, error: `${message}${status}` }
   }
 }
 
