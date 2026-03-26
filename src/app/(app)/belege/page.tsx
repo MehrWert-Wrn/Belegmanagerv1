@@ -17,6 +17,7 @@ import { BelegTabelle } from '@/components/belege/beleg-tabelle'
 import { BelegUploadDialog } from '@/components/belege/beleg-upload-dialog'
 import { BelegDetailSheet } from '@/components/belege/beleg-detail-sheet'
 import { BelegLoeschenDialog } from '@/components/belege/beleg-loeschen-dialog'
+import { BelegReviewModus } from '@/components/belege/beleg-review-modus'
 import type { Beleg } from '@/lib/supabase/types'
 
 export default function BelegePage() {
@@ -46,6 +47,10 @@ export default function BelegePage() {
   const [deleteBeleg, setDeleteBeleg] = useState<Beleg | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+
+  // Review mode state (mass import)
+  const [reviewBelegIds, setReviewBelegIds] = useState<string[]>([])
+  const [reviewOpen, setReviewOpen] = useState(false)
 
   const fetchBelege = useCallback(async () => {
     setLoading(true)
@@ -403,6 +408,11 @@ export default function BelegePage() {
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         onSuccess={fetchBelege}
+        onMassImportComplete={(result) => {
+          setReviewBelegIds(result.belegIds)
+          setReviewOpen(true)
+          fetchBelege()
+        }}
       />
 
       <BelegDetailSheet
@@ -429,6 +439,14 @@ export default function BelegePage() {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         onDeleted={handleBulkDeleted}
+      />
+
+      {/* Review mode for mass import */}
+      <BelegReviewModus
+        belegIds={reviewBelegIds}
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        onComplete={fetchBelege}
       />
     </div>
   )

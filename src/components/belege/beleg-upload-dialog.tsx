@@ -1,11 +1,23 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Upload, X, FileText, Loader2, Plus, Trash2, ExternalLink } from 'lucide-react'
+import {
+  Upload,
+  X,
+  FileText,
+  Loader2,
+  Plus,
+  Trash2,
+  ExternalLink,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ScanSearch,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -39,9 +51,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Progress } from '@/components/ui/progress'
 import { createClient } from '@/lib/supabase/client'
+import type { OcrResult } from '@/lib/ocr'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const OCR_MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB for OCR
+const MAX_MASS_IMPORT = 20
 const ACCEPTED_TYPES = {
   'application/pdf': ['.pdf'],
   'image/jpeg': ['.jpg', '.jpeg'],
@@ -74,21 +90,50 @@ function roundTwo(val: number): number {
   return Math.round(val * 100) / 100
 }
 
+/** Fields that OCR can populate */
+const OCR_FIELDS = ['lieferant', 'rechnungsnummer', 'rechnungsdatum'] as const
+const OCR_STEUER_FIELDS = ['nettobetrag', 'bruttobetrag', 'mwst_satz'] as const
+
+export type MassImportResult = {
+  belegIds: string[]
+}
+
+type MassFileStatus = 'pending' | 'uploading' | 'ocr' | 'done' | 'error'
+
+interface MassFileItem {
+  file: File
+  status: MassFileStatus
+  error?: string
+  belegId?: string
+}
+
 interface BelegUploadDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
+  onMassImportComplete?: (result: MassImportResult) => void
 }
 
 export function BelegUploadDialog({
   open,
   onOpenChange,
   onSuccess,
+  onMassImportComplete,
 }: BelegUploadDialogProps) {
-  const [step, setStep] = useState<1 | 2>(1)
+  // Mode: 'single' or 'mass'
+  const [mode, setMode] = useState<'dropzone' | 'single' | 'mass'>('dropzone')
   const [file, setFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+
+  // OCR state for single upload
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrFields, setOcrFields] = useState<Set<string>>(new Set())
+
+  // Mass import state
+  const [massFiles, setMassFiles] = useState<MassFileItem[]>([])
+  const [massProcessing, setMassProcessing] = useState(false)
+  const massAbortRef = useRef(false)
 
   const form = useForm<MetadataFormValues>({
     resolver: zodResolver(metadataSchema),
@@ -114,8 +159,24 @@ export function BelegUploadDialog({
   const beschreibungValue = form.watch('beschreibung') ?? ''
   const steuerzeilen = form.watch('steuerzeilen')
 
+  // Track which fields user has manually touched (removes OCR highlight)
+  function clearOcrHighlight(fieldName: string) {
+    setOcrFields((prev) => {
+      const next = new Set(prev)
+      next.delete(fieldName)
+      return next
+    })
+  }
+
+  function getOcrInputClass(fieldName: string): string {
+    return ocrFields.has(fieldName)
+      ? 'ring-2 ring-blue-300 ring-offset-1 bg-blue-50/50'
+      : ''
+  }
+
   // Auto-calculate: when netto or mwst changes, compute brutto; when brutto or mwst changes, compute netto
   function handleNettoChange(index: number, value: string) {
+    clearOcrHighlight(`steuerzeilen.${index}.nettobetrag`)
     const netto = value === '' ? null : parseFloat(value)
     form.setValue(`steuerzeilen.${index}.nettobetrag`, netto)
 
@@ -129,6 +190,7 @@ export function BelegUploadDialog({
   }
 
   function handleBruttoChange(index: number, value: string) {
+    clearOcrHighlight(`steuerzeilen.${index}.bruttobetrag`)
     const brutto = value === '' ? null : parseFloat(value)
     form.setValue(`steuerzeilen.${index}.bruttobetrag`, brutto)
 
@@ -142,6 +204,7 @@ export function BelegUploadDialog({
   }
 
   function handleMwstChange(index: number, value: string) {
+    clearOcrHighlight(`steuerzeilen.${index}.mwst_satz`)
     form.setValue(`steuerzeilen.${index}.mwst_satz`, value === 'none' ? null : value)
 
     const mwst = value !== 'none' && value !== '' ? Number(value) : null
@@ -152,18 +215,15 @@ export function BelegUploadDialog({
 
     if (mwst != null) {
       if (mwst === 0) {
-        // MwSt 0%: netto = brutto
         if (netto != null && !isNaN(netto)) {
           form.setValue(`steuerzeilen.${index}.bruttobetrag`, netto)
         } else if (brutto != null && !isNaN(brutto)) {
           form.setValue(`steuerzeilen.${index}.nettobetrag`, brutto)
         }
       } else if (netto != null && !isNaN(netto)) {
-        // Netto vorhanden -> Brutto neu berechnen
         const newBrutto = roundTwo(netto * (1 + mwst / 100))
         form.setValue(`steuerzeilen.${index}.bruttobetrag`, newBrutto)
       } else if (brutto != null && !isNaN(brutto)) {
-        // Nur Brutto vorhanden -> Netto berechnen
         const newNetto = roundTwo(brutto / (1 + mwst / 100))
         form.setValue(`steuerzeilen.${index}.nettobetrag`, newNetto)
       }
@@ -181,36 +241,273 @@ export function BelegUploadDialog({
     return sum + (isNaN(val) ? 0 : val)
   }, 0)
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const selected = acceptedFiles[0]
-    if (!selected) return
-
-    if (selected.size > MAX_FILE_SIZE) {
-      toast.error('Datei zu gross. Maximal 10 MB erlaubt.')
-      return
+  // --- OCR ---
+  async function runOcr(targetFile: File): Promise<OcrResult | null> {
+    if (targetFile.size > OCR_MAX_FILE_SIZE) {
+      return null // File too large for OCR, skip silently
     }
 
-    setFile(selected)
+    const formData = new FormData()
+    formData.append('file', targetFile)
 
-    if (selected.type.startsWith('image/')) {
-      const url = URL.createObjectURL(selected)
-      setFilePreview(url)
+    try {
+      const response = await fetch('/api/belege/ocr', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        return null
+      }
+
+      const result: OcrResult = await response.json()
+      if (result.confidence === 0) {
+        return null
+      }
+      return result
+    } catch {
+      return null
+    }
+  }
+
+  function applyOcrToForm(result: OcrResult) {
+    const newOcrFields = new Set<string>()
+
+    if (result.lieferant) {
+      form.setValue('lieferant', result.lieferant)
+      newOcrFields.add('lieferant')
+    }
+    if (result.rechnungsnummer) {
+      form.setValue('rechnungsnummer', result.rechnungsnummer)
+      newOcrFields.add('rechnungsnummer')
+    }
+    if (result.rechnungsdatum) {
+      form.setValue('rechnungsdatum', result.rechnungsdatum)
+      newOcrFields.add('rechnungsdatum')
+    }
+    if (result.nettobetrag != null) {
+      form.setValue('steuerzeilen.0.nettobetrag', result.nettobetrag)
+      newOcrFields.add('steuerzeilen.0.nettobetrag')
+    }
+    if (result.bruttobetrag != null) {
+      form.setValue('steuerzeilen.0.bruttobetrag', result.bruttobetrag)
+      newOcrFields.add('steuerzeilen.0.bruttobetrag')
+    }
+    if (result.mwst_satz != null) {
+      // Map to nearest valid value
+      const validRates = [0, 10, 13, 20]
+      const closest = validRates.includes(result.mwst_satz)
+        ? result.mwst_satz.toString()
+        : result.mwst_satz.toString()
+      form.setValue('steuerzeilen.0.mwst_satz', closest)
+      newOcrFields.add('steuerzeilen.0.mwst_satz')
+    }
+
+    setOcrFields(newOcrFields)
+  }
+
+  // --- Dropzone ---
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return
+
+    if (acceptedFiles.length === 1) {
+      // Single upload path
+      const selected = acceptedFiles[0]
+      if (selected.size > MAX_FILE_SIZE) {
+        toast.error('Datei zu gross. Maximal 10 MB erlaubt.')
+        return
+      }
+
+      setFile(selected)
+      if (selected.type.startsWith('image/')) {
+        setFilePreview(URL.createObjectURL(selected))
+      } else {
+        setFilePreview(null)
+      }
+
+      setMode('single')
+
+      // Start OCR in background
+      setOcrLoading(true)
+      const ocrResult = await runOcr(selected)
+      setOcrLoading(false)
+
+      if (ocrResult) {
+        applyOcrToForm(ocrResult)
+      } else {
+        toast.info('OCR konnte keine Daten erkennen - bitte manuell ausfuellen')
+      }
     } else {
-      setFilePreview(null)
-    }
+      // Mass import path
+      if (acceptedFiles.length > MAX_MASS_IMPORT) {
+        toast.error(`Maximal ${MAX_MASS_IMPORT} Dateien pro Massenimport erlaubt.`)
+        return
+      }
 
-    setStep(2)
+      const validFiles = acceptedFiles.filter((f) => {
+        if (f.size > MAX_FILE_SIZE) {
+          toast.error(`${f.name}: Datei zu gross (max. 10 MB)`)
+          return false
+        }
+        return true
+      })
+
+      if (validFiles.length === 0) return
+
+      const items: MassFileItem[] = validFiles.map((f) => ({
+        file: f,
+        status: 'pending' as const,
+      }))
+
+      setMassFiles(items)
+      setMode('mass')
+      massAbortRef.current = false
+      processMassImport(items)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: ACCEPTED_TYPES,
-    maxFiles: 1,
+    maxFiles: MAX_MASS_IMPORT,
     maxSize: MAX_FILE_SIZE,
+    disabled: mode !== 'dropzone',
   })
 
+  // --- Mass import processing ---
+  async function processMassImport(items: MassFileItem[]) {
+    setMassProcessing(true)
+    const supabase = createClient()
+
+    // Get mandant_id once
+    const { data: mandant, error: mandantError } = await supabase
+      .from('mandanten')
+      .select('id')
+      .single()
+
+    if (mandantError || !mandant) {
+      toast.error('Mandant konnte nicht ermittelt werden.')
+      setMassProcessing(false)
+      return
+    }
+
+    const belegIds: string[] = []
+
+    for (let i = 0; i < items.length; i++) {
+      if (massAbortRef.current) break
+
+      const item = items[i]
+
+      // Update status to uploading
+      setMassFiles((prev) => {
+        const next = [...prev]
+        next[i] = { ...next[i], status: 'uploading' }
+        return next
+      })
+
+      try {
+        // Upload file to storage
+        const fileId = crypto.randomUUID()
+        const ext = item.file.name.split('.').pop()?.toLowerCase() ?? 'pdf'
+        const storagePath = `${mandant.id}/${fileId}.${ext}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('belege')
+          .upload(storagePath, item.file, {
+            contentType: item.file.type,
+            upsert: false,
+          })
+
+        if (uploadError) {
+          throw new Error(uploadError.message)
+        }
+
+        const dateityp = ext === 'jpg' || ext === 'jpeg' ? 'jpg' : ext === 'png' ? 'png' : 'pdf'
+
+        // Update status to OCR
+        setMassFiles((prev) => {
+          const next = [...prev]
+          next[i] = { ...next[i], status: 'ocr' }
+          return next
+        })
+
+        // Run OCR
+        const ocrResult = await runOcr(item.file)
+
+        // Create beleg in DB (rechnungsname=null -> "nicht reviewed")
+        const response = await fetch('/api/belege', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            storage_path: storagePath,
+            original_filename: item.file.name,
+            dateityp,
+            file_size: item.file.size,
+            rechnungstyp: 'eingangsrechnung',
+            // Apply OCR results if available
+            lieferant: ocrResult?.lieferant || undefined,
+            rechnungsnummer: ocrResult?.rechnungsnummer || undefined,
+            bruttobetrag: ocrResult?.bruttobetrag || null,
+            nettobetrag: ocrResult?.nettobetrag || null,
+            mwst_satz: ocrResult?.mwst_satz || null,
+            rechnungsdatum: ocrResult?.rechnungsdatum || null,
+          }),
+        })
+
+        if (!response.ok) {
+          // Clean up storage
+          await supabase.storage.from('belege').remove([storagePath])
+          throw new Error('Speichern fehlgeschlagen')
+        }
+
+        const createdBeleg = await response.json()
+        belegIds.push(createdBeleg.id)
+
+        setMassFiles((prev) => {
+          const next = [...prev]
+          next[i] = { ...next[i], status: 'done', belegId: createdBeleg.id }
+          return next
+        })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unbekannter Fehler'
+        setMassFiles((prev) => {
+          const next = [...prev]
+          next[i] = { ...next[i], status: 'error', error: message }
+          return next
+        })
+      }
+    }
+
+    setMassProcessing(false)
+
+    const successCount = belegIds.length
+    const errorCount = items.length - successCount
+
+    if (successCount > 0) {
+      toast.success(
+        `${successCount} Beleg${successCount !== 1 ? 'e' : ''} importiert${errorCount > 0 ? ` (${errorCount} Fehler)` : ''} - bitte Metadaten pruefen`,
+        {
+          action: onMassImportComplete
+            ? {
+                label: 'Jetzt pruefen',
+                onClick: () => {
+                  onMassImportComplete({ belegIds })
+                  resetDialog()
+                  onOpenChange(false)
+                },
+              }
+            : undefined,
+          duration: 10000,
+        }
+      )
+    } else {
+      toast.error('Kein Beleg konnte importiert werden.')
+    }
+  }
+
   function resetDialog() {
-    setStep(1)
+    setMode('dropzone')
     setFile(null)
     if (filePreview) {
       URL.revokeObjectURL(filePreview)
@@ -218,10 +515,18 @@ export function BelegUploadDialog({
     setFilePreview(null)
     form.reset()
     setUploading(false)
+    setOcrLoading(false)
+    setOcrFields(new Set())
+    setMassFiles([])
+    setMassProcessing(false)
+    massAbortRef.current = false
   }
 
   function handleClose(isOpen: boolean) {
     if (!isOpen) {
+      if (massProcessing) {
+        massAbortRef.current = true
+      }
       resetDialog()
     }
     onOpenChange(isOpen)
@@ -241,7 +546,6 @@ export function BelegUploadDialog({
     try {
       const supabase = createClient()
 
-      // Get mandant_id
       const { data: mandant, error: mandantError } = await supabase
         .from('mandanten')
         .select('id')
@@ -253,12 +557,10 @@ export function BelegUploadDialog({
         return
       }
 
-      // Generate unique filename
       const fileId = crypto.randomUUID()
       const ext = file.name.split('.').pop()?.toLowerCase() ?? 'pdf'
       const storagePath = `${mandant.id}/${fileId}.${ext}`
 
-      // Upload file to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('belege')
         .upload(storagePath, file, {
@@ -272,10 +574,8 @@ export function BelegUploadDialog({
         return
       }
 
-      // Determine dateityp
       const dateityp = ext === 'jpg' || ext === 'jpeg' ? 'jpg' : ext === 'png' ? 'png' : 'pdf'
 
-      // Calculate totals from steuerzeilen
       const totalBrutto = values.steuerzeilen.reduce((sum, z) => {
         const val = z.bruttobetrag != null && z.bruttobetrag !== '' ? Number(z.bruttobetrag) : 0
         return sum + (isNaN(val) ? 0 : val)
@@ -286,7 +586,6 @@ export function BelegUploadDialog({
         return sum + (isNaN(val) ? 0 : val)
       }, 0)
 
-      // MwSt-Satz from first line
       const firstMwst = values.steuerzeilen[0]?.mwst_satz
       const mwstSatz = firstMwst != null && firstMwst !== 'none' && firstMwst !== '' ? Number(firstMwst) : null
 
@@ -315,7 +614,6 @@ export function BelegUploadDialog({
 
       if (!response.ok) {
         const err = await response.json()
-        // Clean up orphaned storage file since metadata save failed
         await supabase.storage.from('belege').remove([storagePath])
         toast.error(`Fehler beim Speichern: ${err.error || 'Unbekannter Fehler'}`)
         setUploading(false)
@@ -333,19 +631,64 @@ export function BelegUploadDialog({
     }
   }
 
+  // Mass import progress
+  const massCompleted = massFiles.filter((f) => f.status === 'done' || f.status === 'error').length
+  const massSucceeded = massFiles.filter((f) => f.status === 'done').length
+  const massProgress = massFiles.length > 0 ? (massCompleted / massFiles.length) * 100 : 0
+
+  function getStatusIcon(status: MassFileStatus) {
+    switch (status) {
+      case 'pending':
+        return <Clock className="h-4 w-4 text-muted-foreground" />
+      case 'uploading':
+        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+      case 'ocr':
+        return <ScanSearch className="h-4 w-4 animate-pulse text-blue-500" />
+      case 'done':
+        return <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+      case 'error':
+        return <XCircle className="h-4 w-4 text-destructive" />
+    }
+  }
+
+  function getStatusLabel(status: MassFileStatus) {
+    switch (status) {
+      case 'pending': return 'Wartend'
+      case 'uploading': return 'Hochladen...'
+      case 'ocr': return 'OCR erkennt...'
+      case 'done': return 'Fertig'
+      case 'error': return 'Fehler'
+    }
+  }
+
+  // Dialog title/description
+  function getDialogTitle() {
+    if (mode === 'mass') return 'Massenimport'
+    if (mode === 'single') return 'Beleg hochladen'
+    return 'Beleg hochladen'
+  }
+
+  function getDialogDescription() {
+    if (mode === 'mass') {
+      return `${massFiles.length} Dateien werden verarbeitet`
+    }
+    if (mode === 'single') {
+      if (ocrLoading) return 'OCR erkennt Daten...'
+      return 'Metadaten zum Beleg eingeben'
+    }
+    return 'Dateien auswaehlen oder hierher ziehen (PDF, JPG, PNG, max. 10 MB). Mehrere Dateien fuer Massenimport.'
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Beleg hochladen</DialogTitle>
-          <DialogDescription>
-            {step === 1
-              ? 'Datei auswaehlen oder hierher ziehen (PDF, JPG, PNG, max. 10 MB)'
-              : 'Metadaten zum Beleg eingeben'}
-          </DialogDescription>
+          <DialogTitle>{getDialogTitle()}</DialogTitle>
+          <DialogDescription>{getDialogDescription()}</DialogDescription>
         </DialogHeader>
 
-        {step === 1 && (
+        {/* Step 1: Dropzone (single + multiple) */}
+        {mode === 'dropzone' && (
           <div
             {...getRootProps()}
             className={`flex cursor-pointer flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed p-10 transition-colors ${
@@ -354,24 +697,28 @@ export function BelegUploadDialog({
                 : 'border-muted-foreground/25 hover:border-emerald-400 hover:bg-muted/50'
             }`}
           >
-            <input {...getInputProps()} aria-label="Datei auswaehlen" />
+            <input {...getInputProps()} aria-label="Dateien auswaehlen" />
             <Upload className="h-10 w-10 text-muted-foreground" />
             <div className="text-center">
               <p className="text-sm font-medium">
                 {isDragActive
-                  ? 'Datei hier ablegen...'
-                  : 'Klicken oder Datei hierher ziehen'}
+                  ? 'Dateien hier ablegen...'
+                  : 'Klicken oder Dateien hierher ziehen'}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                PDF, JPG oder PNG - max. 10 MB
+                PDF, JPG oder PNG - max. 10 MB pro Datei
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Mehrere Dateien fuer Massenimport (max. {MAX_MASS_IMPORT})
               </p>
             </div>
           </div>
         )}
 
-        {step === 2 && file && (
+        {/* Single upload with OCR */}
+        {mode === 'single' && file && (
           <div className="space-y-4">
-            {/* File preview - clickable to open in new tab */}
+            {/* File preview */}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -398,6 +745,12 @@ export function BelegUploadDialog({
                         {(file.size / 1024 / 1024).toFixed(2)} MB
                       </p>
                     </div>
+                    {ocrLoading && (
+                      <div className="flex items-center gap-1.5 text-xs text-blue-600">
+                        <ScanSearch className="h-4 w-4 animate-pulse" />
+                        <span>OCR...</span>
+                      </div>
+                    )}
                     <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <Button
                       variant="ghost"
@@ -419,6 +772,22 @@ export function BelegUploadDialog({
               </Tooltip>
             </TooltipProvider>
 
+            {/* OCR loading overlay hint */}
+            {ocrLoading && (
+              <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                OCR erkennt Daten... Felder werden automatisch befuellt.
+              </div>
+            )}
+
+            {/* OCR success hint */}
+            {!ocrLoading && ocrFields.size > 0 && (
+              <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+                <ScanSearch className="h-4 w-4" />
+                OCR hat {ocrFields.size} Feld{ocrFields.size !== 1 ? 'er' : ''} erkannt (blau markiert). Bitte pruefen und bei Bedarf korrigieren.
+              </div>
+            )}
+
             {/* Metadata form */}
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -435,7 +804,11 @@ export function BelegUploadDialog({
                         <FormItem>
                           <FormLabel>Rechnungsname</FormLabel>
                           <FormControl>
-                            <Input placeholder="z.B. Bueromaterial Jaenner" {...field} />
+                            <Input
+                              placeholder="z.B. Bueromaterial Jaenner"
+                              disabled={ocrLoading}
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -448,7 +821,16 @@ export function BelegUploadDialog({
                         <FormItem>
                           <FormLabel>Rechnungsnummer</FormLabel>
                           <FormControl>
-                            <Input placeholder="z.B. RE-2024-001" {...field} />
+                            <Input
+                              placeholder="z.B. RE-2024-001"
+                              disabled={ocrLoading}
+                              className={getOcrInputClass('rechnungsnummer')}
+                              {...field}
+                              onChange={(e) => {
+                                clearOcrHighlight('rechnungsnummer')
+                                field.onChange(e)
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -462,7 +844,7 @@ export function BelegUploadDialog({
                           <FormLabel>
                             Rechnungstyp <span className="text-destructive">*</span>
                           </FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={ocrLoading}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Typ auswaehlen" />
@@ -495,7 +877,16 @@ export function BelegUploadDialog({
                         <FormItem>
                           <FormLabel>Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="z.B. Amazon" {...field} />
+                            <Input
+                              placeholder="z.B. Amazon"
+                              disabled={ocrLoading}
+                              className={getOcrInputClass('lieferant')}
+                              {...field}
+                              onChange={(e) => {
+                                clearOcrHighlight('lieferant')
+                                field.onChange(e)
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -508,7 +899,7 @@ export function BelegUploadDialog({
                         <FormItem>
                           <FormLabel>UID Lieferant</FormLabel>
                           <FormControl>
-                            <Input placeholder="z.B. ATU12345678" {...field} />
+                            <Input placeholder="z.B. ATU12345678" disabled={ocrLoading} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -521,7 +912,7 @@ export function BelegUploadDialog({
                         <FormItem>
                           <FormLabel>IBAN Lieferant</FormLabel>
                           <FormControl>
-                            <Input placeholder="z.B. AT12 3456 ..." {...field} />
+                            <Input placeholder="z.B. AT12 3456 ..." disabled={ocrLoading} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -542,6 +933,7 @@ export function BelegUploadDialog({
                         variant="outline"
                         size="sm"
                         className="h-7 gap-1 text-xs"
+                        disabled={ocrLoading}
                         onClick={() => append({ nettobetrag: null, mwst_satz: null, bruttobetrag: null })}
                       >
                         <Plus className="h-3 w-3" />
@@ -565,6 +957,8 @@ export function BelegUploadDialog({
                                     type="number"
                                     step="0.01"
                                     placeholder="0.00"
+                                    disabled={ocrLoading}
+                                    className={getOcrInputClass(`steuerzeilen.${index}.nettobetrag`)}
                                     value={field.value ?? ''}
                                     onChange={(e) => handleNettoChange(index, e.target.value)}
                                   />
@@ -582,9 +976,10 @@ export function BelegUploadDialog({
                                 <Select
                                   onValueChange={(val) => handleMwstChange(index, val)}
                                   value={field.value?.toString() ?? 'none'}
+                                  disabled={ocrLoading}
                                 >
                                   <FormControl>
-                                    <SelectTrigger>
+                                    <SelectTrigger className={getOcrInputClass(`steuerzeilen.${index}.mwst_satz`)}>
                                       <SelectValue placeholder="Auswaehlen" />
                                     </SelectTrigger>
                                   </FormControl>
@@ -611,6 +1006,8 @@ export function BelegUploadDialog({
                                     type="number"
                                     step="0.01"
                                     placeholder="0.00"
+                                    disabled={ocrLoading}
+                                    className={getOcrInputClass(`steuerzeilen.${index}.bruttobetrag`)}
                                     value={field.value ?? ''}
                                     onChange={(e) => handleBruttoChange(index, e.target.value)}
                                   />
@@ -632,13 +1029,11 @@ export function BelegUploadDialog({
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
-                        {/* Spacer when only 1 line to keep alignment */}
                         {fields.length === 1 && <div className="w-9 shrink-0" />}
                       </div>
                     ))}
                   </div>
 
-                  {/* Summenzeile - only shown when 2+ lines */}
                   {fields.length >= 2 && (
                     <div className="mt-3 flex items-center gap-2">
                       <div className="grid flex-1 gap-2 sm:grid-cols-3">
@@ -676,8 +1071,13 @@ export function BelegUploadDialog({
                           <FormControl>
                             <Input
                               type="date"
+                              disabled={ocrLoading}
+                              className={getOcrInputClass('rechnungsdatum')}
                               value={field.value ?? ''}
-                              onChange={(e) => field.onChange(e.target.value)}
+                              onChange={(e) => {
+                                clearOcrHighlight('rechnungsdatum')
+                                field.onChange(e.target.value)
+                              }}
                             />
                           </FormControl>
                           <FormMessage />
@@ -693,6 +1093,7 @@ export function BelegUploadDialog({
                           <FormControl>
                             <Input
                               type="date"
+                              disabled={ocrLoading}
                               value={field.value ?? ''}
                               onChange={(e) => field.onChange(e.target.value)}
                             />
@@ -720,6 +1121,7 @@ export function BelegUploadDialog({
                             placeholder="Optionale Beschreibung zum Beleg..."
                             className="resize-none"
                             maxLength={100}
+                            disabled={ocrLoading}
                             {...field}
                           />
                         </FormControl>
@@ -743,13 +1145,92 @@ export function BelegUploadDialog({
                   >
                     Abbrechen
                   </Button>
-                  <Button type="submit" disabled={uploading}>
+                  <Button type="submit" disabled={uploading || ocrLoading}>
                     {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Hochladen
                   </Button>
                 </DialogFooter>
               </form>
             </Form>
+          </div>
+        )}
+
+        {/* Mass import mode */}
+        {mode === 'mass' && (
+          <div className="space-y-4">
+            {/* Progress bar */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {massCompleted} von {massFiles.length} Belegen verarbeitet
+                </span>
+                <span className="font-medium">
+                  {Math.round(massProgress)}%
+                </span>
+              </div>
+              <Progress value={massProgress} className="h-2" />
+            </div>
+
+            {/* File list with status */}
+            <div className="max-h-[400px] space-y-1 overflow-y-auto rounded-lg border p-2">
+              {massFiles.map((item, index) => (
+                <div
+                  key={index}
+                  className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${
+                    item.status === 'error'
+                      ? 'bg-destructive/5'
+                      : item.status === 'done'
+                        ? 'bg-emerald-50'
+                        : item.status === 'uploading' || item.status === 'ocr'
+                          ? 'bg-blue-50'
+                          : ''
+                  }`}
+                >
+                  {getStatusIcon(item.status)}
+                  <span className="min-w-0 flex-1 truncate">{item.file.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {item.status === 'error' ? item.error : getStatusLabel(item.status)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Actions */}
+            <DialogFooter className="gap-2 pt-2">
+              {massProcessing ? (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    massAbortRef.current = true
+                  }}
+                >
+                  Abbrechen
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleClose(false)}
+                  >
+                    Schliessen
+                  </Button>
+                  {massSucceeded > 0 && onMassImportComplete && (
+                    <Button
+                      onClick={() => {
+                        const belegIds = massFiles
+                          .filter((f) => f.status === 'done' && f.belegId)
+                          .map((f) => f.belegId!)
+                        onMassImportComplete({ belegIds })
+                        resetDialog()
+                        onOpenChange(false)
+                      }}
+                    >
+                      Jetzt pruefen ({massSucceeded})
+                    </Button>
+                  )}
+                </>
+              )}
+            </DialogFooter>
           </div>
         )}
       </DialogContent>
