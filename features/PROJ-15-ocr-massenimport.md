@@ -1,4 +1,4 @@
-# PROJ-16: OCR-Erkennung & Massenimport von Belegen
+# PROJ-15: OCR-Erkennung & Massenimport von Belegen
 
 ## Status: Planned
 **Created:** 2026-03-26

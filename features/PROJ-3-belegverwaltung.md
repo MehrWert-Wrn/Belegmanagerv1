@@ -39,6 +39,19 @@
 - [ ] Rechnungstyp ist Pflichtfeld mit Optionen: Eingangsrechnung, Ausgangsrechnung, Gutschrift, Sonstiges
 - [ ] Metadata wird in der `belege`-Tabelle mit `mandant_id` gespeichert
 
+### Upload-Dialog Verbesserungen (v2)
+- [ ] Dialog-Breite auf `max-w-2xl` erhöht – alle 3-spaltigen Gruppen ohne horizontales Scrollen sichtbar
+- [ ] Dateiname in der Vorschauzeile: `truncate`, Tooltip mit vollem Namen beim Hover
+- [ ] Datei im Upload-Dialog (Step 2) ist klickbar → öffnet in neuem Tab (lokale Datei via `createObjectURL`, gespeicherte via Signed URL)
+- [ ] In der Belegtabelle (Spalte „Dokument") öffnet Klick den Beleg ebenfalls in neuem Tab
+
+### Betragszeilen & Auto-Berechnung (v2)
+- [ ] Mehrere Steuerzeilen möglich: „+ Zeile hinzufügen"-Button; jede Zeile hat Nettobetrag, MwSt-Satz, Bruttobetrag; max. 5 Zeilen; mindestens 1 Zeile bleibt bestehen
+- [ ] Jede Zeile hat einen Entfernen-Button (Mülleimer-Icon)
+- [ ] Auto-Berechnung pro Zeile: Netto + MwSt-Satz → Brutto automatisch (`netto × (1 + mwst/100)`, 2 Dezimalstellen); ebenso Brutto + MwSt-Satz → Netto; bei MwSt-Satzänderung: Netto (falls vorhanden) → Brutto neu; MwSt = 0% → Netto = Brutto
+- [ ] Summenzeile erscheint ab 2 Steuerzeilen: „Gesamt: Netto [Summe] | Brutto [Summe]", fett, grau hinterlegt, automatisch aktualisiert
+- [ ] Beim Speichern: `bruttobetrag` = Summe aller Bruttobeträge, `nettobetrag` = Summe aller Nettobeträge, `mwst_satz` = MwSt-Satz der ersten Zeile (Datenbankschema bleibt unverändert)
+
 ### Suche & Filter
 - [ ] Suche/Filter für: Rechnungsname (Text, Teilsuche), Rechnungsdatum (Datumsbereich), Lieferant (Text, Teilsuche), Betrag netto (von–bis), Betrag brutto (von–bis), Rechnungstyp (Dropdown), Status (Dropdown)
 - [ ] Alle Filter können kombiniert werden
