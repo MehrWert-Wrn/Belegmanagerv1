@@ -1,6 +1,6 @@
 # PROJ-15: OCR-Erkennung & Massenimport von Belegen
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-03-26
 **Last Updated:** 2026-03-26
 
@@ -122,6 +122,33 @@ Bestehende `belege`-Tabelle wird genutzt:
 
 ### Neue Abhängigkeit
 - `@anthropic-ai/sdk` — Anthropic API Client für Claude Haiku Vision
+
+## Backend Implementation Notes
+
+### Implemented by /backend (2026-03-26)
+
+**New files:**
+- `src/app/api/belege/ocr/route.ts` — POST endpoint accepting multipart/form-data
+- `src/lib/ocr.ts` — Claude Haiku Vision OCR logic with structured prompt
+- `src/lib/rate-limit.ts` — In-memory sliding window rate limiter
+
+**Key decisions:**
+- Model: `claude-haiku-4-5-20251001` (as specified by user)
+- File size limit: 5 MB (as specified by user)
+- Rate limit: 10 calls/minute/user (as specified by user)
+- API Key env var: `ANTHROPIC_API_KEY` (standard)
+- PDF handled as `document` content block (Claude native PDF support)
+- Images handled as `image` content block
+- 30-second timeout with Promise.race
+- OCR failure never blocks upload — returns empty result with confidence 0
+- No DB schema changes needed (uses existing belege table)
+- Zod validation not used on this endpoint (multipart/form-data with file, validated manually)
+
+**Pending (Frontend):**
+- Single upload OCR integration (Step 2 form pre-fill)
+- Mass import UI with progress tracking
+- Review mode (BelegReviewModus Sheet component)
+- OCR field highlighting (blue border on OCR-filled fields)
 
 ## QA Test Results
 _To be added by /qa_
