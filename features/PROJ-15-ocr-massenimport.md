@@ -69,7 +69,59 @@
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### OCR-Service: Claude Haiku Vision (Anthropic API)
+Entschieden wegen: bestehende Anthropic-Kundenbeziehung, EU Data Processing Agreement (DSGVO-konform), ~€0.001 pro Seite, kein PDF→Bild-Konverter nötig (Claude akzeptiert PDF nativ als Base64-Dokument).
+
+### Zwei Upload-Pfade im selben Dialog
+- **Einzelupload** (1 Datei): Datei → OCR → Formular vorausgefüllt → User prüft → Speichern
+- **Massenimport** (2–20 Dateien): Alle Dateien sofort hochladen (sequentiell) → OCR pro Datei → Fortschrittsanzeige → Review-Warteschlange
+
+### Komponenten-Struktur
+```
+BelegUploadDialog (bestehend, erweitert)
+├─ Step 1: Dropzone (single + multiple)
+│   ├─ 1 Datei → Step 2 (Einzelupload)
+│   └─ 2–20 Dateien → Massenimport-Modus
+├─ Step 2: Einzelupload
+│   ├─ OcrLadeAnzeige (Spinner, Felder disabled)
+│   └─ MetadatenFormular (OCR-Felder blau markiert)
+└─ Massenimport-Modus
+    ├─ Datei-Liste mit Status pro Datei (⏳/🔍/✅/❌)
+    ├─ Gesamtfortschritt "X von Y verarbeitet"
+    └─ Nach Abschluss: Toast + "Jetzt prüfen"-Button
+
+BelegReviewModus (neue Komponente, Sheet)
+├─ Kopfzeile: "Beleg X von Y"
+├─ Links: BelegVorschau (PDF-Embed oder Bild)
+├─ Rechts: MetadatenFormular (OCR vorausgefüllt)
+└─ Aktionen: "Speichern & Weiter" | "Überspringen" | Status-Zusammenfassung
+```
+
+### Neue API Route: POST /api/belege/ocr
+- Empfängt Datei als multipart/form-data
+- Sendet Base64-kodierte Datei an Claude Haiku Vision (server-side, API Key sicher)
+- Gibt zurück: `{ lieferant, rechnungsnummer, rechnungsdatum, bruttobetrag, nettobetrag, mwst_satz, confidence }`
+- Timeout: 30 Sekunden; bei Fehler → leeres Objekt (Upload wird nicht blockiert)
+
+### Datenmodell (keine DB-Änderung)
+Bestehende `belege`-Tabelle wird genutzt:
+- Massenimport: Beleg wird sofort angelegt mit `rechnungsname = NULL` → signalisiert "noch nicht reviewed"
+- OCR-Ergebnisse werden in DB gespeichert (`PATCH /api/belege/[id]`)
+- Review-Queue lebt im React State (nicht persistiert)
+- Nach Review: `rechnungsname` gesetzt → Beleg gilt als vollständig
+
+### Technische Entscheidungen
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| OCR-Service | Claude Haiku Vision | EU DPA, kein neuer Vertrag, kostengünstig |
+| PDF-Handling | Base64 direkt an Claude | Claude unterstützt PDF nativ, kein Konverter nötig |
+| OCR-Parallelität | Sequentiell | Verhindert Rate-Limiting, einfacheres Error-Handling |
+| Review-UI | Sheet (Drawer) | Passt zum bestehenden BelegDetailSheet-Pattern |
+| OCR-State | React State | Review-Queue nur session-temporär; DB-Einträge schon angelegt |
+
+### Neue Abhängigkeit
+- `@anthropic-ai/sdk` — Anthropic API Client für Claude Haiku Vision
 
 ## QA Test Results
 _To be added by /qa_
