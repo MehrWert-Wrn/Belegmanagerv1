@@ -39,6 +39,42 @@ import { BulkAktionsLeiste } from '@/components/transaktionen/bulk-aktions-leist
 import { TransaktionDetailSheet } from '@/components/transaktionen/transaktion-detail-sheet'
 import type { TransaktionWithRelations, WorkflowStatus } from '@/lib/supabase/types'
 
+type ZeitraumPreset = '' | 'aktuelles_monat' | 'letztes_monat' | 'vorletztes_monat' | 'letztes_quartal' | 'benutzerdefiniert'
+
+function getZeitraumDates(preset: ZeitraumPreset, customVon: string, customBis: string): { von: string; bis: string } {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth() // 0-indexed
+
+  const first = (yr: number, mo: number) =>
+    `${yr}-${String(mo + 1).padStart(2, '0')}-01`
+  const last = (yr: number, mo: number) => {
+    const d = new Date(yr, mo + 1, 0).getDate()
+    return `${yr}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  }
+
+  if (preset === 'aktuelles_monat') return { von: first(y, m), bis: last(y, m) }
+  if (preset === 'letztes_monat') {
+    const lm = m === 0 ? 11 : m - 1; const ly = m === 0 ? y - 1 : y
+    return { von: first(ly, lm), bis: last(ly, lm) }
+  }
+  if (preset === 'vorletztes_monat') {
+    let vm = m - 2; let vy = y
+    if (vm < 0) { vm += 12; vy-- }
+    return { von: first(vy, vm), bis: last(vy, vm) }
+  }
+  if (preset === 'letztes_quartal') {
+    const q = Math.floor(m / 3)
+    let qs = (q - 1) * 3; let qy = y
+    if (q === 0) { qs = 9; qy-- }
+    return { von: first(qy, qs), bis: last(qy, qs + 2) }
+  }
+  if (preset === 'benutzerdefiniert') return { von: customVon, bis: customBis }
+  // Default '' = letzter Monat + aktueller Monat
+  const lm = m === 0 ? 11 : m - 1; const ly = m === 0 ? y - 1 : y
+  return { von: first(ly, lm), bis: last(y, m) }
+}
+
 export default function TransaktionenPage() {
   const router = useRouter()
 
@@ -50,6 +86,7 @@ export default function TransaktionenPage() {
   const [searchFilter, setSearchFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('alle')
   const [quelleFilter, setQuelleFilter] = useState('alle')
+  const [zeitraumFilter, setZeitraumFilter] = useState<ZeitraumPreset>('')
   const [datumVon, setDatumVon] = useState('')
   const [datumBis, setDatumBis] = useState('')
 
@@ -102,8 +139,9 @@ export default function TransaktionenPage() {
       const params = new URLSearchParams()
       if (searchFilter) params.set('search', searchFilter)
       if (quelleFilter !== 'alle') params.set('quelle_id', quelleFilter)
-      if (datumVon) params.set('datum_von', datumVon)
-      if (datumBis) params.set('datum_bis', datumBis)
+      const range = getZeitraumDates(zeitraumFilter, datumVon, datumBis)
+      if (range.von) params.set('datum_von', range.von)
+      if (range.bis) params.set('datum_bis', range.bis)
 
       // Server-side status filtering based on active tab
       if (activeTab === 'offen') {
@@ -136,7 +174,7 @@ export default function TransaktionenPage() {
     } finally {
       setLoading(false)
     }
-  }, [searchFilter, statusFilter, quelleFilter, datumVon, datumBis, activeTab, fetchStats])
+  }, [searchFilter, statusFilter, quelleFilter, zeitraumFilter, datumVon, datumBis, activeTab, fetchStats])
 
   useEffect(() => {
     fetchTransaktionen()
@@ -164,6 +202,7 @@ export default function TransaktionenPage() {
     setSearchFilter('')
     setStatusFilter('alle')
     setQuelleFilter('alle')
+    setZeitraumFilter('')
     setDatumVon('')
     setDatumBis('')
   }
@@ -172,8 +211,7 @@ export default function TransaktionenPage() {
     searchFilter !== '' ||
     statusFilter !== 'alle' ||
     quelleFilter !== 'alle' ||
-    datumVon !== '' ||
-    datumBis !== ''
+    zeitraumFilter !== ''
 
   function handleManualAssign(transaktionId: string) {
     const t = transaktionen.find((t) => t.id === transaktionId) ?? null
@@ -353,36 +391,59 @@ export default function TransaktionenPage() {
               </div>
 
               <div className="space-y-1">
-                <label
-                  htmlFor="filter-datum-von"
-                  className="text-xs font-medium text-muted-foreground"
-                >
-                  Datum von
+                <label className="text-xs font-medium text-muted-foreground">
+                  Zeitraum
                 </label>
-                <Input
-                  id="filter-datum-von"
-                  type="date"
-                  value={datumVon}
-                  onChange={(e) => setDatumVon(e.target.value)}
-                  className="w-full sm:w-40"
-                />
+                <Select value={zeitraumFilter} onValueChange={(v) => setZeitraumFilter(v as ZeitraumPreset)}>
+                  <SelectTrigger className="w-full sm:w-52" aria-label="Zeitraum auswählen">
+                    <SelectValue placeholder="Letzter + aktueller Monat" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Letzter + aktueller Monat</SelectItem>
+                    <SelectItem value="aktuelles_monat">Aktuelles Monat</SelectItem>
+                    <SelectItem value="letztes_monat">Letztes Monat</SelectItem>
+                    <SelectItem value="vorletztes_monat">Vorletztes Monat</SelectItem>
+                    <SelectItem value="letztes_quartal">Letztes Quartal</SelectItem>
+                    <SelectItem value="benutzerdefiniert">Benutzerdefiniert</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="space-y-1">
-                <label
-                  htmlFor="filter-datum-bis"
-                  className="text-xs font-medium text-muted-foreground"
-                >
-                  Datum bis
-                </label>
-                <Input
-                  id="filter-datum-bis"
-                  type="date"
-                  value={datumBis}
-                  onChange={(e) => setDatumBis(e.target.value)}
-                  className="w-full sm:w-40"
-                />
-              </div>
+              {zeitraumFilter === 'benutzerdefiniert' && (
+                <>
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="filter-datum-von"
+                      className="text-xs font-medium text-muted-foreground"
+                    >
+                      Datum von
+                    </label>
+                    <Input
+                      id="filter-datum-von"
+                      type="date"
+                      value={datumVon}
+                      onChange={(e) => setDatumVon(e.target.value)}
+                      className="w-full sm:w-40"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="filter-datum-bis"
+                      className="text-xs font-medium text-muted-foreground"
+                    >
+                      Datum bis
+                    </label>
+                    <Input
+                      id="filter-datum-bis"
+                      type="date"
+                      value={datumBis}
+                      onChange={(e) => setDatumBis(e.target.value)}
+                      className="w-full sm:w-40"
+                    />
+                  </div>
+                </>
+              )}
 
               {activeTab === 'transaktionen' && (
                 <div className="space-y-1">
