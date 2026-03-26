@@ -26,7 +26,9 @@
 | PROJ-12 | Multi-Tenant User-Rollen | In Review | [PROJ-12-user-rollen.md](PROJ-12-user-rollen.md) | 2026-03-13 |
 | PROJ-13 | Reisekostenabrechnung | Planned | [PROJ-13-reisekostenabrechnung.md](PROJ-13-reisekostenabrechnung.md) | 2026-03-13 |
 | PROJ-14 | Kontoauszug-Import Verbesserungen | Deployed | [PROJ-14-kontoauszug-import-verbesserungen.md](PROJ-14-kontoauszug-import-verbesserungen.md) | 2026-03-19 |
+| PROJ-15 | Belegverwaltung Formular-Verbesserungen | Planned | [PROJ-15-belegverwaltung-formular-verbesserungen.md](PROJ-15-belegverwaltung-formular-verbesserungen.md) | 2026-03-26 |
+| PROJ-16 | OCR-Erkennung & Massenimport | Planned | [PROJ-16-ocr-massenimport.md](PROJ-16-ocr-massenimport.md) | 2026-03-26 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-15
+## Next Available ID: PROJ-17

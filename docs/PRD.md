@@ -37,6 +37,8 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 | P1 | Zahlungsquellen-Verwaltung (v2) | Mandant konfiguriert beliebige Zusatzquellen (Kreditkarte, PayPal, Tankkarte) | Planned |
 | P1 | Kommentare & Workflow | Interne Kommentare pro Transaktion, Status-Flags, Rückfragen | Planned |
 | P1 | Multi-Tenant User-Rollen | Admin / Buchhalter-Rollen, Einladung per E-Mail | Planned |
+| P1 | Belegverwaltung Formular-Verbesserungen | UI-Fix Dialog-Breite, Beleg-Vorschau, Auto-Berechnung Netto/Brutto, mehrere Steuerzeilen | Planned |
+| P1 | OCR-Erkennung & Massenimport | OCR Auto-Fill beim Einzelupload, Massenimport mit Review-Modus | Planned |
 | P2 | Reisekostenabrechnung | Eigenes Modul – bewusst aus MVP ausgelagert | Planned |
 
 > Details zu jeder Feature (User Stories, Acceptance Criteria, Edge Cases, Tech Design) → `features/`
