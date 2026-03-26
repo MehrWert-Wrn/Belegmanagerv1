@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, FileText, FileQuestion } from 'lucide-react'
+import { Loader2, FileText, FileQuestion, ExternalLink, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import type { Beleg } from '@/lib/supabase/types'
 
+const MAX_TAX_LINES = 5
+
+const steuerzeileSchema = z.object({
+  nettobetrag: z.union([z.number(), z.literal('')]).nullable().optional(),
+  mwst_satz: z.union([z.number(), z.string()]).nullable().optional(),
+  bruttobetrag: z.union([z.number(), z.literal('')]).nullable().optional(),
+})
+
 const updateSchema = z.object({
   rechnungsname: z.string().optional(),
   rechnungsnummer: z.string().optional(),
@@ -44,9 +52,7 @@ const updateSchema = z.object({
   lieferant: z.string().optional(),
   uid_lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
-  bruttobetrag: z.union([z.number(), z.literal('')]).nullable().optional(),
-  nettobetrag: z.union([z.number(), z.literal('')]).nullable().optional(),
-  mwst_satz: z.union([z.number(), z.string()]).nullable().optional(),
+  steuerzeilen: z.array(steuerzeileSchema).min(1),
   rechnungsdatum: z.string().nullable().optional(),
   faelligkeitsdatum: z.string().nullable().optional(),
   beschreibung: z.string().max(100, 'Maximal 100 Zeichen').optional(),
@@ -54,21 +60,8 @@ const updateSchema = z.object({
 
 type UpdateFormValues = z.infer<typeof updateSchema>
 
-function cleanFormValues(values: UpdateFormValues) {
-  return {
-    rechnungsname: values.rechnungsname || undefined,
-    rechnungsnummer: values.rechnungsnummer || undefined,
-    rechnungstyp: values.rechnungstyp,
-    lieferant: values.lieferant || undefined,
-    uid_lieferant: values.uid_lieferant || undefined,
-    lieferant_iban: values.lieferant_iban || undefined,
-    bruttobetrag: values.bruttobetrag === '' ? null : values.bruttobetrag ? Number(values.bruttobetrag) : null,
-    nettobetrag: values.nettobetrag === '' ? null : values.nettobetrag ? Number(values.nettobetrag) : null,
-    mwst_satz: !values.mwst_satz || values.mwst_satz === 'none' ? null : Number(values.mwst_satz),
-    rechnungsdatum: values.rechnungsdatum || null,
-    faelligkeitsdatum: values.faelligkeitsdatum || null,
-    beschreibung: values.beschreibung || undefined,
-  }
+function roundTwo(val: number): number {
+  return Math.round(val * 100) / 100
 }
 
 interface BelegDetailSheetProps {
@@ -93,7 +86,77 @@ export function BelegDetailSheet({
     resolver: zodResolver(updateSchema),
   })
 
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'steuerzeilen',
+  })
+
   const beschreibungValue = form.watch('beschreibung') ?? ''
+  const steuerzeilen = form.watch('steuerzeilen') ?? []
+
+  // Auto-calculate functions
+  function handleNettoChange(index: number, value: string) {
+    const netto = value === '' ? null : parseFloat(value)
+    form.setValue(`steuerzeilen.${index}.nettobetrag`, netto)
+
+    const mwstRaw = form.getValues(`steuerzeilen.${index}.mwst_satz`)
+    const mwst = mwstRaw != null && mwstRaw !== 'none' && mwstRaw !== '' ? Number(mwstRaw) : null
+
+    if (netto != null && !isNaN(netto) && mwst != null) {
+      const brutto = roundTwo(netto * (1 + mwst / 100))
+      form.setValue(`steuerzeilen.${index}.bruttobetrag`, brutto)
+    }
+  }
+
+  function handleBruttoChange(index: number, value: string) {
+    const brutto = value === '' ? null : parseFloat(value)
+    form.setValue(`steuerzeilen.${index}.bruttobetrag`, brutto)
+
+    const mwstRaw = form.getValues(`steuerzeilen.${index}.mwst_satz`)
+    const mwst = mwstRaw != null && mwstRaw !== 'none' && mwstRaw !== '' ? Number(mwstRaw) : null
+
+    if (brutto != null && !isNaN(brutto) && mwst != null) {
+      const netto = roundTwo(brutto / (1 + mwst / 100))
+      form.setValue(`steuerzeilen.${index}.nettobetrag`, netto)
+    }
+  }
+
+  function handleMwstChange(index: number, value: string) {
+    form.setValue(`steuerzeilen.${index}.mwst_satz`, value === 'none' ? null : value)
+
+    const mwst = value !== 'none' && value !== '' ? Number(value) : null
+    const nettoRaw = form.getValues(`steuerzeilen.${index}.nettobetrag`)
+    const netto = nettoRaw != null && nettoRaw !== '' ? Number(nettoRaw) : null
+    const bruttoRaw = form.getValues(`steuerzeilen.${index}.bruttobetrag`)
+    const brutto = bruttoRaw != null && bruttoRaw !== '' ? Number(bruttoRaw) : null
+
+    if (mwst != null) {
+      if (mwst === 0) {
+        if (netto != null && !isNaN(netto)) {
+          form.setValue(`steuerzeilen.${index}.bruttobetrag`, netto)
+        } else if (brutto != null && !isNaN(brutto)) {
+          form.setValue(`steuerzeilen.${index}.nettobetrag`, brutto)
+        }
+      } else if (netto != null && !isNaN(netto)) {
+        const newBrutto = roundTwo(netto * (1 + mwst / 100))
+        form.setValue(`steuerzeilen.${index}.bruttobetrag`, newBrutto)
+      } else if (brutto != null && !isNaN(brutto)) {
+        const newNetto = roundTwo(brutto / (1 + mwst / 100))
+        form.setValue(`steuerzeilen.${index}.nettobetrag`, newNetto)
+      }
+    }
+  }
+
+  // Sum calculations
+  const sumNetto = steuerzeilen.reduce((sum, z) => {
+    const val = z.nettobetrag != null && z.nettobetrag !== '' ? Number(z.nettobetrag) : 0
+    return sum + (isNaN(val) ? 0 : val)
+  }, 0)
+
+  const sumBrutto = steuerzeilen.reduce((sum, z) => {
+    const val = z.bruttobetrag != null && z.bruttobetrag !== '' ? Number(z.bruttobetrag) : 0
+    return sum + (isNaN(val) ? 0 : val)
+  }, 0)
 
   // Reset form when beleg changes
   useEffect(() => {
@@ -105,9 +168,11 @@ export function BelegDetailSheet({
         lieferant: beleg.lieferant ?? '',
         uid_lieferant: beleg.uid_lieferant ?? '',
         lieferant_iban: beleg.lieferant_iban ?? '',
-        bruttobetrag: beleg.bruttobetrag,
-        nettobetrag: beleg.nettobetrag,
-        mwst_satz: beleg.mwst_satz,
+        steuerzeilen: [{
+          nettobetrag: beleg.nettobetrag,
+          mwst_satz: beleg.mwst_satz,
+          bruttobetrag: beleg.bruttobetrag,
+        }],
         rechnungsdatum: beleg.rechnungsdatum,
         faelligkeitsdatum: beleg.faelligkeitsdatum,
         beschreibung: beleg.beschreibung ?? '',
@@ -156,10 +221,37 @@ export function BelegDetailSheet({
     setSaving(true)
 
     try {
+      // Calculate totals from steuerzeilen
+      const totalBrutto = values.steuerzeilen.reduce((sum, z) => {
+        const val = z.bruttobetrag != null && z.bruttobetrag !== '' ? Number(z.bruttobetrag) : 0
+        return sum + (isNaN(val) ? 0 : val)
+      }, 0)
+
+      const totalNetto = values.steuerzeilen.reduce((sum, z) => {
+        const val = z.nettobetrag != null && z.nettobetrag !== '' ? Number(z.nettobetrag) : 0
+        return sum + (isNaN(val) ? 0 : val)
+      }, 0)
+
+      const firstMwst = values.steuerzeilen[0]?.mwst_satz
+      const mwstSatz = firstMwst != null && firstMwst !== 'none' && firstMwst !== '' ? Number(firstMwst) : null
+
       const response = await fetch(`/api/belege/${beleg.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cleanFormValues(values)),
+        body: JSON.stringify({
+          rechnungsname: values.rechnungsname || undefined,
+          rechnungsnummer: values.rechnungsnummer || undefined,
+          rechnungstyp: values.rechnungstyp,
+          lieferant: values.lieferant || undefined,
+          uid_lieferant: values.uid_lieferant || undefined,
+          lieferant_iban: values.lieferant_iban || undefined,
+          bruttobetrag: totalBrutto || null,
+          nettobetrag: totalNetto || null,
+          mwst_satz: mwstSatz,
+          rechnungsdatum: values.rechnungsdatum || null,
+          faelligkeitsdatum: values.faelligkeitsdatum || null,
+          beschreibung: values.beschreibung || undefined,
+        }),
       })
 
       if (!response.ok) {
@@ -175,6 +267,12 @@ export function BelegDetailSheet({
       toast.error('Ein unerwarteter Fehler ist aufgetreten.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  function openPreviewInNewTab() {
+    if (previewUrl) {
+      window.open(previewUrl, '_blank', 'noopener,noreferrer')
     }
   }
 
@@ -207,8 +305,8 @@ export function BelegDetailSheet({
 
         {beleg && (
           <div className="mt-4 space-y-6">
-            {/* Document preview */}
-            <div className="overflow-hidden rounded-lg border bg-muted/30">
+            {/* Document preview - clickable to open in new tab */}
+            <div className="group relative overflow-hidden rounded-lg border bg-muted/30">
               {!hasDocument ? (
                 <div className="flex min-h-[200px] flex-col items-center justify-center gap-2">
                   <FileQuestion className="h-12 w-12 text-muted-foreground" />
@@ -226,23 +324,37 @@ export function BelegDetailSheet({
                   </p>
                 </div>
               ) : previewUrl ? (
-                isPdf ? (
-                  <iframe
-                    src={previewUrl}
-                    title="Beleg-Vorschau"
-                    className="min-h-[600px] w-full"
-                  />
-                ) : isImage ? (
-                  <img
-                    src={previewUrl}
-                    alt={beleg.original_filename}
-                    className="min-h-[400px] w-full object-contain"
-                  />
-                ) : (
-                  <div className="flex min-h-[200px] items-center justify-center">
-                    <FileText className="h-12 w-12 text-muted-foreground" />
-                  </div>
-                )
+                <>
+                  {isPdf ? (
+                    <iframe
+                      src={previewUrl}
+                      title="Beleg-Vorschau"
+                      className="min-h-[600px] w-full"
+                    />
+                  ) : isImage ? (
+                    <img
+                      src={previewUrl}
+                      alt={beleg.original_filename}
+                      className="min-h-[400px] w-full cursor-pointer object-contain"
+                      onClick={openPreviewInNewTab}
+                    />
+                  ) : (
+                    <div className="flex min-h-[200px] items-center justify-center">
+                      <FileText className="h-12 w-12 text-muted-foreground" />
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="absolute right-2 top-2 gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+                    onClick={openPreviewInNewTab}
+                    aria-label="In neuem Tab oeffnen"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Oeffnen
+                  </Button>
+                </>
               ) : (
                 <div className="flex min-h-[200px] flex-col items-center justify-center gap-2">
                   <FileText className="h-12 w-12 text-muted-foreground" />
@@ -356,71 +468,134 @@ export function BelegDetailSheet({
                   />
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <FormField
-                    control={form.control}
-                    name="bruttobetrag"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Bruttobetrag</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={field.value ?? ''}
-                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                {/* Steuerzeilen (Betraege) with auto-calculation */}
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Betraege
+                    </p>
+                    {fields.length < MAX_TAX_LINES && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1 text-xs"
+                        onClick={() => append({ nettobetrag: null, mwst_satz: null, bruttobetrag: null })}
+                      >
+                        <Plus className="h-3 w-3" />
+                        Zeile hinzufuegen
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {fields.map((fieldItem, index) => (
+                      <div key={fieldItem.id} className="flex items-end gap-2">
+                        <div className="grid flex-1 gap-2 sm:grid-cols-3">
+                          <FormField
+                            control={form.control}
+                            name={`steuerzeilen.${index}.nettobetrag`}
+                            render={({ field }) => (
+                              <FormItem>
+                                {index === 0 && <FormLabel>Nettobetrag</FormLabel>}
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={field.value ?? ''}
+                                    onChange={(e) => handleNettoChange(index, e.target.value)}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="nettobetrag"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nettobetrag</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={field.value ?? ''}
-                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          <FormField
+                            control={form.control}
+                            name={`steuerzeilen.${index}.mwst_satz`}
+                            render={({ field }) => (
+                              <FormItem>
+                                {index === 0 && <FormLabel>MwSt-Satz</FormLabel>}
+                                <Select
+                                  onValueChange={(val) => handleMwstChange(index, val)}
+                                  value={field.value?.toString() ?? 'none'}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Auswaehlen" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="none">Keine Angabe</SelectItem>
+                                    <SelectItem value="20">20%</SelectItem>
+                                    <SelectItem value="10">10%</SelectItem>
+                                    <SelectItem value="13">13%</SelectItem>
+                                    <SelectItem value="0">0%</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="mwst_satz"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>MwSt-Satz</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value?.toString() ?? 'none'}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Auswaehlen" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">Keine Angabe</SelectItem>
-                            <SelectItem value="20">20%</SelectItem>
-                            <SelectItem value="10">10%</SelectItem>
-                            <SelectItem value="0">0%</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormField
+                            control={form.control}
+                            name={`steuerzeilen.${index}.bruttobetrag`}
+                            render={({ field }) => (
+                              <FormItem>
+                                {index === 0 && <FormLabel>Bruttobetrag</FormLabel>}
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={field.value ?? ''}
+                                    onChange={(e) => handleBruttoChange(index, e.target.value)}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        {fields.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => remove(index)}
+                            aria-label="Zeile entfernen"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {fields.length === 1 && <div className="w-9 shrink-0" />}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Summenzeile */}
+                  {fields.length >= 2 && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <div className="grid flex-1 gap-2 sm:grid-cols-3">
+                        <div className="rounded-md bg-muted px-3 py-2">
+                          <p className="text-xs text-muted-foreground">Gesamt Netto</p>
+                          <p className="text-sm font-semibold">
+                            {new Intl.NumberFormat('de-AT', { style: 'currency', currency: 'EUR' }).format(sumNetto)}
+                          </p>
+                        </div>
+                        <div />
+                        <div className="rounded-md bg-muted px-3 py-2">
+                          <p className="text-xs text-muted-foreground">Gesamt Brutto</p>
+                          <p className="text-sm font-semibold">
+                            {new Intl.NumberFormat('de-AT', { style: 'currency', currency: 'EUR' }).format(sumBrutto)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="w-9 shrink-0" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
