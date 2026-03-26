@@ -211,7 +211,8 @@ export function autoDetectMapping(headers: string[]): ColumnMapping {
  * Parse a date string in various formats to ISO date (YYYY-MM-DD).
  */
 function parseDate(value: string): string | null {
-  const trimmed = value.trim()
+  // Strip time component before format matching, e.g. "02.01.2026 23:09:00" → "02.01.2026"
+  const trimmed = value.trim().replace(/[\sT]\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/, '').trim()
   if (!trimmed) return null
 
   // DD.MM.YYYY (Austrian/German format)

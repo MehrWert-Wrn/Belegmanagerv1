@@ -231,9 +231,13 @@ export default function ImportPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(
-          errorData.error || 'Import fehlgeschlagen. Bitte versuchen Sie es erneut.'
-        )
+        const errMsg =
+          typeof errorData.error === 'string'
+            ? errorData.error
+            : errorData.error
+              ? JSON.stringify(errorData.error)
+              : 'Import fehlgeschlagen. Bitte versuchen Sie es erneut.'
+        throw new Error(errMsg)
       }
 
       clearInterval(progressTimer)

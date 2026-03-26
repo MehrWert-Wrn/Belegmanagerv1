@@ -6,10 +6,10 @@ import { z } from 'zod'
 const transaktionSchema = z.object({
   datum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Datum muss im Format JJJJ-MM-TT sein'),
   betrag: z.number(),
-  beschreibung: z.string().max(1000).optional(),
-  iban_gegenseite: z.string().max(34).optional(),
-  bic_gegenseite: z.string().max(11).optional(),
-  buchungsreferenz: z.string().max(255).optional(),
+  beschreibung: z.string().max(5000).nullable().optional(),
+  iban_gegenseite: z.string().max(34).nullable().optional(),
+  bic_gegenseite: z.string().max(11).nullable().optional(),
+  buchungsreferenz: z.string().max(255).nullable().optional(),
 })
 
 const importSchema = z.object({
@@ -26,7 +26,14 @@ export async function POST(request: Request) {
 
   const body = await request.json()
   const parsed = importSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  if (!parsed.success) {
+    const flat = parsed.error.flatten()
+    const fieldMsg = Object.entries(flat.fieldErrors)
+      .map(([f, msgs]) => `${f}: ${msgs?.join(', ')}`)
+      .join('; ')
+    const message = flat.formErrors.join('; ') || fieldMsg || 'Validierungsfehler'
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 
   const { quelle_id, dateiname, transaktionen } = parsed.data
 

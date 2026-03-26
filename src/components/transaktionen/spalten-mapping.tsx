@@ -39,7 +39,7 @@ const COLUMN_CONFIG: {
 }[] = [
   { key: 'datum', label: 'Datum', required: true },
   { key: 'betrag', label: 'Betrag', required: true },
-  { key: 'beschreibung', label: 'Beschreibung / Verwendungszweck', required: true },
+  { key: 'beschreibung', label: 'Beschreibung / Verwendungszweck', required: false },
 ]
 
 export function SpaltenMapping({
