@@ -39,7 +39,7 @@ import { BulkAktionsLeiste } from '@/components/transaktionen/bulk-aktions-leist
 import { TransaktionDetailSheet } from '@/components/transaktionen/transaktion-detail-sheet'
 import type { TransaktionWithRelations, WorkflowStatus } from '@/lib/supabase/types'
 
-type ZeitraumPreset = '' | 'aktuelles_monat' | 'letztes_monat' | 'vorletztes_monat' | 'letztes_quartal' | 'benutzerdefiniert'
+type ZeitraumPreset = 'standard' | 'aktuelles_monat' | 'letztes_monat' | 'vorletztes_monat' | 'letztes_quartal' | 'benutzerdefiniert'
 
 function getZeitraumDates(preset: ZeitraumPreset, customVon: string, customBis: string): { von: string; bis: string } {
   const now = new Date()
@@ -70,7 +70,7 @@ function getZeitraumDates(preset: ZeitraumPreset, customVon: string, customBis: 
     return { von: first(qy, qs), bis: last(qy, qs + 2) }
   }
   if (preset === 'benutzerdefiniert') return { von: customVon, bis: customBis }
-  // Default '' = letzter Monat + aktueller Monat
+  // Default 'standard' = letzter Monat + aktueller Monat
   const lm = m === 0 ? 11 : m - 1; const ly = m === 0 ? y - 1 : y
   return { von: first(ly, lm), bis: last(y, m) }
 }
@@ -86,7 +86,7 @@ export default function TransaktionenPage() {
   const [searchFilter, setSearchFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('alle')
   const [quelleFilter, setQuelleFilter] = useState('alle')
-  const [zeitraumFilter, setZeitraumFilter] = useState<ZeitraumPreset>('')
+  const [zeitraumFilter, setZeitraumFilter] = useState<ZeitraumPreset>('standard')
   const [datumVon, setDatumVon] = useState('')
   const [datumBis, setDatumBis] = useState('')
 
@@ -202,7 +202,7 @@ export default function TransaktionenPage() {
     setSearchFilter('')
     setStatusFilter('alle')
     setQuelleFilter('alle')
-    setZeitraumFilter('')
+    setZeitraumFilter('standard')
     setDatumVon('')
     setDatumBis('')
   }
@@ -211,7 +211,7 @@ export default function TransaktionenPage() {
     searchFilter !== '' ||
     statusFilter !== 'alle' ||
     quelleFilter !== 'alle' ||
-    zeitraumFilter !== ''
+    zeitraumFilter !== 'standard'
 
   function handleManualAssign(transaktionId: string) {
     const t = transaktionen.find((t) => t.id === transaktionId) ?? null
@@ -399,7 +399,7 @@ export default function TransaktionenPage() {
                     <SelectValue placeholder="Letzter + aktueller Monat" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Letzter + aktueller Monat</SelectItem>
+                    <SelectItem value="standard">Letzter + aktueller Monat</SelectItem>
                     <SelectItem value="aktuelles_monat">Aktuelles Monat</SelectItem>
                     <SelectItem value="letztes_monat">Letztes Monat</SelectItem>
                     <SelectItem value="vorletztes_monat">Vorletztes Monat</SelectItem>
