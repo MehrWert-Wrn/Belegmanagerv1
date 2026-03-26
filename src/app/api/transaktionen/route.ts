@@ -55,3 +55,28 @@ export async function GET(request: Request) {
     page_size: pageSize,
   })
 }
+
+// DELETE /api/transaktionen – Bulk-Soft-Delete (setzt geloescht_am)
+export async function DELETE(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await request.json().catch(() => ({}))
+  const ids: string[] = Array.isArray(body.ids) ? body.ids : []
+  if (ids.length === 0) return NextResponse.json({ error: 'Keine IDs angegeben' }, { status: 400 })
+
+  const { data: mandant_id } = await supabase.rpc('get_mandant_id')
+  if (!mandant_id) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
+
+  const { error } = await supabase
+    .from('transaktionen')
+    .update({ geloescht_am: new Date().toISOString() })
+    .in('id', ids)
+    .eq('mandant_id', mandant_id)
+    .is('geloescht_am', null)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ geloescht: ids.length })
+}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, Search, X, History } from 'lucide-react'
+import { Upload, Search, X, History, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,17 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { TransaktionenTabelle } from '@/components/transaktionen/transaktionen-tabelle'
 import { ImportHistorie } from '@/components/transaktionen/import-historie'
 import { MatchingStatusBar } from '@/components/transaktionen/matching-status-bar'
@@ -99,6 +110,9 @@ export default function TransaktionenPage() {
         params.set('nur_offen', 'true')
       } else if (activeTab === 'rueckfragen') {
         params.set('workflow_status', 'rueckfrage')
+      } else if (statusFilter === 'offen') {
+        // "Offen" covers both offen + vorgeschlagen
+        params.set('nur_offen', 'true')
       } else if (statusFilter !== 'alle') {
         params.set('match_status', statusFilter)
       }
@@ -184,6 +198,27 @@ export default function TransaktionenPage() {
     )
   }
 
+  async function handleBulkDelete() {
+    if (selectedIds.length === 0) return
+    try {
+      const res = await fetch('/api/transaktionen', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? 'Loeschen fehlgeschlagen')
+      }
+      toast.success(`${selectedIds.length} Transaktion${selectedIds.length > 1 ? 'en' : ''} geloescht`)
+      setSelectedIds([])
+      fetchTransaktionen()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Fehler beim Loeschen'
+      toast.error(message)
+    }
+  }
+
   function handleBulkZuordnen() {
     if (selectedIds.length === 0) return
     const first = transaktionen.find((t) => selectedIds.includes(t.id)) ?? null
@@ -220,10 +255,41 @@ export default function TransaktionenPage() {
             Importierte Zahlungstransaktionen und deren Matching-Status.
           </p>
         </div>
-        <Button onClick={() => router.push('/transaktionen/import')}>
-          <Upload className="mr-2 h-4 w-4" />
-          CSV importieren
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedIds.length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {selectedIds.length} loeschen
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Transaktionen loeschen?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {selectedIds.length === 1
+                      ? 'Diese Transaktion wird geloescht und ist nicht mehr sichtbar.'
+                      : `Diese ${selectedIds.length} Transaktionen werden geloescht und sind nicht mehr sichtbar.`}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={handleBulkDelete}
+                  >
+                    Loeschen
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          <Button onClick={() => router.push('/transaktionen/import')}>
+            <Upload className="mr-2 h-4 w-4" />
+            CSV importieren
+          </Button>
+        </div>
       </div>
 
       {/* Matching Status Bar */}
@@ -334,12 +400,6 @@ export default function TransaktionenPage() {
                           Offen
                         </span>
                       </SelectItem>
-                      <SelectItem value="vorgeschlagen">
-                        <span className="flex items-center gap-2">
-                          <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
-                          Vorschlaege
-                        </span>
-                      </SelectItem>
                       <SelectItem value="bestaetigt">
                         <span className="flex items-center gap-2">
                           <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
@@ -349,7 +409,7 @@ export default function TransaktionenPage() {
                       <SelectItem value="kein_beleg">
                         <span className="flex items-center gap-2">
                           <span className="inline-block h-2 w-2 rounded-full bg-gray-400" />
-                          Kein Beleg
+                          Kein Beleg erforderlich
                         </span>
                       </SelectItem>
                     </SelectContent>

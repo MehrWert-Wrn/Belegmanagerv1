@@ -1,6 +1,7 @@
 'use client'
 
-import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileText, MessageCircleQuestion, CheckCircle2 } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileText, MessageCircleQuestion, CheckCircle2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -15,6 +16,15 @@ import { AmpelBadge } from '@/components/transaktionen/ampel-badge'
 import { MatchGrund } from '@/components/transaktionen/match-grund'
 import { MatchingAktionenMenu } from '@/components/transaktionen/matching-aktionen-menu'
 import type { TransaktionWithRelations } from '@/lib/supabase/types'
+
+type SortField = 'datum' | 'betrag'
+type SortDir = 'asc' | 'desc'
+
+function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
+  if (sortField !== field) return <ChevronsUpDown className="ml-1 h-3.5 w-3.5 text-muted-foreground/50 inline" />
+  if (sortDir === 'asc') return <ChevronUp className="ml-1 h-3.5 w-3.5 inline" />
+  return <ChevronDown className="ml-1 h-3.5 w-3.5 inline" />
+}
 
 interface TransaktionenTabelleProps {
   transaktionen: TransaktionWithRelations[]
@@ -51,11 +61,31 @@ export function TransaktionenTabelle({
   onSelectionChange,
 }: TransaktionenTabelleProps) {
   const selectable = !!onSelectionChange
+  const [sortField, setSortField] = useState<SortField>('datum')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function toggleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDir('desc')
+    }
+  }
+
+  const sorted = useMemo(() => {
+    return [...transaktionen].sort((a, b) => {
+      let cmp = 0
+      if (sortField === 'datum') cmp = a.datum.localeCompare(b.datum)
+      else cmp = a.betrag - b.betrag
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [transaktionen, sortField, sortDir])
 
   function handleSelectAll(checked: boolean) {
     if (!onSelectionChange) return
     if (checked) {
-      onSelectionChange(transaktionen.map((t) => t.id))
+      onSelectionChange(sorted.map((t) => t.id))
     } else {
       onSelectionChange([])
     }
@@ -71,9 +101,9 @@ export function TransaktionenTabelle({
   }
 
   const allSelected =
-    transaktionen.length > 0 && selectedIds.length === transaktionen.length
+    sorted.length > 0 && selectedIds.length === sorted.length
   const someSelected =
-    selectedIds.length > 0 && selectedIds.length < transaktionen.length
+    selectedIds.length > 0 && selectedIds.length < sorted.length
 
   if (loading) {
     return (
@@ -122,8 +152,20 @@ export function TransaktionenTabelle({
               </TableHead>
             )}
             <TableHead className="w-10"></TableHead>
-            <TableHead>Datum</TableHead>
-            <TableHead className="text-right">Betrag</TableHead>
+            <TableHead
+              className="cursor-pointer select-none whitespace-nowrap"
+              onClick={() => toggleSort('datum')}
+            >
+              Datum
+              <SortIcon field="datum" sortField={sortField} sortDir={sortDir} />
+            </TableHead>
+            <TableHead
+              className="text-right cursor-pointer select-none whitespace-nowrap"
+              onClick={() => toggleSort('betrag')}
+            >
+              Betrag
+              <SortIcon field="betrag" sortField={sortField} sortDir={sortDir} />
+            </TableHead>
             <TableHead className="hidden md:table-cell">
               Beschreibung
             </TableHead>
@@ -135,7 +177,7 @@ export function TransaktionenTabelle({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {transaktionen.map((t) => {
+          {sorted.map((t) => {
             const isExpense = t.betrag < 0
             const isSelected = selectedIds.includes(t.id)
 

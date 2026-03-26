@@ -20,10 +20,10 @@ const AMPEL_CONFIG: Record<
     tooltip: 'Beleg erfolgreich zugeordnet',
   },
   vorgeschlagen: {
-    label: 'Vorschlag',
-    dotClass: 'bg-amber-500',
-    badgeClass: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300',
-    tooltip: 'Vorgeschlagene Zuordnung - bitte pruefen',
+    label: 'Offen',
+    dotClass: 'bg-red-500',
+    badgeClass: 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300',
+    tooltip: 'Kein passender Beleg gefunden',
   },
   offen: {
     label: 'Offen',
@@ -32,10 +32,10 @@ const AMPEL_CONFIG: Record<
     tooltip: 'Kein passender Beleg gefunden',
   },
   kein_beleg: {
-    label: 'Kein Beleg',
+    label: 'Kein Beleg erforderlich',
     dotClass: 'bg-gray-400',
     badgeClass: 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400',
-    tooltip: 'Kein Beleg vorhanden',
+    tooltip: 'Kein Beleg erforderlich',
   },
 }
 
