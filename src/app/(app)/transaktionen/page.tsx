@@ -124,7 +124,10 @@ export default function TransaktionenPage() {
       }
 
       const data = await response.json()
-      setTransaktionen(data.data ?? [])
+      const rows: TransaktionWithRelations[] = data.data ?? []
+      // Immer nach Datum absteigend sortieren (neueste zuerst), unabhängig von Server-Reihenfolge
+      rows.sort((a, b) => (a.datum < b.datum ? 1 : a.datum > b.datum ? -1 : 0))
+      setTransaktionen(rows)
       fetchStats()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler'

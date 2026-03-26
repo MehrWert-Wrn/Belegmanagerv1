@@ -76,8 +76,12 @@ export function TransaktionenTabelle({
   const sorted = useMemo(() => {
     return [...transaktionen].sort((a, b) => {
       let cmp = 0
-      if (sortField === 'datum') cmp = a.datum.localeCompare(b.datum)
-      else cmp = a.betrag - b.betrag
+      if (sortField === 'datum') {
+        // ISO dates (YYYY-MM-DD): direct string comparison = chronological order
+        cmp = a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : 0
+      } else {
+        cmp = a.betrag - b.betrag
+      }
       return sortDir === 'asc' ? cmp : -cmp
     })
   }, [transaktionen, sortField, sortDir])
