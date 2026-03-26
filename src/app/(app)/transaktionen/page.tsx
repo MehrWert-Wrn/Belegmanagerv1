@@ -117,6 +117,7 @@ export default function TransaktionenPage() {
         params.set('match_status', statusFilter)
       }
 
+      params.set('page_size', '500')
       const response = await fetch(`/api/transaktionen?${params.toString()}`)
       if (!response.ok) {
         throw new Error('Transaktionen konnten nicht geladen werden.')

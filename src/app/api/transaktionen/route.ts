@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   const nurOffen = searchParams.get('nur_offen') === 'true'
   const search = searchParams.get('search')?.trim() ?? ''
   const page = parseInt(searchParams.get('page') ?? '1')
-  const pageSize = Math.min(parseInt(searchParams.get('page_size') ?? '50'), 200)
+  const pageSize = Math.min(parseInt(searchParams.get('page_size') ?? '500'), 500)
   const offset = (page - 1) * pageSize
 
   let query = supabase
