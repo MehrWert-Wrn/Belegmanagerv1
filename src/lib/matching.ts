@@ -340,7 +340,7 @@ export function matchTransaktion(
 
   let match_status: MatchResult['match_status']
   if (effectiveScore >= 80) match_status = 'bestaetigt'
-  else if (effectiveScore >= 50) match_status = 'vorgeschlagen'
+  else if (effectiveScore >= 30) match_status = 'vorgeschlagen'
   else match_status = 'offen'
 
   return {

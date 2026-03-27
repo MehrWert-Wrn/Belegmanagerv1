@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, CheckCircle2 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Sheet,
   SheetContent,
@@ -49,6 +50,29 @@ export function TransaktionDetailSheet({
   onAssigned,
 }: TransaktionDetailSheetProps) {
   const [zuordnungsOpen, setZuordnungsOpen] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+
+  async function handleConfirm() {
+    if (!transaktion?.beleg_id) return
+    setConfirming(true)
+    try {
+      const res = await fetch('/api/matching/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaktion_id: transaktion.id, beleg_id: transaktion.beleg_id }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        throw new Error(d.error ?? 'Bestätigung fehlgeschlagen')
+      }
+      toast.success('Beleg bestätigt')
+      onAssigned?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Fehler bei der Bestätigung')
+    } finally {
+      setConfirming(false)
+    }
+  }
 
   if (!transaktion) return null
 
@@ -142,13 +166,28 @@ export function TransaktionDetailSheet({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Matching</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setZuordnungsOpen(true)}
-              >
-                {transaktion.beleg_id ? 'Beleg ändern' : 'Beleg zuordnen'}
-              </Button>
+              <div className="flex items-center gap-2">
+                {transaktion.match_status === 'vorgeschlagen' && transaktion.beleg_id && (
+                  <Button
+                    size="sm"
+                    onClick={handleConfirm}
+                    disabled={confirming}
+                    className="gap-1.5"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {confirming ? 'Wird bestätigt…' : 'Bestätigen'}
+                  </Button>
+                )}
+                {(transaktion.match_status === 'vorgeschlagen' || transaktion.match_status === 'bestaetigt') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setZuordnungsOpen(true)}
+                  >
+                    Beleg ändern
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <AmpelBadge
@@ -164,7 +203,7 @@ export function TransaktionDetailSheet({
                 score={transaktion.match_score}
               />
             </div>
-            {transaktion.belege && (
+            {(transaktion.match_status === 'vorgeschlagen' || transaktion.match_status === 'bestaetigt') && transaktion.belege && (
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm mt-2">
                 <dt className="text-muted-foreground">Lieferant</dt>
                 <dd>{transaktion.belege.lieferant ?? '-'}</dd>

@@ -148,9 +148,6 @@ export default function TransaktionenPage() {
         params.set('nur_offen', 'true')
       } else if (activeTab === 'rueckfragen') {
         params.set('workflow_status', 'rueckfrage')
-      } else if (statusFilter === 'offen') {
-        // "Offen" covers both offen + vorgeschlagen
-        params.set('nur_offen', 'true')
       } else if (statusFilter !== 'alle') {
         params.set('match_status', statusFilter)
       }
@@ -463,6 +460,12 @@ export default function TransaktionenPage() {
                         <span className="flex items-center gap-2">
                           <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
                           Offen
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="vorgeschlagen">
+                        <span className="flex items-center gap-2">
+                          <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                          Vorschlag
                         </span>
                       </SelectItem>
                       <SelectItem value="bestaetigt">
