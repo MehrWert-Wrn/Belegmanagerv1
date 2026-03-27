@@ -1,6 +1,6 @@
 # PROJ-15: OCR-Erkennung & Massenimport von Belegen
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-03-26
 **Last Updated:** 2026-03-26
 
@@ -145,10 +145,55 @@ Bestehende `belege`-Tabelle wird genutzt:
 - Zod validation not used on this endpoint (multipart/form-data with file, validated manually)
 
 **Pending (Frontend):**
-- Single upload OCR integration (Step 2 form pre-fill)
-- Mass import UI with progress tracking
-- Review mode (BelegReviewModus Sheet component)
-- OCR field highlighting (blue border on OCR-filled fields)
+- ~~Single upload OCR integration (Step 2 form pre-fill)~~ DONE
+- ~~Mass import UI with progress tracking~~ DONE
+- ~~Review mode (BelegReviewModus Sheet component)~~ DONE
+- ~~OCR field highlighting (blue border on OCR-filled fields)~~ DONE
+
+## Frontend Implementation Notes
+
+### Implemented by /frontend (2026-03-26)
+
+**Modified files:**
+- `src/components/belege/beleg-upload-dialog.tsx` — Extended with OCR single-upload + mass import
+- `src/app/(app)/belege/page.tsx` — Added review mode integration
+
+**New files:**
+- `src/components/belege/beleg-review-modus.tsx` — Sheet component for reviewing mass-imported belege
+
+**What was built:**
+
+1. **Single Upload with OCR Prefill:**
+   - Dropzone now accepts multiple files (max 20)
+   - On single file drop: transitions to form, fires OCR in background
+   - While OCR runs: info banner with spinner, all form fields disabled
+   - OCR results pre-fill: lieferant, rechnungsnummer, rechnungsdatum, nettobetrag, bruttobetrag, mwst_satz
+   - OCR-filled fields get blue ring highlight (`ring-2 ring-blue-300 ring-offset-1 bg-blue-50/50`)
+   - Highlight disappears when user manually edits the field
+   - OCR failure shows info toast, user fills manually
+
+2. **Mass Import (2-20 files):**
+   - On multi-file drop: switches to mass import mode, no metadata dialog
+   - Sequential upload+OCR for each file with per-file status tracking
+   - Status icons per file: Clock (pending), Loader (uploading), ScanSearch (OCR), CheckCircle (done), XCircle (error)
+   - Progress bar showing "X von Y Belegen verarbeitet"
+   - On completion: toast with "Jetzt pruefen" button
+   - "Jetzt pruefen" button also in dialog footer
+   - Files uploaded with rechnungsname=null (signals unreviewed)
+   - Abort support via ref
+
+3. **BelegReviewModus (Sheet):**
+   - Full-width sheet (sm:max-w-4xl) with 2-column layout on large screens
+   - Left: document preview (PDF iframe or image)
+   - Right: metadata form with OCR highlights (blue ring on fields with data when rechnungsname is null)
+   - Progress bar: "Beleg X von Y" with reviewed/skipped counts
+   - "Speichern & Weiter" saves and advances to next beleg
+   - "Ueberspringen" skips without saving, tracks skipped IDs
+   - On last beleg: button text changes to "Speichern & Fertig"
+   - Sets rechnungsname to original_filename if user leaves it empty (marks as reviewed)
+   - All auto-calculation logic (netto/brutto/mwst) identical to existing forms
+
+**No new dependencies added. All UI uses existing shadcn/ui components (Sheet, Progress, Dialog, Form, etc.).**
 
 ## QA Test Results
 _To be added by /qa_

@@ -52,6 +52,9 @@ const updateSchema = z.object({
   lieferant: z.string().optional(),
   uid_lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
+  mandatsreferenz: z.string().optional(),
+  zahlungsreferenz: z.string().optional(),
+  bestellnummer: z.string().optional(),
   steuerzeilen: z.array(steuerzeileSchema).min(1),
   rechnungsdatum: z.string().nullable().optional(),
   faelligkeitsdatum: z.string().nullable().optional(),
@@ -168,6 +171,9 @@ export function BelegDetailSheet({
         lieferant: beleg.lieferant ?? '',
         uid_lieferant: beleg.uid_lieferant ?? '',
         lieferant_iban: beleg.lieferant_iban ?? '',
+        mandatsreferenz: beleg.mandatsreferenz ?? '',
+        zahlungsreferenz: beleg.zahlungsreferenz ?? '',
+        bestellnummer: beleg.bestellnummer ?? '',
         steuerzeilen: [{
           nettobetrag: beleg.nettobetrag,
           mwst_satz: beleg.mwst_satz,
@@ -245,6 +251,9 @@ export function BelegDetailSheet({
           lieferant: values.lieferant || undefined,
           uid_lieferant: values.uid_lieferant || undefined,
           lieferant_iban: values.lieferant_iban || undefined,
+          mandatsreferenz: values.mandatsreferenz || undefined,
+          zahlungsreferenz: values.zahlungsreferenz || undefined,
+          bestellnummer: values.bestellnummer || undefined,
           bruttobetrag: totalBrutto || null,
           nettobetrag: totalNetto || null,
           mwst_satz: mwstSatz,
@@ -466,6 +475,54 @@ export function BelegDetailSheet({
                       </FormItem>
                     )}
                   />
+                </div>
+
+                {/* Zahlungsreferenzen fuer Matching */}
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Zahlungsreferenzen
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="mandatsreferenz"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Mandatsreferenz</FormLabel>
+                          <FormControl>
+                            <Input placeholder="z.B. SEPA-MRF-001" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="zahlungsreferenz"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Zahlungsreferenz</FormLabel>
+                          <FormControl>
+                            <Input placeholder="z.B. REF-2024-001" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="bestellnummer"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Bestellnummer</FormLabel>
+                          <FormControl>
+                            <Input placeholder="z.B. 305-1234567-8901234" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
 
                 {/* Steuerzeilen (Betraege) with auto-calculation */}

@@ -571,6 +571,7 @@ export default function TransaktionenPage() {
         onOpenChange={setDetailSheetOpen}
         transaktion={selectedTransaktion}
         onWorkflowStatusChange={handleWorkflowStatusChange}
+        onAssigned={fetchTransaktionen}
       />
     </div>
   )

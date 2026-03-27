@@ -37,7 +37,7 @@ export async function executeMatching(
   // Load open belege
   const { data: belege, error: bErr } = await supabase
     .from('belege')
-    .select('id, lieferant, lieferant_iban, rechnungsnummer, bruttobetrag, rechnungsdatum')
+    .select('id, lieferant, lieferant_iban, rechnungsnummer, bruttobetrag, rechnungsdatum, mandatsreferenz, zahlungsreferenz, bestellnummer')
     .eq('mandant_id', mandantId)
     .eq('zuordnungsstatus', 'offen')
     .is('geloescht_am', null)
@@ -53,7 +53,12 @@ export async function executeMatching(
       ...t,
       match_abgelehnte_beleg_ids: t.match_abgelehnte_beleg_ids ?? [],
     })),
-    belege
+    belege.map(b => ({
+      ...b,
+      mandatsreferenz: b.mandatsreferenz ?? null,
+      zahlungsreferenz: b.zahlungsreferenz ?? null,
+      bestellnummer: b.bestellnummer ?? null,
+    }))
   )
 
   // Track which belege are already assigned in this batch run (deduplication)

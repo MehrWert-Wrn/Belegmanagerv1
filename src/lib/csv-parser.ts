@@ -133,8 +133,9 @@ export function parseCsvFile(
 
 /**
  * Try to auto-detect column mapping based on header names.
+ * Pass rows for data-driven fallback detection (e.g. meinElba timestamp column).
  */
-export function autoDetectMapping(headers: string[]): ColumnMapping {
+export function autoDetectMapping(headers: string[], rows?: string[][]): ColumnMapping {
   const lower = headers.map((h) => h.toLowerCase().trim())
 
   const mapping: ColumnMapping = {
@@ -194,13 +195,30 @@ export function autoDetectMapping(headers: string[]): ColumnMapping {
   // Reference columns
   const referenzPatterns = [
     'referenz', 'buchungsreferenz', 'reference', 'belegnummer',
-    'transaktionsnummer',
+    'transaktionsnummer', 'timestamp', 'zeitstempel', 'buchungszeit',
+    'uhrzeit', 'erfasst',
   ]
   for (const pattern of referenzPatterns) {
     const idx = lower.findIndex((h) => h.includes(pattern))
     if (idx !== -1) {
       mapping.referenz = idx
       break
+    }
+  }
+
+  // Data-driven fallback: if no referenz found via headers, scan sample rows for a
+  // datetime column (DD.MM.YYYY HH:MM pattern) — handles meinElba's unnamed timestamp column.
+  if (mapping.referenz === null && rows && rows.length > 0) {
+    const usedIndices = new Set([mapping.datum, mapping.betrag, mapping.beschreibung, mapping.iban].filter(i => i !== null) as number[])
+    const dateTimeRe = /^\d{1,2}\.\d{1,2}\.\d{4}\s+\d{1,2}:\d{2}/
+    const sample = rows.slice(0, Math.min(rows.length, 5))
+    for (let col = 0; col < headers.length; col++) {
+      if (usedIndices.has(col)) continue
+      const hits = sample.filter(row => dateTimeRe.test(row[col]?.trim() ?? '')).length
+      if (hits >= Math.ceil(sample.length / 2)) {
+        mapping.referenz = col
+        break
+      }
     }
   }
 

@@ -12,6 +12,7 @@ export type Database = {
       belege: {
         Row: {
           beschreibung: string | null
+          bestellnummer: string | null
           bruttobetrag: number | null
           dateityp: string
           erstellt_am: string
@@ -22,6 +23,7 @@ export type Database = {
           lieferant: string | null
           lieferant_iban: string | null
           mandant_id: string
+          mandatsreferenz: string | null
           mwst_satz: number | null
           nettobetrag: number | null
           original_filename: string
@@ -31,10 +33,12 @@ export type Database = {
           rechnungstyp: Database['public']['Enums']['rechnungstyp']
           storage_path: string
           uid_lieferant: string | null
+          zahlungsreferenz: string | null
           zuordnungsstatus: Database['public']['Enums']['zuordnungsstatus']
         }
         Insert: {
           beschreibung?: string | null
+          bestellnummer?: string | null
           bruttobetrag?: number | null
           dateityp: string
           faelligkeitsdatum?: string | null
@@ -43,6 +47,7 @@ export type Database = {
           lieferant?: string | null
           lieferant_iban?: string | null
           mandant_id: string
+          mandatsreferenz?: string | null
           mwst_satz?: number | null
           nettobetrag?: number | null
           original_filename: string
@@ -52,15 +57,18 @@ export type Database = {
           rechnungstyp?: Database['public']['Enums']['rechnungstyp']
           storage_path: string
           uid_lieferant?: string | null
+          zahlungsreferenz?: string | null
           zuordnungsstatus?: Database['public']['Enums']['zuordnungsstatus']
         }
         Update: {
           beschreibung?: string | null
+          bestellnummer?: string | null
           bruttobetrag?: number | null
           faelligkeitsdatum?: string | null
           geloescht_am?: string | null
           lieferant?: string | null
           lieferant_iban?: string | null
+          mandatsreferenz?: string | null
           mwst_satz?: number | null
           nettobetrag?: number | null
           rechnungsdatum?: string | null
@@ -68,6 +76,7 @@ export type Database = {
           rechnungsnummer?: string | null
           rechnungstyp?: Database['public']['Enums']['rechnungstyp']
           uid_lieferant?: string | null
+          zahlungsreferenz?: string | null
           zuordnungsstatus?: Database['public']['Enums']['zuordnungsstatus']
         }
       }

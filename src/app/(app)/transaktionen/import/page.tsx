@@ -47,9 +47,10 @@ import type { Zahlungsquelle } from '@/lib/supabase/types'
  */
 function resolveMapping(
   headers: string[],
+  rows: string[][],
   storedCsvMapping: Record<string, unknown> | null | undefined
 ): ColumnMapping {
-  const auto = autoDetectMapping(headers)
+  const auto = autoDetectMapping(headers, rows)
   if (!storedCsvMapping) return auto
 
   function findIndex(storedName: unknown): number | null {
@@ -288,7 +289,7 @@ export default function ImportPage() {
 
         // Apply stored mapping from selected source, fall back to auto-detect
         const storedCsvMapping = selectedQuelleRef.current?.csv_mapping as Record<string, unknown> | null
-        setMapping(resolveMapping(result.headers, storedCsvMapping))
+        setMapping(resolveMapping(result.headers, result.rows, storedCsvMapping))
 
         setStep(2)
       } catch (err) {

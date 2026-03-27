@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import {
   Sheet,
@@ -9,10 +10,12 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
 import { AmpelBadge } from '@/components/transaktionen/ampel-badge'
 import { MatchGrund } from '@/components/transaktionen/match-grund'
 import { WorkflowStatusSection } from '@/components/transaktionen/workflow-status-section'
 import { KommentareSection } from '@/components/transaktionen/kommentare-section'
+import { ZuordnungsDialog } from '@/components/transaktionen/zuordnungs-dialog'
 import type { TransaktionWithRelations, WorkflowStatus } from '@/lib/supabase/types'
 
 interface TransaktionDetailSheetProps {
@@ -20,6 +23,7 @@ interface TransaktionDetailSheetProps {
   onOpenChange: (open: boolean) => void
   transaktion: TransaktionWithRelations | null
   onWorkflowStatusChange?: (transaktionId: string, newStatus: WorkflowStatus) => void
+  onAssigned?: () => void
 }
 
 function formatCurrency(amount: number) {
@@ -42,7 +46,10 @@ export function TransaktionDetailSheet({
   onOpenChange,
   transaktion,
   onWorkflowStatusChange,
+  onAssigned,
 }: TransaktionDetailSheetProps) {
+  const [zuordnungsOpen, setZuordnungsOpen] = useState(false)
+
   if (!transaktion) return null
 
   const isExpense = transaktion.betrag < 0
@@ -133,7 +140,16 @@ export function TransaktionDetailSheet({
 
           {/* Match info */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Matching</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Matching</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setZuordnungsOpen(true)}
+              >
+                {transaktion.beleg_id ? 'Beleg ändern' : 'Beleg zuordnen'}
+              </Button>
+            </div>
             <div className="flex items-center gap-3">
               <AmpelBadge
                 status={transaktion.match_status}
@@ -181,6 +197,15 @@ export function TransaktionDetailSheet({
           <KommentareSection transaktionId={transaktion.id} />
         </div>
       </SheetContent>
+      <ZuordnungsDialog
+        open={zuordnungsOpen}
+        onOpenChange={setZuordnungsOpen}
+        transaktion={transaktion}
+        onAssigned={() => {
+          setZuordnungsOpen(false)
+          onAssigned?.()
+        }}
+      />
     </Sheet>
   )
 }

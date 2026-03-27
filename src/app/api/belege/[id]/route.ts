@@ -11,6 +11,9 @@ const updateSchema = z.object({
   rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges']).optional(),
   uid_lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
+  mandatsreferenz: z.string().optional(),
+  zahlungsreferenz: z.string().optional(),
+  bestellnummer: z.string().optional(),
   beschreibung: z.string().max(100, 'Beschreibung darf maximal 100 Zeichen lang sein').optional(),
   bruttobetrag: z.number().nullable().optional(),
   nettobetrag: z.number().nullable().optional(),
@@ -18,6 +21,28 @@ const updateSchema = z.object({
   rechnungsdatum: z.string().nullable().optional(),
   faelligkeitsdatum: z.string().nullable().optional(),
 })
+
+// GET /api/belege/[id] – Einzelnen Beleg laden (für Review-Modus)
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+
+  const { data, error } = await supabase
+    .from('belege')
+    .select('*')
+    .eq('id', id)
+    .is('geloescht_am', null)
+    .single()
+
+  if (error || !data) return NextResponse.json({ error: 'Beleg nicht gefunden' }, { status: 404 })
+  return NextResponse.json(data)
+}
 
 // PATCH /api/belege/[id] – Metadaten aktualisieren
 export async function PATCH(

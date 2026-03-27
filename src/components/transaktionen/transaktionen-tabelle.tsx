@@ -164,13 +164,13 @@ export function TransaktionenTabelle({
               <SortIcon field="datum" sortField={sortField} sortDir={sortDir} />
             </TableHead>
             <TableHead
-              className="text-right cursor-pointer select-none whitespace-nowrap"
+              className="w-28 text-right cursor-pointer select-none whitespace-nowrap"
               onClick={() => toggleSort('betrag')}
             >
               Betrag
               <SortIcon field="betrag" sortField={sortField} sortDir={sortDir} />
             </TableHead>
-            <TableHead className="hidden md:table-cell">
+            <TableHead className="hidden md:table-cell min-w-[300px]">
               Beschreibung
             </TableHead>
             <TableHead>Status</TableHead>
@@ -221,7 +221,7 @@ export function TransaktionenTabelle({
                 >
                   {formatCurrency(t.betrag)}
                 </TableCell>
-                <TableCell className="hidden md:table-cell text-sm max-w-[250px] truncate">
+                <TableCell className="hidden md:table-cell text-sm max-w-[450px] truncate">
                   {t.beschreibung || '-'}
                 </TableCell>
                 <TableCell>

@@ -127,6 +127,8 @@ export async function POST(request: Request) {
       bic_gegenseite: t.bic_gegenseite ?? null,
       buchungsreferenz: t.buchungsreferenz ?? null,
     })
+    // Mark key as "seen" so identical rows within the same CSV batch are de-duped
+    existingSet.add(key)
   }
 
   // Schritt 3: Einzelner Batch-Insert (atomar – entweder alle oder keine)

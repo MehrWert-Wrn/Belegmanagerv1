@@ -57,7 +57,7 @@ import type { OcrResult } from '@/lib/ocr'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const OCR_MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB for OCR
-const MAX_MASS_IMPORT = 20
+const MAX_MASS_IMPORT = 50
 const ACCEPTED_TYPES = {
   'application/pdf': ['.pdf'],
   'image/jpeg': ['.jpg', '.jpeg'],
@@ -78,6 +78,9 @@ const metadataSchema = z.object({
   lieferant: z.string().optional(),
   uid_lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
+  mandatsreferenz: z.string().optional(),
+  zahlungsreferenz: z.string().optional(),
+  bestellnummer: z.string().optional(),
   steuerzeilen: z.array(steuerzeileSchema).min(1),
   rechnungsdatum: z.string().nullable().optional(),
   faelligkeitsdatum: z.string().nullable().optional(),
@@ -141,6 +144,9 @@ export function BelegUploadDialog({
       lieferant: '',
       uid_lieferant: '',
       lieferant_iban: '',
+      mandatsreferenz: '',
+      zahlungsreferenz: '',
+      bestellnummer: '',
       steuerzeilen: [{ nettobetrag: null, mwst_satz: null, bruttobetrag: null }],
       rechnungsdatum: null,
       faelligkeitsdatum: null,
@@ -605,6 +611,9 @@ export function BelegUploadDialog({
           lieferant: values.lieferant || undefined,
           uid_lieferant: values.uid_lieferant || undefined,
           lieferant_iban: values.lieferant_iban || undefined,
+          mandatsreferenz: values.mandatsreferenz || undefined,
+          zahlungsreferenz: values.zahlungsreferenz || undefined,
+          bestellnummer: values.bestellnummer || undefined,
           bruttobetrag: totalBrutto || null,
           nettobetrag: totalNetto || null,
           mwst_satz: mwstSatz,
@@ -915,6 +924,54 @@ export function BelegUploadDialog({
                           <FormLabel>IBAN Lieferant</FormLabel>
                           <FormControl>
                             <Input placeholder="z.B. AT12 3456 ..." disabled={ocrLoading} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Zahlungsreferenzen fuer Matching */}
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Zahlungsreferenzen
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="mandatsreferenz"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Mandatsreferenz</FormLabel>
+                          <FormControl>
+                            <Input placeholder="z.B. SEPA-MRF-001" disabled={ocrLoading} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="zahlungsreferenz"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Zahlungsreferenz</FormLabel>
+                          <FormControl>
+                            <Input placeholder="z.B. REF-2024-001" disabled={ocrLoading} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="bestellnummer"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Bestellnummer</FormLabel>
+                          <FormControl>
+                            <Input placeholder="z.B. 305-1234567-8901234" disabled={ocrLoading} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
