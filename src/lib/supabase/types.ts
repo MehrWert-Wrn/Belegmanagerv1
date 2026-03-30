@@ -182,6 +182,7 @@ export type Database = {
           mandant_id: string
           match_score: number | null
           match_status: Database['public']['Enums']['match_status']
+          mwst_satz: number | null
           quelle_id: string
           workflow_status: Database['public']['Enums']['workflow_status']
         }
@@ -196,6 +197,7 @@ export type Database = {
           mandant_id: string
           match_score?: number | null
           match_status?: Database['public']['Enums']['match_status']
+          mwst_satz?: number | null
           quelle_id: string
           workflow_status?: Database['public']['Enums']['workflow_status']
         }
@@ -204,6 +206,7 @@ export type Database = {
           betrag?: number
           match_score?: number | null
           match_status?: Database['public']['Enums']['match_status']
+          mwst_satz?: number | null
           workflow_status?: Database['public']['Enums']['workflow_status']
         }
       }

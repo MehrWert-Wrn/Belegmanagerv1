@@ -46,6 +46,7 @@ export interface KassaEintrag {
   match_type: string | null
   beleg_id: string | null
   erstellt_am: string
+  mwst_satz: number | null
   belege: {
     lieferant: string | null
     rechnungsnummer: string | null

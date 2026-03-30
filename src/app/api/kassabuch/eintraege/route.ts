@@ -10,6 +10,7 @@ const schema = z.object({
   betrag: z.number().refine(v => v !== 0, 'Betrag darf nicht 0 sein'),
   beschreibung: z.string().optional(),
   beleg_id: z.string().uuid().optional(),
+  mwst_satz: z.number().nullable().optional(),
 })
 
 // GET /api/kassabuch/eintraege – alle Kassaeinträge
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
     .from('transaktionen')
     .select(`
       id, datum, betrag, beschreibung, match_status, match_score, match_type,
-      beleg_id, erstellt_am,
+      beleg_id, erstellt_am, mwst_satz,
       belege ( lieferant, rechnungsnummer, bruttobetrag )
     `)
     .eq('quelle_id', kasse.id)

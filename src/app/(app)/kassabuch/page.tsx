@@ -168,6 +168,7 @@ export default function KassabuchPage() {
       iban_gegenseite: null,
       bic_gegenseite: null,
       buchungsreferenz: null,
+      mwst_satz: eintrag.mwst_satz ?? null,
       workflow_status: 'normal',
       belege: eintrag.belege,
       zahlungsquellen: { name: 'Kassa', typ: 'kassa' },

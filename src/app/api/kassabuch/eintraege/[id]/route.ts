@@ -10,6 +10,7 @@ const updateSchema = z.object({
   datum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   betrag: z.number().refine(v => v !== 0).optional(),
   beschreibung: z.string().optional(),
+  mwst_satz: z.number().nullable().optional(),
 })
 
 // PATCH /api/kassabuch/eintraege/[id] – Eintrag bearbeiten
