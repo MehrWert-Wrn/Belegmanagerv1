@@ -12,6 +12,7 @@ const belegSchema = z.object({
   original_filename: z.string(),
   dateityp: z.enum(['pdf', 'jpg', 'jpeg', 'png']),
   file_size: z.number().int().positive().max(MAX_FILE_SIZE, 'Datei darf maximal 10 MB gross sein'),
+  file_hash: z.string().length(64).optional(),
   lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
   rechnungsnummer: z.string().optional(),

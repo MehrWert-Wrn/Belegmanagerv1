@@ -17,9 +17,21 @@ import {
   XCircle,
   Clock,
   ScanSearch,
+  AlertTriangle,
+  SkipForward,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   Dialog,
   DialogContent,
@@ -65,6 +77,23 @@ const ACCEPTED_TYPES = {
 }
 const MAX_TAX_LINES = 5
 
+async function computeFileHash(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer()
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+interface DuplicateInfo {
+  id: string
+  original_filename: string
+  lieferant: string | null
+  bruttobetrag: number | null
+  rechnungsdatum: string | null
+  rechnungsname: string | null
+}
+
 const steuerzeileSchema = z.object({
   nettobetrag: z.union([z.number(), z.literal('')]).nullable().optional(),
   mwst_satz: z.union([z.number(), z.string()]).nullable().optional(),
@@ -98,7 +127,7 @@ export type MassImportResult = {
   belegIds: string[]
 }
 
-type MassFileStatus = 'pending' | 'uploading' | 'ocr' | 'done' | 'error'
+type MassFileStatus = 'pending' | 'uploading' | 'ocr' | 'done' | 'error' | 'duplicate'
 
 interface MassFileItem {
   file: File
@@ -134,6 +163,10 @@ export function BelegUploadDialog({
   const [massFiles, setMassFiles] = useState<MassFileItem[]>([])
   const [massProcessing, setMassProcessing] = useState(false)
   const massAbortRef = useRef(false)
+
+  // Duplicate detection state
+  const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null)
+  const pendingSubmitRef = useRef<{ values: MetadataFormValues; fileHash: string } | null>(null)
 
   const form = useForm<MetadataFormValues>({
     resolver: zodResolver(metadataSchema),
@@ -425,6 +458,21 @@ export function BelegUploadDialog({
       })
 
       try {
+        // Check for duplicate before uploading
+        const fileHash = await computeFileHash(item.file)
+        const checkRes = await fetch(`/api/belege/check-hash?hash=${fileHash}`)
+        if (checkRes.ok) {
+          const { duplicate } = await checkRes.json()
+          if (duplicate) {
+            setMassFiles((prev) => {
+              const next = [...prev]
+              next[i] = { ...next[i], status: 'duplicate', error: `Bereits vorhanden: ${duplicate.original_filename}` }
+              return next
+            })
+            continue
+          }
+        }
+
         // Upload file to storage
         const fileId = crypto.randomUUID()
         const ext = item.file.name.split('.').pop()?.toLowerCase() ?? 'pdf'
@@ -462,6 +510,7 @@ export function BelegUploadDialog({
             original_filename: item.file.name,
             dateityp,
             file_size: item.file.size,
+            file_hash: fileHash,
             rechnungstyp: 'eingangsrechnung',
             // Apply OCR results if available
             lieferant: ocrResult?.lieferant || undefined,
@@ -500,11 +549,15 @@ export function BelegUploadDialog({
     setMassProcessing(false)
 
     const successCount = belegIds.length
-    const errorCount = items.length - successCount
+    const duplicateCount = massFiles.filter(f => f.status === 'duplicate').length
+    const errorCount = items.length - successCount - duplicateCount
 
     if (successCount > 0) {
+      const parts = []
+      if (duplicateCount > 0) parts.push(`${duplicateCount} Duplikat${duplicateCount !== 1 ? 'e' : ''} übersprungen`)
+      if (errorCount > 0) parts.push(`${errorCount} Fehler`)
       toast.success(
-        `${successCount} Beleg${successCount !== 1 ? 'e' : ''} importiert${errorCount > 0 ? ` (${errorCount} Fehler)` : ''} - bitte Metadaten pruefen`,
+        `${successCount} Beleg${successCount !== 1 ? 'e' : ''} importiert${parts.length > 0 ? ` (${parts.join(', ')})` : ''} - bitte Metadaten pruefen`,
         {
           action: onMassImportComplete
             ? {
@@ -538,6 +591,8 @@ export function BelegUploadDialog({
     setMassFiles([])
     setMassProcessing(false)
     massAbortRef.current = false
+    setDuplicateInfo(null)
+    pendingSubmitRef.current = null
   }
 
   function handleClose(isOpen: boolean) {
@@ -559,6 +614,30 @@ export function BelegUploadDialog({
   async function onSubmit(values: MetadataFormValues) {
     if (!file) return
 
+    setUploading(true)
+    try {
+      // Compute hash and check for duplicate before storage upload
+      const fileHash = await computeFileHash(file)
+      const checkRes = await fetch(`/api/belege/check-hash?hash=${fileHash}`)
+      if (checkRes.ok) {
+        const { duplicate } = await checkRes.json()
+        if (duplicate) {
+          // Pause and show confirmation dialog
+          pendingSubmitRef.current = { values, fileHash }
+          setDuplicateInfo(duplicate as DuplicateInfo)
+          setUploading(false)
+          return
+        }
+      }
+      await proceedWithUpload(values, fileHash)
+    } catch {
+      toast.error('Ein unerwarteter Fehler ist aufgetreten.')
+      setUploading(false)
+    }
+  }
+
+  async function proceedWithUpload(values: MetadataFormValues, fileHash: string) {
+    if (!file) return
     setUploading(true)
 
     try {
@@ -615,6 +694,7 @@ export function BelegUploadDialog({
           original_filename: file.name,
           dateityp,
           file_size: file.size,
+          file_hash: fileHash,
           rechnungsname: values.rechnungsname || undefined,
           rechnungsnummer: values.rechnungsnummer || undefined,
           rechnungstyp: values.rechnungstyp,
@@ -658,7 +738,7 @@ export function BelegUploadDialog({
   }
 
   // Mass import progress
-  const massCompleted = massFiles.filter((f) => f.status === 'done' || f.status === 'error').length
+  const massCompleted = massFiles.filter((f) => f.status === 'done' || f.status === 'error' || f.status === 'duplicate').length
   const massSucceeded = massFiles.filter((f) => f.status === 'done').length
   const massProgress = massFiles.length > 0 ? (massCompleted / massFiles.length) * 100 : 0
 
@@ -672,6 +752,8 @@ export function BelegUploadDialog({
         return <ScanSearch className="h-4 w-4 animate-pulse text-blue-500" />
       case 'done':
         return <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+      case 'duplicate':
+        return <SkipForward className="h-4 w-4 text-amber-500" />
       case 'error':
         return <XCircle className="h-4 w-4 text-destructive" />
     }
@@ -683,6 +765,7 @@ export function BelegUploadDialog({
       case 'uploading': return 'Hochladen...'
       case 'ocr': return 'OCR erkennt...'
       case 'done': return 'Fertig'
+      case 'duplicate': return 'Duplikat'
       case 'error': return 'Fehler'
     }
   }
@@ -705,7 +788,61 @@ export function BelegUploadDialog({
     return 'Dateien auswaehlen oder hierher ziehen (PDF, JPG, PNG, max. 10 MB). Mehrere Dateien fuer Massenimport.'
   }
 
+  function formatDate(d: string | null) {
+    if (!d) return '–'
+    return new Date(d).toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+
+  function formatAmount(n: number | null) {
+    if (n == null) return '–'
+    return n.toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })
+  }
+
   return (
+    <>
+    <AlertDialog open={!!duplicateInfo} onOpenChange={(open) => { if (!open) { setDuplicateInfo(null); pendingSubmitRef.current = null } }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            Mögliches Duplikat erkannt
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3 text-sm">
+              <p>Diese Datei wurde möglicherweise bereits hochgeladen:</p>
+              {duplicateInfo && (
+                <div className="rounded-md border bg-muted/50 p-3 space-y-1">
+                  <div className="font-medium">{duplicateInfo.rechnungsname || duplicateInfo.original_filename}</div>
+                  {duplicateInfo.lieferant && <div className="text-muted-foreground">Lieferant: {duplicateInfo.lieferant}</div>}
+                  <div className="text-muted-foreground">
+                    {duplicateInfo.rechnungsdatum && `Datum: ${formatDate(duplicateInfo.rechnungsdatum)} · `}
+                    {duplicateInfo.bruttobetrag != null && `Betrag: ${formatAmount(duplicateInfo.bruttobetrag)}`}
+                  </div>
+                </div>
+              )}
+              <p>Möchtest du den Beleg trotzdem hochladen?</p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => { setDuplicateInfo(null); pendingSubmitRef.current = null }}>
+            Abbrechen
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              const pending = pendingSubmitRef.current
+              if (pending) {
+                setDuplicateInfo(null)
+                pendingSubmitRef.current = null
+                proceedWithUpload(pending.values, pending.fileHash)
+              }
+            }}
+          >
+            Trotzdem hochladen
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -1309,5 +1446,6 @@ export function BelegUploadDialog({
         )}
       </DialogContent>
     </Dialog>
+    </>
   )
 }

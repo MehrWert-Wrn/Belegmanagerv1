@@ -17,6 +17,7 @@ export type Database = {
           dateityp: string
           erstellt_am: string
           faelligkeitsdatum: string | null
+          file_hash: string | null
           geloescht_am: string | null
           id: string
           import_quelle: Database['public']['Enums']['import_quelle']
@@ -43,6 +44,7 @@ export type Database = {
           bruttobetrag?: number | null
           dateityp: string
           faelligkeitsdatum?: string | null
+          file_hash?: string | null
           id?: string
           import_quelle?: Database['public']['Enums']['import_quelle']
           lieferant?: string | null
