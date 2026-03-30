@@ -11,6 +11,7 @@ export interface OcrResult {
   bruttobetrag: number | null
   nettobetrag: number | null
   mwst_satz: number | null
+  steuerzeilen?: Array<{nettobetrag: number | null, mwst_satz: number | null, bruttobetrag: number | null}>
   confidence: number
   error?: string
 }
@@ -43,22 +44,24 @@ export const OCR_MAX_FILE_SIZE = 5 * 1024 * 1024
 /** OCR timeout in milliseconds */
 const OCR_TIMEOUT_MS = 30_000
 
-const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen und Belege. Analysiere das Dokument und extrahiere folgende Felder:
+const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen. Analysiere das Dokument und extrahiere:
 
-- lieferant: Name des Rechnungsstellers / Lieferanten
-- rechnungsnummer: Rechnungsnummer (z.B. RE-2024-001, 20240001)
+- lieferant: Name des Rechnungsstellers
+- rechnungsnummer: Rechnungsnummer (z.B. RE-2024-001)
 - rechnungsdatum: Rechnungsdatum im Format YYYY-MM-DD
-- bruttobetrag: Bruttobetrag (Gesamtbetrag inkl. MwSt) als Zahl
-- nettobetrag: Nettobetrag (ohne MwSt) als Zahl
-- mwst_satz: MwSt-Satz in Prozent als Zahl (z.B. 20, 10, 13)
-- confidence: Deine Gesamtzuversicht in die Erkennung (0.0 bis 1.0)
+- bruttobetrag: Gesamtbruttobetrag (inkl. MwSt) als Zahl
+- nettobetrag: Gesamtnettobetrag (ohne MwSt) als Zahl
+- mwst_satz: Hauptsteuersatz in Prozent (z.B. 20)
+- steuerzeilen: Array mit einer Zeile PRO Steuersatz. Jede Zeile: {"nettobetrag": Zahl, "mwst_satz": Zahl, "bruttobetrag": Zahl}
+  - Bei nur einem Steuersatz: ein Eintrag im Array
+  - Bei mehreren Steuersätzen (z.B. 0% und 20%): je ein Eintrag pro Satz
+- confidence: Gesamtzuversicht (0.0 bis 1.0)
 
-Antworte NUR mit einem JSON-Objekt. Setze Felder auf null, wenn du sie nicht sicher erkennen kannst.
-Bei Beträgen: Verwende Punkt als Dezimaltrennzeichen (z.B. 1234.56).
-Bei mehreren MwSt-Sätzen: Verwende den häufigsten oder den Hauptsatz.
+Antworte NUR mit einem JSON-Objekt. Null für unbekannte Felder.
+Beträge: Punkt als Dezimaltrennzeichen (z.B. 1234.56).
 
-Beispiel-Antwort:
-{"lieferant":"Firma XYZ GmbH","rechnungsnummer":"RE-2024-001","rechnungsdatum":"2024-03-15","bruttobetrag":1200.00,"nettobetrag":1000.00,"mwst_satz":20,"confidence":0.85}`
+Beispiel mit 2 Steuersätzen:
+{"lieferant":"AKM","rechnungsnummer":"17329012","rechnungsdatum":"2026-01-01","bruttobetrag":451.70,"nettobetrag":379.43,"mwst_satz":20,"steuerzeilen":[{"nettobetrag":18.07,"mwst_satz":0,"bruttobetrag":18.07},{"nettobetrag":361.36,"mwst_satz":20,"bruttobetrag":433.63}],"confidence":0.92}`
 
 /**
  * Perform OCR on a document using Claude Haiku Vision.
@@ -146,6 +149,16 @@ export async function performOcr(
 
     const parsed = JSON.parse(jsonText)
 
+    // Validate steuerzeilen
+    let steuerzeilen: OcrResult['steuerzeilen'] = undefined
+    if (Array.isArray(parsed.steuerzeilen) && parsed.steuerzeilen.length > 0) {
+      steuerzeilen = parsed.steuerzeilen.map((z: Record<string, unknown>) => ({
+        nettobetrag: validateNumber(z.nettobetrag),
+        mwst_satz: validateMwstSatz(z.mwst_satz),
+        bruttobetrag: validateNumber(z.bruttobetrag),
+      }))
+    }
+
     // Validate and sanitize the result
     return {
       lieferant: typeof parsed.lieferant === 'string' ? parsed.lieferant : null,
@@ -154,6 +167,7 @@ export async function performOcr(
       bruttobetrag: validateNumber(parsed.bruttobetrag),
       nettobetrag: validateNumber(parsed.nettobetrag),
       mwst_satz: validateMwstSatz(parsed.mwst_satz),
+      steuerzeilen,
       confidence: typeof parsed.confidence === 'number'
         ? Math.max(0, Math.min(1, parsed.confidence))
         : 0,

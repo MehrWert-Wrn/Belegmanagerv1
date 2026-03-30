@@ -20,6 +20,11 @@ const updateSchema = z.object({
   mwst_satz: z.number().nullable().optional(),
   rechnungsdatum: z.string().nullable().optional(),
   faelligkeitsdatum: z.string().nullable().optional(),
+  steuerzeilen: z.array(z.object({
+    nettobetrag: z.number().nullable().optional(),
+    mwst_satz: z.number().nullable().optional(),
+    bruttobetrag: z.number().nullable().optional(),
+  })).optional(),
 })
 
 // GET /api/belege/[id] – Einzelnen Beleg laden (für Review-Modus)

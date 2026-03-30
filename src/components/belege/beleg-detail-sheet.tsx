@@ -174,11 +174,17 @@ export function BelegDetailSheet({
         mandatsreferenz: beleg.mandatsreferenz ?? '',
         zahlungsreferenz: beleg.zahlungsreferenz ?? '',
         bestellnummer: beleg.bestellnummer ?? '',
-        steuerzeilen: [{
-          nettobetrag: beleg.nettobetrag,
-          mwst_satz: beleg.mwst_satz,
-          bruttobetrag: beleg.bruttobetrag,
-        }],
+        steuerzeilen: beleg.steuerzeilen && beleg.steuerzeilen.length > 0
+          ? beleg.steuerzeilen.map(z => ({
+              nettobetrag: z.nettobetrag,
+              mwst_satz: z.mwst_satz,
+              bruttobetrag: z.bruttobetrag,
+            }))
+          : [{
+              nettobetrag: beleg.nettobetrag,
+              mwst_satz: beleg.mwst_satz,
+              bruttobetrag: beleg.bruttobetrag,
+            }],
         rechnungsdatum: beleg.rechnungsdatum,
         faelligkeitsdatum: beleg.faelligkeitsdatum,
         beschreibung: beleg.beschreibung ?? '',
@@ -257,6 +263,11 @@ export function BelegDetailSheet({
           bruttobetrag: totalBrutto || null,
           nettobetrag: totalNetto || null,
           mwst_satz: mwstSatz,
+          steuerzeilen: values.steuerzeilen.map(z => ({
+            nettobetrag: z.nettobetrag != null && z.nettobetrag !== '' ? Number(z.nettobetrag) : null,
+            mwst_satz: z.mwst_satz != null && z.mwst_satz !== 'none' && z.mwst_satz !== '' ? Number(z.mwst_satz) : null,
+            bruttobetrag: z.bruttobetrag != null && z.bruttobetrag !== '' ? Number(z.bruttobetrag) : null,
+          })),
           rechnungsdatum: values.rechnungsdatum || null,
           faelligkeitsdatum: values.faelligkeitsdatum || null,
           beschreibung: values.beschreibung || undefined,
@@ -291,7 +302,7 @@ export function BelegDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-5xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             Beleg-Details
@@ -313,8 +324,9 @@ export function BelegDetailSheet({
         </SheetHeader>
 
         {beleg && (
-          <div className="mt-4 space-y-6">
-            {/* Document preview - clickable to open in new tab */}
+          <div className="flex gap-6 mt-4">
+            {/* Document preview - left column */}
+            <div className="sticky top-0 w-1/2 min-w-0">
             <div className="group relative overflow-hidden rounded-lg border bg-muted/30">
               {!hasDocument ? (
                 <div className="flex min-h-[200px] flex-col items-center justify-center gap-2">
@@ -373,8 +385,10 @@ export function BelegDetailSheet({
                 </div>
               )}
             </div>
+            </div>
 
-            {/* Edit form */}
+            {/* Edit form - right column */}
+            <div className="w-1/2 min-w-0 overflow-y-auto">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 {/* Beleginfo */}
@@ -733,6 +747,7 @@ export function BelegDetailSheet({
                 </SheetFooter>
               </form>
             </Form>
+            </div>
           </div>
         )}
       </SheetContent>

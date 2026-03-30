@@ -293,22 +293,32 @@ export function BelegUploadDialog({
       form.setValue('rechnungsdatum', result.rechnungsdatum)
       newOcrFields.add('rechnungsdatum')
     }
-    if (result.nettobetrag != null) {
-      form.setValue('steuerzeilen.0.nettobetrag', result.nettobetrag)
-      newOcrFields.add('steuerzeilen.0.nettobetrag')
-    }
-    if (result.bruttobetrag != null) {
-      form.setValue('steuerzeilen.0.bruttobetrag', result.bruttobetrag)
-      newOcrFields.add('steuerzeilen.0.bruttobetrag')
-    }
-    if (result.mwst_satz != null) {
-      // Map to nearest valid value
-      const validRates = [0, 10, 13, 20]
-      const closest = validRates.includes(result.mwst_satz)
-        ? result.mwst_satz.toString()
-        : result.mwst_satz.toString()
-      form.setValue('steuerzeilen.0.mwst_satz', closest)
-      newOcrFields.add('steuerzeilen.0.mwst_satz')
+    if (result.steuerzeilen && result.steuerzeilen.length > 0) {
+      // Use multi-line steuerzeilen from OCR
+      form.setValue('steuerzeilen', result.steuerzeilen.map(z => ({
+        nettobetrag: z.nettobetrag,
+        mwst_satz: z.mwst_satz != null ? z.mwst_satz.toString() : null,
+        bruttobetrag: z.bruttobetrag,
+      })))
+      result.steuerzeilen.forEach((_, i) => {
+        newOcrFields.add(`steuerzeilen.${i}.nettobetrag`)
+        newOcrFields.add(`steuerzeilen.${i}.bruttobetrag`)
+        newOcrFields.add(`steuerzeilen.${i}.mwst_satz`)
+      })
+    } else {
+      // Fallback to single line from aggregate values
+      if (result.nettobetrag != null) {
+        form.setValue('steuerzeilen.0.nettobetrag', result.nettobetrag)
+        newOcrFields.add('steuerzeilen.0.nettobetrag')
+      }
+      if (result.bruttobetrag != null) {
+        form.setValue('steuerzeilen.0.bruttobetrag', result.bruttobetrag)
+        newOcrFields.add('steuerzeilen.0.bruttobetrag')
+      }
+      if (result.mwst_satz != null) {
+        form.setValue('steuerzeilen.0.mwst_satz', result.mwst_satz.toString())
+        newOcrFields.add('steuerzeilen.0.mwst_satz')
+      }
     }
 
     setOcrFields(newOcrFields)

@@ -31,6 +31,7 @@ export type Database = {
           rechnungsname: string | null
           rechnungsnummer: string | null
           rechnungstyp: Database['public']['Enums']['rechnungstyp']
+          steuerzeilen: Array<{nettobetrag: number | null, mwst_satz: number | null, bruttobetrag: number | null}> | null
           storage_path: string
           uid_lieferant: string | null
           zahlungsreferenz: string | null
@@ -55,6 +56,7 @@ export type Database = {
           rechnungsname?: string | null
           rechnungsnummer?: string | null
           rechnungstyp?: Database['public']['Enums']['rechnungstyp']
+          steuerzeilen?: Array<{nettobetrag: number | null, mwst_satz: number | null, bruttobetrag: number | null}> | null
           storage_path: string
           uid_lieferant?: string | null
           zahlungsreferenz?: string | null
