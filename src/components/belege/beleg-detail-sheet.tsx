@@ -302,8 +302,8 @@ export function BelegDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-5xl overflow-y-auto">
-        <SheetHeader>
+      <SheetContent className="flex flex-col w-full sm:w-[calc(100vw-260px)] sm:max-w-none overflow-hidden p-0">
+        <SheetHeader className="px-6 pt-6 pb-3 border-b shrink-0">
           <SheetTitle className="flex items-center gap-2">
             Beleg-Details
             {beleg && (
@@ -324,10 +324,10 @@ export function BelegDetailSheet({
         </SheetHeader>
 
         {beleg && (
-          <div className="flex gap-6 mt-4">
-            {/* Document preview - left column */}
-            <div className="sticky top-0 w-1/2 min-w-0">
-            <div className="group relative overflow-hidden rounded-lg border bg-muted/30">
+          <div className="flex flex-1 min-h-0 gap-0">
+            {/* Document preview - left column, full height */}
+            <div className="w-3/5 border-r flex flex-col min-h-0">
+            <div className="group relative flex-1 overflow-hidden bg-muted/30">
               {!hasDocument ? (
                 <div className="flex min-h-[200px] flex-col items-center justify-center gap-2">
                   <FileQuestion className="h-12 w-12 text-muted-foreground" />
@@ -336,7 +336,7 @@ export function BelegDetailSheet({
                   </p>
                 </div>
               ) : loadingPreview ? (
-                <Skeleton className="min-h-[600px] w-full" />
+                <Skeleton className="h-full w-full" />
               ) : previewError ? (
                 <div className="flex min-h-[200px] flex-col items-center justify-center gap-2">
                   <FileText className="h-12 w-12 text-muted-foreground" />
@@ -350,13 +350,13 @@ export function BelegDetailSheet({
                     <iframe
                       src={previewUrl}
                       title="Beleg-Vorschau"
-                      className="min-h-[600px] w-full"
+                      className="absolute inset-0 h-full w-full"
                     />
                   ) : isImage ? (
                     <img
                       src={previewUrl}
                       alt={beleg.original_filename}
-                      className="min-h-[400px] w-full cursor-pointer object-contain"
+                      className="absolute inset-0 h-full w-full cursor-pointer object-contain"
                       onClick={openPreviewInNewTab}
                     />
                   ) : (
@@ -387,8 +387,8 @@ export function BelegDetailSheet({
             </div>
             </div>
 
-            {/* Edit form - right column */}
-            <div className="w-1/2 min-w-0 overflow-y-auto">
+            {/* Edit form - right column, scrollable */}
+            <div className="w-2/5 flex flex-col min-h-0 overflow-y-auto px-6 py-4">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 {/* Beleginfo */}

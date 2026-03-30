@@ -627,6 +627,11 @@ export function BelegUploadDialog({
           bruttobetrag: totalBrutto || null,
           nettobetrag: totalNetto || null,
           mwst_satz: mwstSatz,
+          steuerzeilen: values.steuerzeilen.map(z => ({
+            nettobetrag: z.nettobetrag != null && z.nettobetrag !== '' ? Number(z.nettobetrag) : null,
+            mwst_satz: z.mwst_satz != null && z.mwst_satz !== 'none' && z.mwst_satz !== '' ? Number(z.mwst_satz) : null,
+            bruttobetrag: z.bruttobetrag != null && z.bruttobetrag !== '' ? Number(z.bruttobetrag) : null,
+          })),
           rechnungsdatum: values.rechnungsdatum || null,
           faelligkeitsdatum: values.faelligkeitsdatum || null,
           beschreibung: values.beschreibung || undefined,
