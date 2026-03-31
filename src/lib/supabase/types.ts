@@ -84,6 +84,23 @@ export type Database = {
           zuordnungsstatus?: Database['public']['Enums']['zuordnungsstatus']
         }
       }
+      kein_beleg_regeln: {
+        Row: {
+          id: string
+          mandant_id: string
+          pattern: string
+          erstellt_am: string
+        }
+        Insert: {
+          id?: string
+          mandant_id: string
+          pattern: string
+          erstellt_am?: string
+        }
+        Update: {
+          pattern?: string
+        }
+      }
       import_protokolle: {
         Row: {
           anzahl_duplikate: number

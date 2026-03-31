@@ -88,7 +88,7 @@ function amountScore(transaktionBetrag: number, belegBetrag: number | null): num
   const abw = betragsAbweichung(transaktionBetrag, belegBetrag)
   if (abw === null) return 0
   if (abw === 0) return 40
-  if (abw <= 0.01) return 20  // ±1%
+  if (abw <= 0.03) return 30  // ±3%
   return 0
 }
 
@@ -127,7 +127,7 @@ function lieferantScore(beschreibung: string | null, lieferant: string | null): 
 
 function beschreibungScore(beschreibung: string | null, rechnungsnummer: string | null): number {
   if (!beschreibung || !rechnungsnummer || rechnungsnummer.length < 4) return 0
-  return normalize(beschreibung).includes(normalize(rechnungsnummer)) ? 10 : 0
+  return normalize(beschreibung).includes(normalize(rechnungsnummer)) ? 20 : 0
 }
 
 // --- Stage 1: Hard Match ---
@@ -330,17 +330,17 @@ export function matchTransaktion(
     }
   }
 
-  // Kein Kandidat
-  if (!bestBeleg || bestScore === 0) {
+  // Kein Kandidat oder Score zu niedrig → kein Beleg zuordnen
+  if (!bestBeleg || bestScore < 45) {
     return { transaktion_id: transaktion.id, beleg_id: null, match_status: 'offen', match_score: 0, match_type: null }
   }
 
-  // Tie → Gelb für manuelle Auflösung (gilt für Hard Match und Score-Ties bei >= 80)
-  const effectiveScore = tieScore && bestScore >= 80 ? 79 : bestScore
+  // Tie → Gelb für manuelle Auflösung (gilt für Hard Match und Score-Ties bei > 70)
+  const effectiveScore = tieScore && bestScore > 70 ? 70 : bestScore
 
   let match_status: MatchResult['match_status']
-  if (effectiveScore >= 80) match_status = 'bestaetigt'
-  else if (effectiveScore >= 30) match_status = 'vorgeschlagen'
+  if (effectiveScore > 70) match_status = 'bestaetigt'
+  else if (effectiveScore >= 45) match_status = 'vorgeschlagen'
   else match_status = 'offen'
 
   return {

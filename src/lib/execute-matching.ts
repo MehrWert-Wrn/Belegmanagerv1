@@ -10,6 +10,7 @@ export type MatchingStats = {
   matched: number
   suggested: number
   unmatched: number
+  kein_beleg: number
   total: number
 }
 
@@ -22,6 +23,13 @@ export async function executeMatching(
   mandantId: string,
   quelleId?: string
 ): Promise<MatchingStats> {
+  // Load kein_beleg_regeln for this mandant
+  const { data: regeln } = await supabase
+    .from('kein_beleg_regeln')
+    .select('pattern')
+    .eq('mandant_id', mandantId)
+  const patterns = (regeln ?? []).map(r => r.pattern.toLowerCase())
+
   // Load open transactions
   let transaktionenQuery = supabase
     .from('transaktionen')
@@ -44,12 +52,37 @@ export async function executeMatching(
 
   if (bErr) throw new Error(bErr.message)
 
-  if (!transaktionen?.length || !belege?.length) {
-    return { matched: 0, suggested: 0, unmatched: 0, total: transaktionen?.length ?? 0 }
+  if (!transaktionen?.length) {
+    return { matched: 0, suggested: 0, unmatched: 0, kein_beleg: 0, total: 0 }
+  }
+
+  // Apply kein_beleg_regeln: transactions matching a pattern → mark kein_beleg, exclude from matching
+  let keinBelegCount = 0
+  const matchingTransaktionen = []
+  if (patterns.length > 0) {
+    for (const t of transaktionen) {
+      const desc = (t.beschreibung ?? '').toLowerCase()
+      const matchesRule = patterns.some(p => desc.includes(p))
+      if (matchesRule) {
+        await supabase
+          .from('transaktionen')
+          .update({ match_status: 'kein_beleg', beleg_id: null, match_score: 0, match_type: null })
+          .eq('id', t.id)
+        keinBelegCount++
+      } else {
+        matchingTransaktionen.push(t)
+      }
+    }
+  } else {
+    matchingTransaktionen.push(...transaktionen)
+  }
+
+  if (!matchingTransaktionen.length || !belege?.length) {
+    return { matched: 0, suggested: 0, unmatched: matchingTransaktionen.length, kein_beleg: keinBelegCount, total: transaktionen.length }
   }
 
   const results = runMatchingBatch(
-    transaktionen.map(t => ({
+    matchingTransaktionen.map(t => ({
       ...t,
       match_abgelehnte_beleg_ids: t.match_abgelehnte_beleg_ids ?? [],
     })),
@@ -135,5 +168,5 @@ export async function executeMatching(
     }
   }
 
-  return { matched, suggested, unmatched, total: results.length }
+  return { matched, suggested, unmatched, kein_beleg: keinBelegCount, total: transaktionen.length }
 }

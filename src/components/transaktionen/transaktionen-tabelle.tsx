@@ -31,6 +31,7 @@ interface TransaktionenTabelleProps {
   loading: boolean
   onActionComplete: () => void
   onManualAssign?: (transaktionId: string) => void
+  onCreateRegel?: (prefill: string) => void
   onRowClick?: (transaktion: TransaktionWithRelations) => void
   selectedIds?: string[]
   onSelectionChange?: (ids: string[]) => void
@@ -56,6 +57,7 @@ export function TransaktionenTabelle({
   loading,
   onActionComplete,
   onManualAssign,
+  onCreateRegel,
   onRowClick,
   selectedIds = [],
   onSelectionChange,
@@ -258,8 +260,10 @@ export function TransaktionenTabelle({
                     transaktionId={t.id}
                     belegId={t.beleg_id}
                     matchStatus={t.match_status}
+                    beschreibung={t.beschreibung}
                     onActionComplete={onActionComplete}
                     onManualAssign={onManualAssign}
+                    onCreateRegel={onCreateRegel}
                   />
                 </TableCell>
               </TableRow>

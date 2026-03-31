@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MoreHorizontal, Check, X, Link2, Ban, Unlink } from 'lucide-react'
+import { MoreHorizontal, Check, X, Link2, Ban, Unlink, ShieldOff } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -18,16 +18,20 @@ interface MatchingAktionenMenuProps {
   transaktionId: string
   belegId: string | null
   matchStatus: MatchStatus
+  beschreibung?: string | null
   onActionComplete: () => void
   onManualAssign?: (transaktionId: string) => void
+  onCreateRegel?: (prefill: string) => void
 }
 
 export function MatchingAktionenMenu({
   transaktionId,
   belegId,
   matchStatus,
+  beschreibung,
   onActionComplete,
   onManualAssign,
+  onCreateRegel,
 }: MatchingAktionenMenuProps) {
   const [loading, setLoading] = useState(false)
 
@@ -177,6 +181,13 @@ export function MatchingAktionenMenu({
           <DropdownMenuItem onClick={handleKeinBeleg} disabled={loading}>
             <Ban className="mr-2 h-4 w-4 text-gray-500" />
             Kein Beleg erforderlich
+          </DropdownMenuItem>
+        )}
+
+        {onCreateRegel && (matchStatus === 'offen' || matchStatus === 'vorgeschlagen' || matchStatus === 'kein_beleg') && (
+          <DropdownMenuItem onClick={() => onCreateRegel(beschreibung ?? '')}>
+            <ShieldOff className="mr-2 h-4 w-4 text-gray-400" />
+            Regel erstellen...
           </DropdownMenuItem>
         )}
 

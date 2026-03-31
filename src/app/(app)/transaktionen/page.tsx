@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, Search, X, History, Trash2 } from 'lucide-react'
+import { Upload, Search, X, History, Trash2, ShieldOff } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,7 @@ import { MatchingStatusBar } from '@/components/transaktionen/matching-status-ba
 import { ZuordnungsDialog } from '@/components/transaktionen/zuordnungs-dialog'
 import { BulkAktionsLeiste } from '@/components/transaktionen/bulk-aktions-leiste'
 import { TransaktionDetailSheet } from '@/components/transaktionen/transaktion-detail-sheet'
+import { KeinBelegRegelnDialog } from '@/components/transaktionen/kein-beleg-regeln-dialog'
 import type { TransaktionWithRelations, WorkflowStatus } from '@/lib/supabase/types'
 
 type ZeitraumPreset = 'standard' | 'aktuelles_monat' | 'letztes_monat' | 'vorletztes_monat' | 'letztes_quartal' | 'benutzerdefiniert'
@@ -114,6 +115,10 @@ export default function TransaktionenPage() {
 
   // Active tab
   const [activeTab, setActiveTab] = useState('transaktionen')
+
+  // Kein-Beleg-Regeln dialog
+  const [regelnDialogOpen, setRegelnDialogOpen] = useState(false)
+  const [regelnPrefill, setRegelnPrefill] = useState('')
 
   // BUG-PROJ5-R4-002: Stats fetched from dedicated endpoint (full dataset, not paginated slice)
   const [matchingStats, setMatchingStats] = useState({ total: 0, bestaetigt: 0, vorgeschlagen: 0, offen: 0 })
@@ -324,12 +329,22 @@ export default function TransaktionenPage() {
               </AlertDialogContent>
             </AlertDialog>
           )}
+          <Button variant="outline" onClick={() => { setRegelnPrefill(''); setRegelnDialogOpen(true) }}>
+            <ShieldOff className="mr-2 h-4 w-4" />
+            Regeln
+          </Button>
           <Button onClick={() => router.push('/transaktionen/import')}>
             <Upload className="mr-2 h-4 w-4" />
             CSV importieren
           </Button>
         </div>
       </div>
+
+      <KeinBelegRegelnDialog
+        open={regelnDialogOpen}
+        onOpenChange={setRegelnDialogOpen}
+        prefillPattern={regelnPrefill}
+      />
 
       {/* Matching Status Bar */}
       <MatchingStatusBar
@@ -537,6 +552,7 @@ export default function TransaktionenPage() {
               loading={loading}
               onActionComplete={fetchTransaktionen}
               onManualAssign={handleManualAssign}
+              onCreateRegel={(prefill) => { setRegelnPrefill(prefill); setRegelnDialogOpen(true) }}
               onRowClick={handleRowClick}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
