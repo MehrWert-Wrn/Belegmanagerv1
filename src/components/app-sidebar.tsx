@@ -36,6 +36,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { TrialBanner } from '@/components/billing/trial-banner'
+import type { BillingStatus } from '@/lib/billing'
 
 const navItems = [
   { title: 'Belege', href: '/belege', icon: FileText },
@@ -48,9 +50,10 @@ const navItems = [
 interface AppSidebarProps {
   userEmail: string
   children: React.ReactNode
+  billingStatus?: BillingStatus | null
 }
 
-export function AppSidebar({ userEmail, children }: AppSidebarProps) {
+export function AppSidebar({ userEmail, children, billingStatus }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -114,6 +117,7 @@ export function AppSidebar({ userEmail, children }: AppSidebarProps) {
         </SidebarContent>
 
         <SidebarFooter>
+          {billingStatus && <TrialBanner billing={billingStatus} />}
           <SidebarSeparator />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

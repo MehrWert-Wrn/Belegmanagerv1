@@ -8,6 +8,7 @@ const settingsNav = [
   { label: 'Firma', href: '/settings/firma' },
   { label: 'Zahlungsquellen', href: '/settings/zahlungsquellen' },
   { label: 'Benutzer', href: '/settings/benutzer' },
+  { label: 'Abonnement', href: '/settings/abonnement' },
 ]
 
 export default function SettingsLayout({
