@@ -1,0 +1,23 @@
+<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Top arc: Petrol, large clockwise 240° from 7-o-clock (12,34) to 3-o-clock (36,20) -->
+  <path d="M 12 34 A 16 16 0 1 1 36 20" stroke="#08525E" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Petrol arrowhead at (36,20), pointing down (clockwise at 3 o-clock) -->
+  <polygon points="36,20 34,17.5 38,17.5" fill="#08525E"/>
+
+  <!-- Bottom arc: Teal, small clockwise 120° from 3-o-clock (36,20) to 7-o-clock (12,34) -->
+  <path d="M 36 20 A 16 16 0 0 1 12 34" stroke="#1D8A9E" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Teal arrowhead at (12,34), pointing up-left (clockwise at 7 o-clock) -->
+  <polygon points="12,34 14,37.5 16,33.5" fill="#1D8A9E"/>
+
+  <!-- Inner circle background -->
+  <circle cx="20" cy="20" r="9.5" fill="#EBF7F9"/>
+
+  <!-- Cloud shape (upload icon) -->
+  <path d="M 14.5 23.5 C 12.5 23.5 11.5 22 12 20.5 C 12.5 19 14.5 18.5 16 19.5 C 16.5 17.5 18.5 16 21 16.5 C 23 16 25 17.5 25 19.5 C 26.5 18.5 28.5 19.5 28 21.5 C 28 23 26.5 23.5 25 23.5 Z" fill="#1D8A9E"/>
+  <!-- Upload arrow on cloud -->
+  <line x1="20.5" y1="23" x2="20.5" y2="19.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+  <polyline points="19,21 20.5,19.5 22,21" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Magenta sparkle (4-pointed star) in ring area at ~10 o-clock position -->
+  <polygon points="11,11 11.85,13.15 14,14 11.85,14.85 11,17 10.15,14.85 8,14 10.15,13.15" fill="#E50046"/>
+</svg>

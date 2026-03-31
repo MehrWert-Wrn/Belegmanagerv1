@@ -147,7 +147,7 @@ export function MatchingAktionenMenu({
       <DropdownMenuContent align="end">
         {canConfirm && (
           <DropdownMenuItem onClick={handleConfirm} disabled={loading}>
-            <Check className="mr-2 h-4 w-4 text-emerald-500" />
+            <Check className="mr-2 h-4 w-4 text-teal-500" />
             Zuordnung bestaetigen
           </DropdownMenuItem>
         )}

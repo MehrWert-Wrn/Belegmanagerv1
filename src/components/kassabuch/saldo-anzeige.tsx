@@ -45,8 +45,8 @@ export function SaldoAnzeige({
   return (
     <Card>
       <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-950">
-          <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-950">
+          <Wallet className="h-5 w-5 text-teal-600 dark:text-teal-400" />
         </div>
 
         <div className="flex flex-1 flex-wrap gap-x-8 gap-y-2">
@@ -66,7 +66,7 @@ export function SaldoAnzeige({
             <p
               className={`text-sm font-mono font-medium ${
                 summeEintraege >= 0
-                  ? 'text-emerald-600 dark:text-emerald-400'
+                  ? 'text-teal-600 dark:text-teal-400'
                   : 'text-red-600 dark:text-red-400'
               }`}
             >

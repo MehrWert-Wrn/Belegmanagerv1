@@ -49,7 +49,7 @@ const STATUS_CONFIG: Record<
     label: 'Abgeschlossen',
     variant: 'default',
     icon: Lock,
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+    className: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-300',
   },
 }
 
@@ -87,7 +87,7 @@ export function MonatsKarte({
                   {getMonatsname(monat)} {jahr}
                 </h3>
                 {istAbgeschlossen && (
-                  <Lock className="h-4 w-4 shrink-0 text-emerald-600" aria-label="Monat gesperrt" />
+                  <Lock className="h-4 w-4 shrink-0 text-teal-600" aria-label="Monat gesperrt" />
                 )}
               </div>
               <div className="flex items-center gap-3 mt-1">

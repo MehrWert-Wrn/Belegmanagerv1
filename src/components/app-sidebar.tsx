@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   FileText,
@@ -68,13 +69,18 @@ export function AppSidebar({ userEmail, children }: AppSidebarProps) {
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader className="p-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-sm">
-              B
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <Image
+              src="/logo-icon.svg"
+              alt="Belegmanager Logo"
+              width={32}
+              height={32}
+              className="shrink-0"
+            />
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-semibold text-[#08525E]">Belegmanager</span>
+              <span className="text-[10px] text-[#1D8A9E]">by Mehr.Wert Gruppe GmbH</span>
             </div>
-            <span className="text-lg font-semibold tracking-tight">
-              Belegmanager
-            </span>
           </Link>
         </SidebarHeader>
 
@@ -116,7 +122,7 @@ export function AppSidebar({ userEmail, children }: AppSidebarProps) {
                 className="w-full justify-start gap-2 px-2"
               >
                 <Avatar className="h-7 w-7">
-                  <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs">
+                  <AvatarFallback className="bg-teal-100 text-teal-700 text-xs">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
@@ -136,10 +142,14 @@ export function AppSidebar({ userEmail, children }: AppSidebarProps) {
       <SidebarInset>
         <header className="flex h-14 items-center gap-2 border-b px-4 md:hidden">
           <SidebarTrigger />
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-xs">
-            B
-          </div>
-          <span className="font-semibold">Belegmanager</span>
+          <Image
+            src="/logo-icon.svg"
+            alt="Belegmanager Logo"
+            width={28}
+            height={28}
+            className="shrink-0"
+          />
+          <span className="font-semibold text-[#08525E]">Belegmanager</span>
         </header>
         <div className="flex-1 overflow-auto">
           {children}

@@ -9,7 +9,30 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			sans: ['var(--font-sans)', 'DM Sans', 'Plus Jakarta Sans', 'sans-serif'],
+  		},
   		colors: {
+  			// ── CI Farbtokens Belegmanager ──
+  			petrol: '#08525E',
+  			magenta: {
+  				DEFAULT: '#E50046',
+  				dark: '#BA1540',
+  			},
+  			// Teal-Scale auf CI-Teal (#1D8A9E) zentriert – ersetzt emerald vollständig
+  			teal: {
+  				'50':  '#f0f9fa',
+  				'100': '#ccedf2',
+  				'200': '#99dae6',
+  				'300': '#55c0d3',
+  				'400': '#2aa5b8',
+  				'500': '#1d8a9e',
+  				'600': '#166e7f',
+  				'700': '#0e5363',
+  				'800': '#09404d',
+  				'900': '#062b34',
+  				'950': '#041e24',
+  			},
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {

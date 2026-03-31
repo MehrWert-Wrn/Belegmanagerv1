@@ -118,7 +118,7 @@ export function ImportHistorie() {
               <TableCell className="text-right">
                 <Badge
                   variant="outline"
-                  className="border-emerald-500 text-emerald-600"
+                  className="border-teal-500 text-teal-600"
                 >
                   {imp.anzahl_importiert}
                 </Badge>

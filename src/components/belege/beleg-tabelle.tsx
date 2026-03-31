@@ -232,7 +232,7 @@ export function BelegTabelle({
               </TableCell>
               <TableCell>
                 {beleg.zuordnungsstatus === 'zugeordnet' ? (
-                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                  <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-100">
                     Zugeordnet
                   </Badge>
                 ) : (

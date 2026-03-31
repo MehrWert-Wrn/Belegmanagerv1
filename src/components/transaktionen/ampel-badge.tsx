@@ -15,8 +15,8 @@ const AMPEL_CONFIG: Record<
 > = {
   bestaetigt: {
     label: 'Zugeordnet',
-    dotClass: 'bg-emerald-500',
-    badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+    dotClass: 'bg-teal-500',
+    badgeClass: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-300',
     tooltip: 'Beleg erfolgreich zugeordnet',
   },
   vorgeschlagen: {

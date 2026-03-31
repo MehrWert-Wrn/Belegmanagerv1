@@ -144,7 +144,7 @@ export function KassabuchTabelle({
                   {isExpense ? (
                     <ArrowUpRight className="h-4 w-4 text-red-500" />
                   ) : (
-                    <ArrowDownLeft className="h-4 w-4 text-emerald-500" />
+                    <ArrowDownLeft className="h-4 w-4 text-teal-500" />
                   )}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-sm">
@@ -154,7 +154,7 @@ export function KassabuchTabelle({
                   className={`whitespace-nowrap text-right font-mono text-sm ${
                     isExpense
                       ? 'text-red-600 dark:text-red-400'
-                      : 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-teal-600 dark:text-teal-400'
                   }`}
                 >
                   {formatCurrency(eintrag.betrag)}
@@ -383,7 +383,7 @@ function KassaAktionenMenu({
         {/* Matching actions - identisch zu Transaktionen */}
         {canConfirm && (
           <DropdownMenuItem onClick={handleConfirm} disabled={loading}>
-            <Check className="mr-2 h-4 w-4 text-emerald-500" />
+            <Check className="mr-2 h-4 w-4 text-teal-500" />
             Zuordnung bestaetigen
           </DropdownMenuItem>
         )}

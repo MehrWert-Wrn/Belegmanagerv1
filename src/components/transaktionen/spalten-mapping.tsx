@@ -157,7 +157,7 @@ export function SpaltenMapping({
                       className={`text-sm text-right font-mono ${
                         row.betrag < 0
                           ? 'text-red-600 dark:text-red-400'
-                          : 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-teal-600 dark:text-teal-400'
                       }`}
                     >
                       {row.error && row.betrag === 0
@@ -178,7 +178,7 @@ export function SpaltenMapping({
                       ) : (
                         <Badge
                           variant="outline"
-                          className="text-xs border-emerald-500 text-emerald-600"
+                          className="text-xs border-teal-500 text-teal-600"
                         >
                           OK
                         </Badge>

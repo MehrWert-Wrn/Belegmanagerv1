@@ -751,7 +751,7 @@ export function BelegUploadDialog({
       case 'ocr':
         return <ScanSearch className="h-4 w-4 animate-pulse text-blue-500" />
       case 'done':
-        return <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+        return <CheckCircle2 className="h-4 w-4 text-teal-500" />
       case 'duplicate':
         return <SkipForward className="h-4 w-4 text-amber-500" />
       case 'error':
@@ -856,8 +856,8 @@ export function BelegUploadDialog({
             {...getRootProps()}
             className={`flex cursor-pointer flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed p-10 transition-colors ${
               isDragActive
-                ? 'border-emerald-500 bg-emerald-50'
-                : 'border-muted-foreground/25 hover:border-emerald-400 hover:bg-muted/50'
+                ? 'border-teal-500 bg-teal-50'
+                : 'border-muted-foreground/25 hover:border-teal-400 hover:bg-muted/50'
             }`}
           >
             <input {...getInputProps()} aria-label="Dateien auswaehlen" />
@@ -1391,7 +1391,7 @@ export function BelegUploadDialog({
                     item.status === 'error'
                       ? 'bg-destructive/5'
                       : item.status === 'done'
-                        ? 'bg-emerald-50'
+                        ? 'bg-teal-50'
                         : item.status === 'uploading' || item.status === 'ocr'
                           ? 'bg-blue-50'
                           : ''

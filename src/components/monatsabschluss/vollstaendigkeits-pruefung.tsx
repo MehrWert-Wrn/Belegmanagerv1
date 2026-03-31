@@ -21,7 +21,7 @@ interface VollstaendigkeitsPruefungProps {
 const AMPEL_CONFIG: Record<PruefungAmpel, { label: string; className: string; icon: typeof CheckCircle2 }> = {
   gruen: {
     label: 'Alle Pruefungen bestanden',
-    className: 'text-emerald-600 dark:text-emerald-400',
+    className: 'text-teal-600 dark:text-teal-400',
     icon: CheckCircle2,
   },
   gelb: {
@@ -79,17 +79,17 @@ export function VollstaendigkeitsPruefung({ pruefung, loading }: Vollstaendigkei
         {/* Offene Transaktionen */}
         <div className={`flex items-center gap-3 rounded-lg border p-3 text-sm ${
           pruefung.anzahl_offen === 0
-            ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950'
+            ? 'border-teal-200 bg-teal-50 dark:border-teal-800 dark:bg-teal-950'
             : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950'
         }`}>
           {pruefung.anzahl_offen === 0 ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
           ) : (
             <XCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
           )}
           <span className={
             pruefung.anzahl_offen === 0
-              ? 'text-emerald-700 dark:text-emerald-300'
+              ? 'text-teal-700 dark:text-teal-300'
               : 'text-red-700 dark:text-red-300'
           }>
             {pruefung.anzahl_offen === 0
@@ -102,18 +102,18 @@ export function VollstaendigkeitsPruefung({ pruefung, loading }: Vollstaendigkei
         {pruefung.kassa_saldo !== null && (
           <div className={`flex items-center gap-3 rounded-lg border p-3 text-sm ${
             pruefung.kassa_saldo_positiv
-              ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950'
+              ? 'border-teal-200 bg-teal-50 dark:border-teal-800 dark:bg-teal-950'
               : 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950'
           }`}>
             {pruefung.kassa_saldo_positiv ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
             ) : (
               <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             )}
             <Scale className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className={
               pruefung.kassa_saldo_positiv
-                ? 'text-emerald-700 dark:text-emerald-300'
+                ? 'text-teal-700 dark:text-teal-300'
                 : 'text-amber-700 dark:text-amber-300'
             }>
               Kassasaldo:{' '}
@@ -139,18 +139,18 @@ function QuellenCheckItem({ quelle }: { quelle: QuellenPruefung }) {
   return (
     <div className={`flex items-center gap-3 rounded-lg border p-3 text-sm ${
       passed
-        ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950'
+        ? 'border-teal-200 bg-teal-50 dark:border-teal-800 dark:bg-teal-950'
         : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950'
     }`}>
       {passed ? (
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
       ) : (
         <XCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
       )}
       <QuelleIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span className={
         passed
-          ? 'text-emerald-700 dark:text-emerald-300'
+          ? 'text-teal-700 dark:text-teal-300'
           : 'text-red-700 dark:text-red-300'
       }>
         {quelle.quelle_name}:{' '}

@@ -208,7 +208,7 @@ export function TransaktionenTabelle({
                   {isExpense ? (
                     <ArrowUpRight className="h-4 w-4 text-red-500" />
                   ) : (
-                    <ArrowDownLeft className="h-4 w-4 text-emerald-500" />
+                    <ArrowDownLeft className="h-4 w-4 text-teal-500" />
                   )}
                 </TableCell>
                 <TableCell className="text-sm whitespace-nowrap">
@@ -218,7 +218,7 @@ export function TransaktionenTabelle({
                   className={`text-sm text-right font-mono whitespace-nowrap ${
                     isExpense
                       ? 'text-red-600 dark:text-red-400'
-                      : 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-teal-600 dark:text-teal-400'
                   }`}
                 >
                   {formatCurrency(t.betrag)}
@@ -250,7 +250,7 @@ export function TransaktionenTabelle({
                   )}
                   {t.workflow_status === 'erledigt' && (
                     <CheckCircle2
-                      className="h-4 w-4 text-emerald-500"
+                      className="h-4 w-4 text-teal-500"
                       aria-label="Erledigt"
                     />
                   )}

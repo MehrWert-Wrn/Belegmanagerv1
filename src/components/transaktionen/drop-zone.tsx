@@ -54,7 +54,7 @@ export function DropZone({ onFileAccepted, isLoading, error }: DropZoneProps) {
         className={cn(
           'flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors cursor-pointer',
           isDragActive
-            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20'
+            ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/20'
             : 'border-muted-foreground/25 hover:border-muted-foreground/50',
           isLoading && 'opacity-50 cursor-not-allowed',
           displayError && 'border-destructive/50'
@@ -65,13 +65,13 @@ export function DropZone({ onFileAccepted, isLoading, error }: DropZoneProps) {
         <input {...getInputProps()} />
         {isLoading ? (
           <>
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-muted-foreground/25 border-t-emerald-600" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-muted-foreground/25 border-t-teal-600" />
             <p className="text-sm text-muted-foreground">Datei wird verarbeitet...</p>
           </>
         ) : isDragActive ? (
           <>
-            <FileSpreadsheet className="h-10 w-10 text-emerald-600" />
-            <p className="text-sm font-medium text-emerald-600">
+            <FileSpreadsheet className="h-10 w-10 text-teal-600" />
+            <p className="text-sm font-medium text-teal-600">
               Datei hier ablegen
             </p>
           </>

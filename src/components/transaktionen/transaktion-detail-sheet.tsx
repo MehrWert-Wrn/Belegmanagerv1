@@ -91,13 +91,13 @@ export function TransaktionDetailSheet({
             {isExpense ? (
               <ArrowUpRight className="h-5 w-5 text-red-500 shrink-0" />
             ) : (
-              <ArrowDownLeft className="h-5 w-5 text-emerald-500 shrink-0" />
+              <ArrowDownLeft className="h-5 w-5 text-teal-500 shrink-0" />
             )}
             <span
               className={`font-mono ${
                 isExpense
                   ? 'text-red-600 dark:text-red-400'
-                  : 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-teal-600 dark:text-teal-400'
               }`}
             >
               {formatCurrency(transaktion.betrag)}
@@ -121,7 +121,7 @@ export function TransaktionDetailSheet({
                 className={`font-mono ${
                   isExpense
                     ? 'text-red-600 dark:text-red-400'
-                    : 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-teal-600 dark:text-teal-400'
                 }`}
               >
                 {formatCurrency(transaktion.betrag)}

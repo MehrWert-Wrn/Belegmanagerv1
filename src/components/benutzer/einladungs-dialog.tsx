@@ -96,7 +96,7 @@ export function EinladungsDialog({ open, onOpenChange, onSuccess }: EinladungsDi
 
         {success ? (
           <div className="py-6 text-center">
-            <div className="rounded-md bg-emerald-50 text-emerald-800 text-sm px-4 py-3">
+            <div className="rounded-md bg-teal-50 text-teal-800 text-sm px-4 py-3">
               Einladung wurde erfolgreich gesendet an <strong>{email}</strong>
             </div>
           </div>

@@ -335,9 +335,9 @@ export default function ImportPage() {
               <div
                 className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium ${
                   s.number < step
-                    ? 'bg-emerald-600 text-white'
+                    ? 'bg-teal-600 text-white'
                     : s.number === step
-                      ? 'bg-emerald-600 text-white'
+                      ? 'bg-teal-600 text-white'
                       : 'bg-muted text-muted-foreground'
                 }`}
               >

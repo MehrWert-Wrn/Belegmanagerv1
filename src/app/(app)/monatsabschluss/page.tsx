@@ -177,7 +177,7 @@ export default function MonatsabschlussPage() {
       {!loading && !error && (
         <div className="flex flex-wrap gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-teal-500" />
             <span className="text-muted-foreground">
               {abgeschlossen} von 12 Monaten abgeschlossen
             </span>

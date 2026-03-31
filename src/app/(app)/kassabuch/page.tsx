@@ -304,7 +304,7 @@ export default function KassabuchPage() {
               </SelectItem>
               <SelectItem value="bestaetigt">
                 <span className="flex items-center gap-2">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="inline-block h-2 w-2 rounded-full bg-teal-500" />
                   Zugeordnet
                 </span>
               </SelectItem>

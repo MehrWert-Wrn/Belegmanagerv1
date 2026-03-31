@@ -86,7 +86,7 @@ export function MatchingStatusBar({
               {matchQuote}% zugeordnet
             </span>
             <div className="flex items-center gap-1.5 text-muted-foreground">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />
               <span>{stats.bestaetigt} zugeordnet</span>
             </div>
             <div className="flex items-center gap-1.5 text-muted-foreground">

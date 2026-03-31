@@ -36,7 +36,7 @@ export function ImportErgebnis({
         {hasErrors ? (
           <AlertTriangle className="h-12 w-12 text-amber-500" />
         ) : (
-          <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+          <CheckCircle2 className="h-12 w-12 text-teal-500" />
         )}
         <div>
           <h3 className="text-lg font-semibold">
@@ -51,7 +51,7 @@ export function ImportErgebnis({
       {/* Stats */}
       <div className={`grid gap-4 ${hasGesperrte ? 'grid-cols-4' : 'grid-cols-3'}`}>
         <div className="flex flex-col items-center gap-1 rounded-lg border p-4">
-          <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+          <CheckCircle2 className="h-5 w-5 text-teal-500" />
           <span className="text-2xl font-bold">{result.importiert}</span>
           <span className="text-xs text-muted-foreground">Importiert</span>
         </div>
@@ -78,7 +78,7 @@ export function ImportErgebnis({
       {hasMatching && (
         <div className="rounded-lg border p-4 space-y-2">
           <div className="flex items-center gap-2">
-            <Zap className="h-4 w-4 text-emerald-500" />
+            <Zap className="h-4 w-4 text-teal-500" />
             <span className="text-sm font-medium">Automatisches Matching</span>
           </div>
           <div className="flex items-center gap-3">

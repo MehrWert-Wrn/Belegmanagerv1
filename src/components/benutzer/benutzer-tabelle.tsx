@@ -53,7 +53,7 @@ function StatusBadge({ user }: { user: BenutzerListItem }) {
     )
   }
   return (
-    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+    <Badge className="bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-100">
       Aktiv
     </Badge>
   )
@@ -62,7 +62,7 @@ function StatusBadge({ user }: { user: BenutzerListItem }) {
 function RolleBadge({ rolle }: { rolle: string }) {
   if (rolle === 'admin') {
     return (
-      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+      <Badge className="bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-100">
         Admin
       </Badge>
     )

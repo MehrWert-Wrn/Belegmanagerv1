@@ -34,7 +34,7 @@ const STATUS_CONFIG: Record<
   },
   erledigt: {
     label: 'Erledigt',
-    icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
+    icon: <CheckCircle2 className="h-4 w-4 text-teal-500" />,
     description: 'Frage geklaert, keine Aktion noetig',
   },
 }
@@ -117,7 +117,7 @@ export function WorkflowStatusSection({
           </SelectItem>
           <SelectItem value="erledigt">
             <span className="flex items-center gap-2">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />
               Erledigt
             </span>
           </SelectItem>

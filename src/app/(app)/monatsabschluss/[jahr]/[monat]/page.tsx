@@ -92,7 +92,7 @@ export default function MonatsDetailPage() {
               <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
                 {monatsname} {jahr}
                 {istAbgeschlossen && (
-                  <Lock className="h-5 w-5 text-emerald-600" aria-label="Monat gesperrt" />
+                  <Lock className="h-5 w-5 text-teal-600" aria-label="Monat gesperrt" />
                 )}
               </h1>
               {!loading && detail && (
@@ -197,7 +197,7 @@ export default function MonatsDetailPage() {
                         {detail.pruefung.anzahl_offen} offen
                       </span>
                     ) : (
-                      <span className="text-emerald-600 dark:text-emerald-400">
+                      <span className="text-teal-600 dark:text-teal-400">
                         Keine
                       </span>
                     )
@@ -219,7 +219,7 @@ export default function MonatsDetailPage() {
                   <InfoRow
                     label="DATEV-Export"
                     value={
-                      <Badge variant="outline" className="text-xs border-emerald-200 bg-emerald-50 text-emerald-700">
+                      <Badge variant="outline" className="text-xs border-teal-200 bg-teal-50 text-teal-700">
                         Export vorhanden
                       </Badge>
                     }
@@ -255,7 +255,7 @@ export default function MonatsDetailPage() {
 
       {/* Locked month notice */}
       {istAbgeschlossen && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+        <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-700 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-300">
           <div className="flex items-center gap-2">
             <Lock className="h-4 w-4" />
             <span className="font-medium">Monat ist abgeschlossen</span>
@@ -335,7 +335,7 @@ function StatusBadge({ status }: { status: string }) {
     },
     abgeschlossen: {
       label: 'Abgeschlossen',
-      className: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+      className: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-300',
     },
   }
 

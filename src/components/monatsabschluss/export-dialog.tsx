@@ -218,7 +218,7 @@ export function ExportDialog({
                     <p className="text-xs text-muted-foreground">Transaktionen</p>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                    <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
                       {vorschau.anzahl_mit_beleg}
                     </p>
                     <p className="text-xs text-muted-foreground">mit Beleg</p>
@@ -322,9 +322,9 @@ export function ExportDialog({
 
               {/* Success state */}
               {phase === 'exportiert' && !exporting && (
-                <div className="flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950">
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
-                  <div className="text-sm text-emerald-700 dark:text-emerald-300">
+                <div className="flex gap-3 rounded-lg border border-teal-200 bg-teal-50 p-3 dark:border-teal-800 dark:bg-teal-950">
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-teal-600 dark:text-teal-400 mt-0.5" />
+                  <div className="text-sm text-teal-700 dark:text-teal-300">
                     <p className="font-medium">Export erfolgreich</p>
                     <p className="mt-0.5">
                       Die Datei wurde heruntergeladen. Du kannst den Dialog schliessen oder
