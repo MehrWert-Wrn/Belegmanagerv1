@@ -14,6 +14,9 @@ import {
   ChevronRight,
   SkipForward,
   ScanSearch,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -96,6 +99,7 @@ export function BelegReviewModus({
   const [previewError, setPreviewError] = useState(false)
   const [reviewedCount, setReviewedCount] = useState(0)
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
+  const [pdfZoom, setPdfZoom] = useState(1)
 
   // OCR highlight tracking
   const [ocrFields, setOcrFields] = useState<Set<string>>(new Set())
@@ -148,6 +152,8 @@ export function BelegReviewModus({
 
   // Load preview for current beleg
   useEffect(() => {
+    setPdfZoom(1)
+
     if (!currentBeleg || !open) {
       setPreviewUrl(null)
       setPreviewError(false)
@@ -191,6 +197,24 @@ export function BelegReviewModus({
     if (currentBeleg.bruttobetrag != null) newOcrFields.add('steuerzeilen.0.bruttobetrag')
     if (currentBeleg.mwst_satz != null) newOcrFields.add('steuerzeilen.0.mwst_satz')
 
+    // Use steuerzeilen JSONB array if available, fall back to aggregate fields
+    const initSteuerzeilen = currentBeleg.steuerzeilen && currentBeleg.steuerzeilen.length > 0
+      ? currentBeleg.steuerzeilen.map((z: { nettobetrag?: number | null; mwst_satz?: number | null; bruttobetrag?: number | null }) => ({
+          nettobetrag: z.nettobetrag,
+          mwst_satz: z.mwst_satz != null ? z.mwst_satz : null,
+          bruttobetrag: z.bruttobetrag,
+        }))
+      : [{ nettobetrag: currentBeleg.nettobetrag, mwst_satz: currentBeleg.mwst_satz, bruttobetrag: currentBeleg.bruttobetrag }]
+
+    // Mark all steuerzeilen fields as OCR-highlighted if unreviewed
+    if (!currentBeleg.rechnungsname) {
+      initSteuerzeilen.forEach((_: unknown, i: number) => {
+        newOcrFields.add(`steuerzeilen.${i}.nettobetrag`)
+        newOcrFields.add(`steuerzeilen.${i}.bruttobetrag`)
+        newOcrFields.add(`steuerzeilen.${i}.mwst_satz`)
+      })
+    }
+
     // Only show OCR highlights if rechnungsname is not set (unreviewed)
     if (!currentBeleg.rechnungsname) {
       setOcrFields(newOcrFields)
@@ -205,11 +229,7 @@ export function BelegReviewModus({
       lieferant: currentBeleg.lieferant ?? '',
       uid_lieferant: currentBeleg.uid_lieferant ?? '',
       lieferant_iban: currentBeleg.lieferant_iban ?? '',
-      steuerzeilen: [{
-        nettobetrag: currentBeleg.nettobetrag,
-        mwst_satz: currentBeleg.mwst_satz,
-        bruttobetrag: currentBeleg.bruttobetrag,
-      }],
+      steuerzeilen: initSteuerzeilen,
       rechnungsdatum: currentBeleg.rechnungsdatum,
       faelligkeitsdatum: currentBeleg.faelligkeitsdatum,
       beschreibung: currentBeleg.beschreibung ?? '',
@@ -338,6 +358,11 @@ export function BelegReviewModus({
           bruttobetrag: totalBrutto || null,
           nettobetrag: totalNetto || null,
           mwst_satz: mwstSatz,
+          steuerzeilen: values.steuerzeilen.map(z => ({
+            nettobetrag: z.nettobetrag != null && z.nettobetrag !== '' ? Number(z.nettobetrag) : null,
+            mwst_satz: z.mwst_satz != null && z.mwst_satz !== 'none' && z.mwst_satz !== '' ? Number(z.mwst_satz) : null,
+            bruttobetrag: z.bruttobetrag != null && z.bruttobetrag !== '' ? Number(z.bruttobetrag) : null,
+          })),
           rechnungsdatum: values.rechnungsdatum || null,
           faelligkeitsdatum: values.faelligkeitsdatum || null,
           beschreibung: values.beschreibung || undefined,
@@ -376,110 +401,141 @@ export function BelegReviewModus({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-4xl overflow-y-auto" side="right">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-3">
-            Beleg-Review
+      <SheetContent className="flex flex-col w-[calc(100vw-260px)] sm:max-w-none overflow-hidden p-0" side="right">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-6 py-3">
+          <div className="flex items-center gap-3">
+            <SheetTitle className="text-base font-semibold">
+              Beleg-Review
+            </SheetTitle>
             {totalCount > 0 && (
               <span className="rounded-full bg-muted px-3 py-0.5 text-sm font-normal text-muted-foreground">
                 Beleg {currentIndex + 1} von {totalCount}
               </span>
             )}
-          </SheetTitle>
-          <SheetDescription>
+          </div>
+          <SheetDescription className="sr-only">
             Pruefen und korrigieren Sie die OCR-erkannten Metadaten fuer jeden Beleg.
           </SheetDescription>
-        </SheetHeader>
-
-        {/* Progress bar */}
-        {totalCount > 0 && (
-          <div className="mt-3 space-y-1">
-            <Progress value={progressPercent} className="h-1.5" />
-            <p className="text-xs text-muted-foreground">
-              {reviewedCount} gespeichert, {skippedIds.size} uebersprungen
-            </p>
-          </div>
-        )}
+          {totalCount > 0 && (
+            <div className="flex items-center gap-3">
+              <div className="min-w-[160px] space-y-0.5">
+                <Progress value={progressPercent} className="h-1.5" />
+                <p className="text-xs text-muted-foreground">
+                  {reviewedCount} gespeichert, {skippedIds.size} uebersprungen
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
 
         {loading ? (
-          <div className="mt-6 space-y-4">
+          <div className="flex-1 space-y-4 p-6">
             <Skeleton className="h-8 w-1/3" />
             <Skeleton className="h-64 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
           </div>
         ) : totalCount === 0 ? (
-          <div className="mt-8 flex flex-col items-center gap-2 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
             <FileQuestion className="h-12 w-12 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Keine Belege zum Reviewen gefunden.
-            </p>
+            <p className="text-sm text-muted-foreground">Keine Belege zum Reviewen gefunden.</p>
           </div>
         ) : currentBeleg ? (
-          <div className="mt-4 grid gap-6 lg:grid-cols-2">
-            {/* Left: Preview */}
-            <div className="group relative overflow-hidden rounded-lg border bg-muted/30">
-              {loadingPreview ? (
-                <Skeleton className="min-h-[400px] w-full" />
-              ) : previewError ? (
-                <div className="flex min-h-[300px] flex-col items-center justify-center gap-2">
-                  <FileText className="h-12 w-12 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    Vorschau nicht verfuegbar
-                  </p>
-                </div>
-              ) : previewUrl ? (
-                <>
-                  {isPdf ? (
-                    <iframe
-                      src={previewUrl}
-                      title="Beleg-Vorschau"
-                      className="min-h-[500px] w-full"
-                    />
-                  ) : isImage ? (
-                    <img
-                      src={previewUrl}
-                      alt={currentBeleg.original_filename}
-                      className="min-h-[300px] w-full cursor-pointer object-contain"
-                      onClick={openPreviewInNewTab}
-                    />
-                  ) : (
-                    <div className="flex min-h-[300px] items-center justify-center">
-                      <FileText className="h-12 w-12 text-muted-foreground" />
-                    </div>
-                  )}
+          <div className="flex flex-1 overflow-hidden">
+            {/* Left: Document preview */}
+            <div className="relative flex w-3/5 flex-col border-r">
+              {/* Zoom controls for PDF */}
+              {isPdf && previewUrl && (
+                <div className="flex items-center gap-1 border-b px-3 py-1.5">
                   <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="absolute right-2 top-2 gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+                    type="button" variant="ghost" size="icon" className="h-7 w-7"
+                    onClick={() => setPdfZoom(z => Math.max(0.5, z - 0.25))}
+                    disabled={pdfZoom <= 0.5}
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <span className="min-w-[3rem] text-center text-xs text-muted-foreground">
+                    {Math.round(pdfZoom * 100)}%
+                  </span>
+                  <Button
+                    type="button" variant="ghost" size="icon" className="h-7 w-7"
+                    onClick={() => setPdfZoom(z => Math.min(3, z + 0.25))}
+                    disabled={pdfZoom >= 3}
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button" variant="ghost" size="icon" className="h-7 w-7"
+                    onClick={() => setPdfZoom(1)}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </Button>
+                  <div className="mx-2 h-4 w-px bg-border" />
+                  <Button
+                    type="button" variant="ghost" size="sm" className="h-7 gap-1 text-xs"
                     onClick={openPreviewInNewTab}
-                    aria-label="In neuem Tab oeffnen"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     Oeffnen
                   </Button>
-                </>
-              ) : (
-                <div className="flex min-h-[300px] flex-col items-center justify-center gap-2">
-                  <FileQuestion className="h-12 w-12 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    Kein Dokument vorhanden
-                  </p>
+                  <p className="ml-auto truncate text-xs text-muted-foreground">{currentBeleg.original_filename}</p>
                 </div>
               )}
-
-              {/* File info */}
-              <div className="border-t px-3 py-2">
-                <p className="truncate text-xs font-medium">{currentBeleg.original_filename}</p>
-                <p className="text-xs text-muted-foreground">
-                  {currentBeleg.dateityp?.toUpperCase()}
-                </p>
+              <div className="relative flex-1 overflow-auto">
+                {loadingPreview ? (
+                  <Skeleton className="absolute inset-0" />
+                ) : previewError ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-2">
+                    <FileText className="h-12 w-12 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Vorschau nicht verfuegbar</p>
+                  </div>
+                ) : previewUrl ? (
+                  isPdf ? (
+                    <div
+                      style={{
+                        width: `${pdfZoom * 100}%`,
+                        height: `${pdfZoom * 100}%`,
+                        minWidth: '100%',
+                        minHeight: '100%',
+                      }}
+                    >
+                      <iframe
+                        src={previewUrl}
+                        title="Beleg-Vorschau"
+                        className="h-full w-full"
+                      />
+                    </div>
+                  ) : isImage ? (
+                    <img
+                      src={previewUrl}
+                      alt={currentBeleg.original_filename}
+                      className="h-full w-full cursor-pointer object-contain"
+                      onClick={openPreviewInNewTab}
+                      style={{ transform: `scale(${pdfZoom})`, transformOrigin: 'top center' }}
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <FileText className="h-12 w-12 text-muted-foreground" />
+                    </div>
+                  )
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-2">
+                    <FileQuestion className="h-12 w-12 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Kein Dokument vorhanden</p>
+                  </div>
+                )}
               </div>
+              {!isPdf && previewUrl && (
+                <div className="flex items-center justify-between border-t px-3 py-1.5">
+                  <p className="truncate text-xs text-muted-foreground">{currentBeleg.original_filename}</p>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={openPreviewInNewTab}>
+                    <ExternalLink className="h-3.5 w-3.5" /> Oeffnen
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Right: Form */}
-            <div>
+            <div className="flex w-2/5 flex-col overflow-y-auto px-6 py-4">
               {/* OCR hint */}
               {ocrFields.size > 0 && (
                 <div className="mb-4 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
@@ -545,10 +601,7 @@ export function BelegReviewModus({
                               className={getOcrInputClass('lieferant')}
                               {...field}
                               value={field.value ?? ''}
-                              onChange={(e) => {
-                                clearOcrHighlight('lieferant')
-                                field.onChange(e)
-                              }}
+                              onChange={(e) => { clearOcrHighlight('lieferant'); field.onChange(e) }}
                             />
                           </FormControl>
                           <FormMessage />
@@ -567,10 +620,7 @@ export function BelegReviewModus({
                               className={getOcrInputClass('rechnungsnummer')}
                               {...field}
                               value={field.value ?? ''}
-                              onChange={(e) => {
-                                clearOcrHighlight('rechnungsnummer')
-                                field.onChange(e)
-                              }}
+                              onChange={(e) => { clearOcrHighlight('rechnungsnummer'); field.onChange(e) }}
                             />
                           </FormControl>
                           <FormMessage />
@@ -640,9 +690,7 @@ export function BelegReviewModus({
                                   {index === 0 && <FormLabel>Netto</FormLabel>}
                                   <FormControl>
                                     <Input
-                                      type="number"
-                                      step="0.01"
-                                      placeholder="0.00"
+                                      type="number" step="0.01" placeholder="0.00"
                                       className={getOcrInputClass(`steuerzeilen.${index}.nettobetrag`)}
                                       value={field.value ?? ''}
                                       onChange={(e) => handleNettoChange(index, e.target.value)}
@@ -687,9 +735,7 @@ export function BelegReviewModus({
                                   {index === 0 && <FormLabel>Brutto</FormLabel>}
                                   <FormControl>
                                     <Input
-                                      type="number"
-                                      step="0.01"
-                                      placeholder="0.00"
+                                      type="number" step="0.01" placeholder="0.00"
                                       className={getOcrInputClass(`steuerzeilen.${index}.bruttobetrag`)}
                                       value={field.value ?? ''}
                                       onChange={(e) => handleBruttoChange(index, e.target.value)}
@@ -702,12 +748,9 @@ export function BelegReviewModus({
                           </div>
                           {fields.length > 1 && (
                             <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
+                              type="button" variant="ghost" size="icon"
                               className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
                               onClick={() => remove(index)}
-                              aria-label="Zeile entfernen"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -752,10 +795,7 @@ export function BelegReviewModus({
                               type="date"
                               className={getOcrInputClass('rechnungsdatum')}
                               value={field.value ?? ''}
-                              onChange={(e) => {
-                                clearOcrHighlight('rechnungsdatum')
-                                field.onChange(e.target.value)
-                              }}
+                              onChange={(e) => { clearOcrHighlight('rechnungsdatum'); field.onChange(e.target.value) }}
                             />
                           </FormControl>
                           <FormMessage />
@@ -798,9 +838,7 @@ export function BelegReviewModus({
                         </FormControl>
                         <div className="flex justify-between">
                           <FormMessage />
-                          <span className="text-xs text-muted-foreground">
-                            {beschreibungValue.length}/100
-                          </span>
+                          <span className="text-xs text-muted-foreground">{beschreibungValue.length}/100</span>
                         </div>
                       </FormItem>
                     )}

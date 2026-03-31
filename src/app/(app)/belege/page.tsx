@@ -39,6 +39,8 @@ export default function BelegePage() {
   const [betragNettoBis, setBetragNettoBis] = useState('')
   const [betragBruttoVon, setBetragBruttoVon] = useState('')
   const [betragBruttoBis, setBetragBruttoBis] = useState('')
+  const [erstelltVon, setErstelltVon] = useState('')
+  const [erstelltBis, setErstelltBis] = useState('')
 
   // Dialog states
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -68,6 +70,8 @@ export default function BelegePage() {
       if (betragNettoBis) params.set('betrag_netto_bis', betragNettoBis)
       if (betragBruttoVon) params.set('betrag_von', betragBruttoVon)
       if (betragBruttoBis) params.set('betrag_bis', betragBruttoBis)
+      if (erstelltVon) params.set('erstellt_von', erstelltVon)
+      if (erstelltBis) params.set('erstellt_bis', erstelltBis)
 
       const response = await fetch(`/api/belege?${params.toString()}`)
       if (!response.ok) {
@@ -92,7 +96,7 @@ export default function BelegePage() {
     } finally {
       setLoading(false)
     }
-  }, [rechnungsnameFilter, lieferantFilter, rechnungstypFilter, statusFilter, datumVon, datumBis, betragNettoVon, betragNettoBis, betragBruttoVon, betragBruttoBis])
+  }, [rechnungsnameFilter, lieferantFilter, rechnungstypFilter, statusFilter, datumVon, datumBis, betragNettoVon, betragNettoBis, betragBruttoVon, betragBruttoBis, erstelltVon, erstelltBis])
 
   useEffect(() => {
     fetchBelege()
@@ -159,6 +163,8 @@ export default function BelegePage() {
     setBetragNettoBis('')
     setBetragBruttoVon('')
     setBetragBruttoBis('')
+    setErstelltVon('')
+    setErstelltBis('')
   }
 
   const hasFilters =
@@ -171,7 +177,9 @@ export default function BelegePage() {
     betragNettoVon !== '' ||
     betragNettoBis !== '' ||
     betragBruttoVon !== '' ||
-    betragBruttoBis !== ''
+    betragBruttoBis !== '' ||
+    erstelltVon !== '' ||
+    erstelltBis !== ''
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8">
@@ -374,6 +382,34 @@ export default function BelegePage() {
               <X className="h-4 w-4" />
             </Button>
           )}
+        </div>
+
+        {/* Row 3: Erstellungsdatum filter */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="space-y-1">
+            <label htmlFor="filter-erstellt-von" className="text-xs font-medium text-muted-foreground">
+              Hochgeladen von
+            </label>
+            <Input
+              id="filter-erstellt-von"
+              type="date"
+              value={erstelltVon}
+              onChange={(e) => setErstelltVon(e.target.value)}
+              className="w-full sm:w-40"
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="filter-erstellt-bis" className="text-xs font-medium text-muted-foreground">
+              Hochgeladen bis
+            </label>
+            <Input
+              id="filter-erstellt-bis"
+              type="date"
+              value={erstelltBis}
+              onChange={(e) => setErstelltBis(e.target.value)}
+              className="w-full sm:w-40"
+            />
+          </div>
         </div>
       </div>
 

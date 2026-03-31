@@ -51,6 +51,8 @@ export async function GET(request: Request) {
   const status = searchParams.get('status')
   const datumVon = searchParams.get('datum_von')
   const datumBis = searchParams.get('datum_bis')
+  const erstelltVon = searchParams.get('erstellt_von')
+  const erstelltBis = searchParams.get('erstellt_bis')
   const betragVon = searchParams.get('betrag_von')
   const betragBis = searchParams.get('betrag_bis')
   const betragNettoVon = searchParams.get('betrag_netto_von')
@@ -62,6 +64,7 @@ export async function GET(request: Request) {
     .from('belege')
     .select('*')
     .is('geloescht_am', null)
+    .order('rechnungsdatum', { ascending: false, nullsFirst: false })
     .order('erstellt_am', { ascending: false })
 
   const esc = (s: string) => s.replace(/%/g, '\\%').replace(/_/g, '\\_')
@@ -75,6 +78,8 @@ export async function GET(request: Request) {
   if (betragBis) query = query.lte('bruttobetrag', parseFloat(betragBis))
   if (betragNettoVon) query = query.gte('nettobetrag', parseFloat(betragNettoVon))
   if (betragNettoBis) query = query.lte('nettobetrag', parseFloat(betragNettoBis))
+  if (erstelltVon) query = query.gte('erstellt_am', erstelltVon)
+  if (erstelltBis) query = query.lte('erstellt_am', erstelltBis + 'T23:59:59')
 
   const { data, error } = await query
 
