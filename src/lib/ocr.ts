@@ -49,16 +49,22 @@ const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen. An
 - lieferant: Name des Rechnungsstellers
 - rechnungsnummer: Rechnungsnummer (z.B. RE-2024-001)
 - rechnungsdatum: Rechnungsdatum im Format YYYY-MM-DD
-- bruttobetrag: Gesamtbruttobetrag (inkl. MwSt) als Zahl
-- nettobetrag: Gesamtnettobetrag (ohne MwSt) als Zahl
-- mwst_satz: Hauptsteuersatz in Prozent (z.B. 20)
-- steuerzeilen: Array mit einer Zeile PRO Steuersatz. Jede Zeile: {"nettobetrag": Zahl, "mwst_satz": Zahl, "bruttobetrag": Zahl}
-  - Bei nur einem Steuersatz: ein Eintrag im Array
-  - Bei mehreren Steuersätzen (z.B. 0% und 20%): je ein Eintrag pro Satz
+- bruttobetrag: Gesamtbruttobetrag (inkl. MwSt) als Zahl — die GESAMTSUMME der Rechnung
+- nettobetrag: Gesamtnettobetrag (ohne MwSt) als Zahl — die GESAMTSUMME netto
+- mwst_satz: Hauptsteuersatz in Prozent (der häufigste oder höchste Steuersatz)
+- steuerzeilen: WICHTIG — suche auf der Rechnung nach einer MwSt-Aufschlüsselung / Steuerübersicht-Tabelle (oft am Ende der Rechnung). Diese Tabelle listet jeden Steuersatz separat auf. Extrahiere JEDE Zeile dieser Tabelle als eigenen Eintrag:
+  - Format pro Zeile: {"nettobetrag": Zahl, "mwst_satz": Zahl (z.B. 0, 10, 13, 20), "bruttobetrag": Zahl}
+  - Bei nur einem Steuersatz: genau ein Eintrag
+  - Bei mehreren Steuersätzen (z.B. 0%, 10%, 20%): je ein Eintrag PRO Steuersatz-Zeile
+  - NICHT die Summenzeile / Gesamtsumme — nur die einzelnen Steuergruppen-Zeilen
+  - Österreichische Steuersätze: 0%, 10%, 13%, 20%
 - confidence: Gesamtzuversicht (0.0 bis 1.0)
 
 Antworte NUR mit einem JSON-Objekt. Null für unbekannte Felder.
 Beträge: Punkt als Dezimaltrennzeichen (z.B. 1234.56).
+
+Beispiel mit 3 Steuersätzen (typisch für Lebensmitteleinzelhandel AT wie SPAR, Billa, Hofer):
+{"lieferant":"SPAR","rechnungsnummer":"4729103","rechnungsdatum":"2026-03-15","bruttobetrag":912.06,"nettobetrag":796.87,"mwst_satz":20,"steuerzeilen":[{"nettobetrag":38.50,"mwst_satz":0,"bruttobetrag":38.50},{"nettobetrag":364.82,"mwst_satz":10,"bruttobetrag":401.30},{"nettobetrag":393.55,"mwst_satz":20,"bruttobetrag":472.26}],"confidence":0.91}
 
 Beispiel mit 2 Steuersätzen:
 {"lieferant":"AKM","rechnungsnummer":"17329012","rechnungsdatum":"2026-01-01","bruttobetrag":451.70,"nettobetrag":379.43,"mwst_satz":20,"steuerzeilen":[{"nettobetrag":18.07,"mwst_satz":0,"bruttobetrag":18.07},{"nettobetrag":361.36,"mwst_satz":20,"bruttobetrag":433.63}],"confidence":0.92}`
