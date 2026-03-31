@@ -17,6 +17,7 @@ export type Database = {
           dateityp: string
           erstellt_am: string
           faelligkeitsdatum: string | null
+          faelligkeit_bezahlt: boolean
           file_hash: string | null
           geloescht_am: string | null
           id: string
@@ -44,6 +45,7 @@ export type Database = {
           bruttobetrag?: number | null
           dateityp: string
           faelligkeitsdatum?: string | null
+          faelligkeit_bezahlt?: boolean
           file_hash?: string | null
           id?: string
           import_quelle?: Database['public']['Enums']['import_quelle']
@@ -69,6 +71,7 @@ export type Database = {
           bestellnummer?: string | null
           bruttobetrag?: number | null
           faelligkeitsdatum?: string | null
+          faelligkeit_bezahlt?: boolean
           geloescht_am?: string | null
           lieferant?: string | null
           lieferant_iban?: string | null

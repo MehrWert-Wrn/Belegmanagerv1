@@ -59,6 +59,7 @@ export async function GET(request: Request) {
   const betragNettoBis = searchParams.get('betrag_netto_bis')
   const rechnungsname = searchParams.get('rechnungsname')
   const rechnungstyp = searchParams.get('rechnungstyp')
+  const ueberfaellig = searchParams.get('ueberfaellig')
 
   let query = supabase
     .from('belege')
@@ -69,7 +70,11 @@ export async function GET(request: Request) {
 
   const esc = (s: string) => s.replace(/%/g, '\\%').replace(/_/g, '\\_')
   if (lieferant) query = query.ilike('lieferant', `%${esc(lieferant)}%`)
-  if (rechnungsname) query = query.ilike('rechnungsname', `%${esc(rechnungsname)}%`)
+  if (rechnungsname) {
+    // Search both rechnungsname and original_filename (the table displays whichever is set)
+    const pattern = `%${esc(rechnungsname)}%`
+    query = query.or(`rechnungsname.ilike.${pattern},original_filename.ilike.${pattern}`)
+  }
   if (rechnungstyp) query = query.eq('rechnungstyp', rechnungstyp)
   if (status) query = query.eq('zuordnungsstatus', status)
   if (datumVon) query = query.gte('rechnungsdatum', datumVon)
@@ -80,6 +85,14 @@ export async function GET(request: Request) {
   if (betragNettoBis) query = query.lte('nettobetrag', parseFloat(betragNettoBis))
   if (erstelltVon) query = query.gte('erstellt_am', erstelltVon)
   if (erstelltBis) query = query.lte('erstellt_am', erstelltBis + 'T23:59:59')
+  if (ueberfaellig === 'true') {
+    const today = new Date().toISOString().slice(0, 10)
+    query = query
+      .lt('faelligkeitsdatum', today)
+      .not('faelligkeitsdatum', 'is', null)
+      .eq('zuordnungsstatus', 'offen')
+      .eq('faelligkeit_bezahlt', false)
+  }
 
   const { data, error } = await query
 

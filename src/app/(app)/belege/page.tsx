@@ -5,6 +5,7 @@ import { Plus, Search, X, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -41,6 +42,7 @@ export default function BelegePage() {
   const [betragBruttoBis, setBetragBruttoBis] = useState('')
   const [erstelltVon, setErstelltVon] = useState('')
   const [erstelltBis, setErstelltBis] = useState('')
+  const [ueberfaelligFilter, setUeberfaelligFilter] = useState(false)
 
   // Dialog states
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -72,6 +74,7 @@ export default function BelegePage() {
       if (betragBruttoBis) params.set('betrag_bis', betragBruttoBis)
       if (erstelltVon) params.set('erstellt_von', erstelltVon)
       if (erstelltBis) params.set('erstellt_bis', erstelltBis)
+      if (ueberfaelligFilter) params.set('ueberfaellig', 'true')
 
       const response = await fetch(`/api/belege?${params.toString()}`)
       if (!response.ok) {
@@ -96,7 +99,7 @@ export default function BelegePage() {
     } finally {
       setLoading(false)
     }
-  }, [rechnungsnameFilter, lieferantFilter, rechnungstypFilter, statusFilter, datumVon, datumBis, betragNettoVon, betragNettoBis, betragBruttoVon, betragBruttoBis, erstelltVon, erstelltBis])
+  }, [rechnungsnameFilter, lieferantFilter, rechnungstypFilter, statusFilter, datumVon, datumBis, betragNettoVon, betragNettoBis, betragBruttoVon, betragBruttoBis, erstelltVon, erstelltBis, ueberfaelligFilter])
 
   useEffect(() => {
     fetchBelege()
@@ -165,6 +168,7 @@ export default function BelegePage() {
     setBetragBruttoBis('')
     setErstelltVon('')
     setErstelltBis('')
+    setUeberfaelligFilter(false)
   }
 
   const hasFilters =
@@ -179,7 +183,8 @@ export default function BelegePage() {
     betragBruttoVon !== '' ||
     betragBruttoBis !== '' ||
     erstelltVon !== '' ||
-    erstelltBis !== ''
+    erstelltBis !== '' ||
+    ueberfaelligFilter
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8">
@@ -384,7 +389,7 @@ export default function BelegePage() {
           )}
         </div>
 
-        {/* Row 3: Erstellungsdatum filter */}
+        {/* Row 3: Erstellungsdatum + Überfällig filter */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="space-y-1">
             <label htmlFor="filter-erstellt-von" className="text-xs font-medium text-muted-foreground">
@@ -409,6 +414,19 @@ export default function BelegePage() {
               onChange={(e) => setErstelltBis(e.target.value)}
               className="w-full sm:w-40"
             />
+          </div>
+          <div className="flex items-center gap-2 pb-1">
+            <Checkbox
+              id="filter-ueberfaellig"
+              checked={ueberfaelligFilter}
+              onCheckedChange={(checked) => setUeberfaelligFilter(checked === true)}
+            />
+            <label
+              htmlFor="filter-ueberfaellig"
+              className="text-sm font-medium cursor-pointer select-none text-red-600 dark:text-red-400"
+            >
+              Nur Überfällige
+            </label>
           </div>
         </div>
       </div>
@@ -437,6 +455,7 @@ export default function BelegePage() {
         onSelect={handleSelect}
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
+        onActionComplete={fetchBelege}
       />
 
       {/* Dialogs */}

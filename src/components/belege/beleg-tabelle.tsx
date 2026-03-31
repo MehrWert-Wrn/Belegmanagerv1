@@ -1,6 +1,7 @@
 'use client'
 
-import { MoreHorizontal, Eye, Pencil, Trash2, FileText } from 'lucide-react'
+import { MoreHorizontal, Eye, Pencil, Trash2, FileText, Ban, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -31,6 +33,7 @@ interface BelegTabelleProps {
   onSelect: (beleg: Beleg) => void
   onEdit: (beleg: Beleg) => void
   onDelete: (beleg: Beleg) => void
+  onActionComplete?: () => void
 }
 
 function formatCurrency(value: number | null): string {
@@ -93,6 +96,14 @@ async function handleOpenDocument(belegId: string) {
   }
 }
 
+function isFaelligkeitUeberfaellig(beleg: Beleg): boolean {
+  if (!beleg.faelligkeitsdatum) return false
+  if (beleg.zuordnungsstatus === 'zugeordnet') return false
+  if (beleg.faelligkeit_bezahlt) return false
+  const today = new Date().toISOString().slice(0, 10)
+  return beleg.faelligkeitsdatum < today
+}
+
 export function BelegTabelle({
   belege,
   loading,
@@ -102,6 +113,7 @@ export function BelegTabelle({
   onSelect,
   onEdit,
   onDelete,
+  onActionComplete,
 }: BelegTabelleProps) {
   if (loading) {
     return (
@@ -146,6 +158,7 @@ export function BelegTabelle({
             </TableHead>
             <TableHead>Rechnungsname</TableHead>
             <TableHead className="hidden md:table-cell">Datum</TableHead>
+            <TableHead className="hidden lg:table-cell">Fälligkeit</TableHead>
             <TableHead className="hidden sm:table-cell">Lieferant</TableHead>
             <TableHead className="hidden lg:table-cell text-right">Netto</TableHead>
             <TableHead className="text-right">Brutto</TableHead>
@@ -177,6 +190,15 @@ export function BelegTabelle({
               </TableCell>
               <TableCell className="hidden md:table-cell">
                 {formatDate(beleg.rechnungsdatum)}
+              </TableCell>
+              <TableCell className="hidden lg:table-cell whitespace-nowrap">
+                {beleg.faelligkeitsdatum ? (
+                  <span className={isFaelligkeitUeberfaellig(beleg) ? 'font-bold text-red-600 dark:text-red-400' : ''}>
+                    {formatDate(beleg.faelligkeitsdatum)}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
               </TableCell>
               <TableCell className="hidden sm:table-cell">
                 {beleg.lieferant || '-'}
@@ -219,55 +241,106 @@ export function BelegTabelle({
                   </Badge>
                 )}
               </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={(e) => e.stopPropagation()}
-                      aria-label="Aktionen"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onSelect(beleg)
-                      }}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      Vorschau
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onEdit(beleg)
-                      }}
-                    >
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Bearbeiten
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDelete(beleg)
-                      }}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Loschen
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <BelegAktionenMenu
+                  beleg={beleg}
+                  onSelect={onSelect}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onActionComplete={onActionComplete}
+                />
               </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
     </div>
+  )
+}
+
+// --- BelegAktionenMenu ---
+
+interface BelegAktionenMenuProps {
+  beleg: Beleg
+  onSelect: (beleg: Beleg) => void
+  onEdit: (beleg: Beleg) => void
+  onDelete: (beleg: Beleg) => void
+  onActionComplete?: () => void
+}
+
+function BelegAktionenMenu({ beleg, onSelect, onEdit, onDelete, onActionComplete }: BelegAktionenMenuProps) {
+  const [loading, setLoading] = useState(false)
+
+  async function handleSetBezahlt(bezahlt: boolean) {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/belege/${beleg.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ faelligkeit_bezahlt: bezahlt }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        throw new Error(d.error ?? 'Fehler beim Aktualisieren')
+      }
+      toast.success(bezahlt ? 'Als bezahlt/ignoriert markiert' : 'Markierung aufgehoben')
+      onActionComplete?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Fehler')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const hasFaelligkeit = !!beleg.faelligkeitsdatum
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          disabled={loading}
+          aria-label="Aktionen"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => onSelect(beleg)}>
+          <Eye className="mr-2 h-4 w-4" />
+          Vorschau
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onEdit(beleg)}>
+          <Pencil className="mr-2 h-4 w-4" />
+          Bearbeiten
+        </DropdownMenuItem>
+        {hasFaelligkeit && beleg.zuordnungsstatus !== 'zugeordnet' && (
+          <>
+            <DropdownMenuSeparator />
+            {beleg.faelligkeit_bezahlt ? (
+              <DropdownMenuItem onClick={() => handleSetBezahlt(false)} disabled={loading}>
+                <RotateCcw className="mr-2 h-4 w-4 text-muted-foreground" />
+                Markierung aufheben
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={() => handleSetBezahlt(true)} disabled={loading}>
+                <Ban className="mr-2 h-4 w-4 text-gray-500" />
+                Bezahlt / Ignorieren
+              </DropdownMenuItem>
+            )}
+          </>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-destructive"
+          onClick={() => onDelete(beleg)}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Loschen
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
