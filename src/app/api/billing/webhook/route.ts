@@ -74,16 +74,18 @@ async function handleEvent(admin: ReturnType<typeof createAdminClient>, event: a
       const amountCents = plan?.amount_cents ?? 2900
       const currency = plan?.currency ?? 'EUR'
 
-      // Create GoCardless subscription
+      // Create GoCardless subscription referencing the Subscription Template
+      const templateId = process.env.GOCARDLESS_SUBSCRIPTION_TEMPLATE_ID
       let gcSubscriptionId: string | null = null
       try {
         const gcSub = await gc.subscriptions.create({
           amount: String(amountCents),
           currency,
-          name: 'Belegmanager Monatsabo',
+          name: 'Belegmanager.at-Software - automatisierte Belegerfassung',
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           interval_unit: 'monthly' as any,
           day_of_month: '1',
+          metadata: templateId ? { subscription_template: templateId } : undefined,
           links: { mandate: mandateId },
         })
         gcSubscriptionId = gcSub.id ?? null
@@ -101,7 +103,7 @@ async function handleEvent(admin: ReturnType<typeof createAdminClient>, event: a
         })
         .eq('id', sub.id)
 
-      await invalidateBillingCache(sub.mandant_id)
+      invalidateBillingCache(sub.mandant_id)
       break
     }
 
@@ -141,7 +143,7 @@ async function handleEvent(admin: ReturnType<typeof createAdminClient>, event: a
         .update({ status: 'active', payment_failed_at: null, updated_at: new Date().toISOString() })
         .eq('id', sub.id)
 
-      await invalidateBillingCache(sub.mandant_id)
+      invalidateBillingCache(sub.mandant_id)
       break
     }
 
@@ -184,7 +186,7 @@ async function handleEvent(admin: ReturnType<typeof createAdminClient>, event: a
       // TODO: Send payment failure e-mail to mandant (Resend / Supabase Auth email)
       // Planned in spec US-4, implement when email provider is set up
 
-      await invalidateBillingCache(sub.mandant_id)
+      invalidateBillingCache(sub.mandant_id)
       break
     }
 
@@ -206,7 +208,7 @@ async function handleEvent(admin: ReturnType<typeof createAdminClient>, event: a
         .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', sub.id)
 
-      await invalidateBillingCache(sub.mandant_id)
+      invalidateBillingCache(sub.mandant_id)
       break
     }
 
@@ -232,7 +234,7 @@ async function handleEvent(admin: ReturnType<typeof createAdminClient>, event: a
 
       // TODO: Send mandate expired e-mail to mandant
 
-      await invalidateBillingCache(sub.mandant_id)
+      invalidateBillingCache(sub.mandant_id)
       break
     }
 
