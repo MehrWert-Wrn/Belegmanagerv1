@@ -38,6 +38,7 @@ import { ZuordnungsDialog } from '@/components/transaktionen/zuordnungs-dialog'
 import { BulkAktionsLeiste } from '@/components/transaktionen/bulk-aktions-leiste'
 import { TransaktionDetailSheet } from '@/components/transaktionen/transaktion-detail-sheet'
 import { KeinBelegRegelnDialog } from '@/components/transaktionen/kein-beleg-regeln-dialog'
+import { EigenbelegDialog } from '@/components/transaktionen/eigenbeleg-dialog'
 import type { TransaktionWithRelations, WorkflowStatus } from '@/lib/supabase/types'
 
 type ZeitraumPreset = 'standard' | 'aktuelles_monat' | 'letztes_monat' | 'vorletztes_monat' | 'letztes_quartal' | 'benutzerdefiniert'
@@ -119,6 +120,10 @@ export default function TransaktionenPage() {
   // Kein-Beleg-Regeln dialog
   const [regelnDialogOpen, setRegelnDialogOpen] = useState(false)
   const [regelnPrefill, setRegelnPrefill] = useState('')
+
+  // Eigenbeleg dialog
+  const [eigenbelegDialogOpen, setEigenbelegDialogOpen] = useState(false)
+  const [eigenbelegTransaktion, setEigenbelegTransaktion] = useState<TransaktionWithRelations | null>(null)
 
   // BUG-PROJ5-R4-002: Stats fetched from dedicated endpoint (full dataset, not paginated slice)
   const [matchingStats, setMatchingStats] = useState({ total: 0, bestaetigt: 0, vorgeschlagen: 0, offen: 0 })
@@ -214,6 +219,13 @@ export default function TransaktionenPage() {
     statusFilter !== 'alle' ||
     quelleFilter !== 'alle' ||
     zeitraumFilter !== 'standard'
+
+  function handleCreateEigenbeleg(transaktionId: string) {
+    const t = transaktionen.find((t) => t.id === transaktionId) ?? null
+    if (!t) return
+    setEigenbelegTransaktion(t)
+    setEigenbelegDialogOpen(true)
+  }
 
   function handleManualAssign(transaktionId: string) {
     const t = transaktionen.find((t) => t.id === transaktionId) ?? null
@@ -553,6 +565,7 @@ export default function TransaktionenPage() {
               onActionComplete={fetchTransaktionen}
               onManualAssign={handleManualAssign}
               onCreateRegel={(prefill) => { setRegelnPrefill(prefill); setRegelnDialogOpen(true) }}
+              onCreateEigenbeleg={handleCreateEigenbeleg}
               onRowClick={handleRowClick}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
@@ -592,6 +605,19 @@ export default function TransaktionenPage() {
         onWorkflowStatusChange={handleWorkflowStatusChange}
         onAssigned={fetchTransaktionen}
       />
+
+      {/* Eigenbeleg Dialog */}
+      {eigenbelegTransaktion && (
+        <EigenbelegDialog
+          open={eigenbelegDialogOpen}
+          onOpenChange={setEigenbelegDialogOpen}
+          transaktion={eigenbelegTransaktion}
+          onCreated={() => {
+            setEigenbelegDialogOpen(false)
+            fetchTransaktionen()
+          }}
+        />
+      )}
     </div>
   )
 }

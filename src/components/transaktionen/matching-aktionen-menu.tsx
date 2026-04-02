@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MoreHorizontal, Check, X, Link2, Ban, Unlink, ShieldOff } from 'lucide-react'
+import { MoreHorizontal, Check, X, Link2, Ban, Unlink, ShieldOff, FileSignature } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -18,20 +18,24 @@ interface MatchingAktionenMenuProps {
   transaktionId: string
   belegId: string | null
   matchStatus: MatchStatus
+  isExpense?: boolean
   beschreibung?: string | null
   onActionComplete: () => void
   onManualAssign?: (transaktionId: string) => void
   onCreateRegel?: (prefill: string) => void
+  onCreateEigenbeleg?: (transaktionId: string) => void
 }
 
 export function MatchingAktionenMenu({
   transaktionId,
   belegId,
   matchStatus,
+  isExpense,
   beschreibung,
   onActionComplete,
   onManualAssign,
   onCreateRegel,
+  onCreateEigenbeleg,
 }: MatchingAktionenMenuProps) {
   const [loading, setLoading] = useState(false)
 
@@ -126,8 +130,9 @@ export function MatchingAktionenMenu({
   const canManualAssign = matchStatus === 'offen' || matchStatus === 'vorgeschlagen'
   const canKeinBeleg = matchStatus === 'offen' || matchStatus === 'vorgeschlagen'
   const canRevertKeinBeleg = matchStatus === 'kein_beleg'
+  const canCreateEigenbeleg = matchStatus === 'offen' && isExpense && !!onCreateEigenbeleg
 
-  const hasAnyAction = canConfirm || canReject || canRemoveMatch || canManualAssign || canKeinBeleg || canRevertKeinBeleg
+  const hasAnyAction = canConfirm || canReject || canRemoveMatch || canManualAssign || canKeinBeleg || canRevertKeinBeleg || canCreateEigenbeleg
 
   if (!hasAnyAction) return null
 
@@ -174,6 +179,13 @@ export function MatchingAktionenMenu({
           <DropdownMenuItem onClick={() => onManualAssign(transaktionId)}>
             <Link2 className="mr-2 h-4 w-4" />
             Manuell zuordnen
+          </DropdownMenuItem>
+        )}
+
+        {canCreateEigenbeleg && (
+          <DropdownMenuItem onClick={() => onCreateEigenbeleg!(transaktionId)}>
+            <FileSignature className="mr-2 h-4 w-4 text-teal-600" />
+            Eigenbeleg erstellen
           </DropdownMenuItem>
         )}
 
