@@ -61,7 +61,7 @@ const steuerzeileSchema = z.object({
 const reviewSchema = z.object({
   rechnungsname: z.string().optional(),
   rechnungsnummer: z.string().optional(),
-  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges']),
+  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges', 'eigenbeleg']),
   lieferant: z.string().optional(),
   uid_lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
@@ -507,7 +507,7 @@ export function BelegReviewModus({
                   ) : isImage ? (
                     <img
                       src={previewUrl}
-                      alt={currentBeleg.original_filename}
+                      alt={currentBeleg.original_filename ?? ''}
                       className="h-full w-full cursor-pointer object-contain"
                       onClick={openPreviewInNewTab}
                       style={{ transform: `scale(${pdfZoom})`, transformOrigin: 'top center' }}

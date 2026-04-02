@@ -70,6 +70,10 @@ const rechnungstypConfig: Record<Rechnungstyp, { label: string; className: strin
     label: 'Sonstiges',
     className: 'bg-gray-100 text-gray-800 hover:bg-gray-100',
   },
+  eigenbeleg: {
+    label: 'Eigenbeleg',
+    className: 'bg-teal-100 text-teal-800 hover:bg-teal-100',
+  },
 }
 
 function RechnungstypBadge({ typ }: { typ: Rechnungstyp | undefined }) {

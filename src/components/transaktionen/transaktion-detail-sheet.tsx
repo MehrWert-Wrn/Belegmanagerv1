@@ -17,6 +17,7 @@ import { MatchGrund } from '@/components/transaktionen/match-grund'
 import { WorkflowStatusSection } from '@/components/transaktionen/workflow-status-section'
 import { KommentareSection } from '@/components/transaktionen/kommentare-section'
 import { ZuordnungsDialog } from '@/components/transaktionen/zuordnungs-dialog'
+import { EigenbelegDialog } from '@/components/transaktionen/eigenbeleg-dialog'
 import type { TransaktionWithRelations, WorkflowStatus } from '@/lib/supabase/types'
 
 interface TransaktionDetailSheetProps {
@@ -50,6 +51,7 @@ export function TransaktionDetailSheet({
   onAssigned,
 }: TransaktionDetailSheetProps) {
   const [zuordnungsOpen, setZuordnungsOpen] = useState(false)
+  const [eigenbelegOpen, setEigenbelegOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
 
   async function handleConfirm() {
@@ -178,6 +180,15 @@ export function TransaktionDetailSheet({
                     {confirming ? 'Wird bestätigt…' : 'Bestätigen'}
                   </Button>
                 )}
+                {transaktion.match_status === 'offen' && isExpense && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEigenbelegOpen(true)}
+                  >
+                    Eigenbeleg erstellen
+                  </Button>
+                )}
                 {(transaktion.match_status === 'vorgeschlagen' || transaktion.match_status === 'bestaetigt') && (
                   <Button
                     variant="outline"
@@ -245,6 +256,17 @@ export function TransaktionDetailSheet({
           onAssigned?.()
         }}
       />
+      {eigenbelegOpen && (
+        <EigenbelegDialog
+          open={eigenbelegOpen}
+          onOpenChange={setEigenbelegOpen}
+          transaktion={transaktion}
+          onCreated={() => {
+            setEigenbelegOpen(false)
+            onAssigned?.()
+          }}
+        />
+      )}
     </Sheet>
   )
 }

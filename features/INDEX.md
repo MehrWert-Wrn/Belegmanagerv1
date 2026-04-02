@@ -31,4 +31,6 @@
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-17
+| PROJ-17 | Eigenbeleg-Erstellung | In Progress | [PROJ-17-eigenbeleg.md](PROJ-17-eigenbeleg.md) | 2026-04-02 |
+
+## Next Available ID: PROJ-18

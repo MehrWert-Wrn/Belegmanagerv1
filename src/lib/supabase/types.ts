@@ -15,6 +15,8 @@ export type Database = {
           bestellnummer: string | null
           bruttobetrag: number | null
           dateityp: string
+          eigenbeleg_jahr: number | null
+          eigenbeleg_laufnummer: number | null
           erstellt_am: string
           faelligkeitsdatum: string | null
           faelligkeit_bezahlt: boolean
@@ -22,19 +24,20 @@ export type Database = {
           geloescht_am: string | null
           id: string
           import_quelle: Database['public']['Enums']['import_quelle']
+          kein_beleg_grund: string | null
           lieferant: string | null
           lieferant_iban: string | null
           mandant_id: string
           mandatsreferenz: string | null
           mwst_satz: number | null
           nettobetrag: number | null
-          original_filename: string
+          original_filename: string | null
           rechnungsdatum: string | null
           rechnungsname: string | null
           rechnungsnummer: string | null
           rechnungstyp: Database['public']['Enums']['rechnungstyp']
           steuerzeilen: Array<{nettobetrag: number | null, mwst_satz: number | null, bruttobetrag: number | null}> | null
-          storage_path: string
+          storage_path: string | null
           uid_lieferant: string | null
           zahlungsreferenz: string | null
           zuordnungsstatus: Database['public']['Enums']['zuordnungsstatus']
@@ -43,25 +46,28 @@ export type Database = {
           beschreibung?: string | null
           bestellnummer?: string | null
           bruttobetrag?: number | null
-          dateityp: string
+          dateityp?: string
+          eigenbeleg_jahr?: number | null
+          eigenbeleg_laufnummer?: number | null
           faelligkeitsdatum?: string | null
           faelligkeit_bezahlt?: boolean
           file_hash?: string | null
           id?: string
           import_quelle?: Database['public']['Enums']['import_quelle']
+          kein_beleg_grund?: string | null
           lieferant?: string | null
           lieferant_iban?: string | null
           mandant_id: string
           mandatsreferenz?: string | null
           mwst_satz?: number | null
           nettobetrag?: number | null
-          original_filename: string
+          original_filename?: string | null
           rechnungsdatum?: string | null
           rechnungsname?: string | null
           rechnungsnummer?: string | null
           rechnungstyp?: Database['public']['Enums']['rechnungstyp']
           steuerzeilen?: Array<{nettobetrag: number | null, mwst_satz: number | null, bruttobetrag: number | null}> | null
-          storage_path: string
+          storage_path?: string | null
           uid_lieferant?: string | null
           zahlungsreferenz?: string | null
           zuordnungsstatus?: Database['public']['Enums']['zuordnungsstatus']
@@ -393,7 +399,7 @@ export type Database = {
     }
     Enums: {
       match_status: 'offen' | 'vorgeschlagen' | 'bestaetigt' | 'kein_beleg'
-      rechnungstyp: 'eingangsrechnung' | 'ausgangsrechnung' | 'gutschrift' | 'sonstiges'
+      rechnungstyp: 'eingangsrechnung' | 'ausgangsrechnung' | 'gutschrift' | 'sonstiges' | 'eigenbeleg'
       import_quelle: 'manuell' | 'n8n_import'
       workflow_status: 'normal' | 'rueckfrage' | 'erledigt'
       zahlungsquelle_typ: 'kontoauszug' | 'kassa' | 'kreditkarte' | 'paypal' | 'sonstige'

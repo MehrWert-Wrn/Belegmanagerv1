@@ -48,7 +48,7 @@ const steuerzeileSchema = z.object({
 const updateSchema = z.object({
   rechnungsname: z.string().optional(),
   rechnungsnummer: z.string().optional(),
-  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges']),
+  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges', 'eigenbeleg']),
   lieferant: z.string().optional(),
   uid_lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
@@ -355,7 +355,7 @@ export function BelegDetailSheet({
                   ) : isImage ? (
                     <img
                       src={previewUrl}
-                      alt={beleg.original_filename}
+                      alt={beleg.original_filename ?? ''}
                       className="absolute inset-0 h-full w-full cursor-pointer object-contain"
                       onClick={openPreviewInNewTab}
                     />
@@ -425,6 +425,7 @@ export function BelegDetailSheet({
                             <SelectItem value="ausgangsrechnung">Ausgangsrechnung</SelectItem>
                             <SelectItem value="gutschrift">Gutschrift</SelectItem>
                             <SelectItem value="sonstiges">Sonstiges</SelectItem>
+                            <SelectItem value="eigenbeleg">Eigenbeleg</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />

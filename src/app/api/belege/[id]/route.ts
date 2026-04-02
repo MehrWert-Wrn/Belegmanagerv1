@@ -8,7 +8,7 @@ const updateSchema = z.object({
   lieferant: z.string().optional(),
   rechnungsnummer: z.string().optional(),
   rechnungsname: z.string().optional(),
-  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges']).optional(),
+  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges', 'eigenbeleg']).optional(),
   uid_lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
   mandatsreferenz: z.string().optional(),
