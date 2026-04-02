@@ -31,6 +31,6 @@
 
 <!-- Add features above this line -->
 
-| PROJ-17 | Eigenbeleg-Erstellung | In Progress | [PROJ-17-eigenbeleg.md](PROJ-17-eigenbeleg.md) | 2026-04-02 |
+| PROJ-17 | Eigenbeleg-Erstellung | In Review | [PROJ-17-eigenbeleg.md](PROJ-17-eigenbeleg.md) | 2026-04-02 |
 
 ## Next Available ID: PROJ-18
