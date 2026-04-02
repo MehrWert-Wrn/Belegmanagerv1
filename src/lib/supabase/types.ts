@@ -296,22 +296,28 @@ export type Database = {
       }
       transaktionen: {
         Row: {
+          beleg_id: string | null
           beschreibung: string | null
           betrag: number
           bic_gegenseite: string | null
           buchungsreferenz: string | null
           datum: string
           erstellt_am: string
+          geloescht_am: string | null
           iban_gegenseite: string | null
           id: string
           mandant_id: string
+          match_bestaetigt_am: string | null
+          match_bestaetigt_von: string | null
           match_score: number | null
           match_status: Database['public']['Enums']['match_status']
+          match_type: string | null
           mwst_satz: number | null
           quelle_id: string
           workflow_status: Database['public']['Enums']['workflow_status']
         }
         Insert: {
+          beleg_id?: string | null
           beschreibung?: string | null
           betrag: number
           bic_gegenseite?: string | null
@@ -322,15 +328,20 @@ export type Database = {
           mandant_id: string
           match_score?: number | null
           match_status?: Database['public']['Enums']['match_status']
+          match_type?: string | null
           mwst_satz?: number | null
           quelle_id: string
           workflow_status?: Database['public']['Enums']['workflow_status']
         }
         Update: {
+          beleg_id?: string | null
           beschreibung?: string | null
           betrag?: number
+          match_bestaetigt_am?: string | null
+          match_bestaetigt_von?: string | null
           match_score?: number | null
           match_status?: Database['public']['Enums']['match_status']
+          match_type?: string | null
           mwst_satz?: number | null
           workflow_status?: Database['public']['Enums']['workflow_status']
         }
@@ -457,8 +468,6 @@ export type TransaktionsKommentar = {
 
 // Transaktionen with joined relations (from /api/transaktionen)
 export type TransaktionWithRelations = Transaktion & {
-  beleg_id: string | null
-  match_type: string | null
   belege: {
     lieferant: string | null
     rechnungsnummer: string | null

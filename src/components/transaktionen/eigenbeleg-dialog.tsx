@@ -71,10 +71,13 @@ export function EigenbelegDialog({
   const mwstBetrag = Math.round((brutto - netto) * 100) / 100
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setMandant(null)
+      return
+    }
     fetch('/api/mandant')
       .then(r => r.ok ? r.json() : null)
-      .then(setMandant)
+      .then(data => { if (data) setMandant(data) })
       .catch(() => null)
   }, [open])
 
