@@ -6,7 +6,6 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -14,6 +13,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import type { KassaEintrag } from '@/components/kassabuch/kassabuch-tabelle'
 
 function formatCurrency(amount: number) {
@@ -44,65 +45,85 @@ export function KassaLoeschenDialog({
   onOpenChange,
   onDeleted,
 }: KassaLoeschenDialogProps) {
-  const [deleting, setDeleting] = useState(false)
+  const [stornoGrund, setStornoGrund] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  async function handleDelete() {
+  async function handleStorno() {
     if (!eintrag) return
+    if (!stornoGrund.trim()) {
+      toast.error('Bitte geben Sie einen Stornogrund an.')
+      return
+    }
 
-    setDeleting(true)
-
+    setSaving(true)
     try {
-      const response = await fetch(
-        `/api/kassabuch/eintraege/${eintrag.id}`,
-        { method: 'DELETE' }
-      )
+      const response = await fetch(`/api/kassabuch/eintraege/${eintrag.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storno_grund: stornoGrund.trim() }),
+      })
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error ?? 'Eintrag konnte nicht geloescht werden')
+        throw new Error(data.error ?? 'Storno fehlgeschlagen')
       }
 
-      toast.success('Kassaeintrag geloescht')
+      toast.success('Kassaeintrag storniert')
+      setStornoGrund('')
       onOpenChange(false)
       onDeleted()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unbekannter Fehler'
-      toast.error(message)
+      toast.error(err instanceof Error ? err.message : 'Unbekannter Fehler')
     } finally {
-      setDeleting(false)
+      setSaving(false)
     }
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={(o) => { if (!o) setStornoGrund(''); onOpenChange(o) }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Kassaeintrag loeschen?</AlertDialogTitle>
+          <AlertDialogTitle>Kassaeintrag stornieren?</AlertDialogTitle>
           <AlertDialogDescription>
             {eintrag && (
               <>
-                Moechten Sie den Eintrag vom{' '}
-                <span className="font-medium">
-                  {formatDate(eintrag.datum)}
-                </span>{' '}
+                Der Eintrag vom{' '}
+                <span className="font-medium">{formatDate(eintrag.datum)}</span>{' '}
                 ueber{' '}
-                <span className="font-medium font-mono">
-                  {formatCurrency(eintrag.betrag)}
-                </span>{' '}
-                wirklich loeschen? Der Kassastand wird entsprechend angepasst.
+                <span className="font-mono font-medium">{formatCurrency(eintrag.betrag)}</span>{' '}
+                wird durch eine Gegenbuchung (Storno) korrigiert. Der urspruengliche Eintrag
+                bleibt im Kassabuch erhalten (§ 131 BAO).
               </>
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        <div className="space-y-2 px-1">
+          <Label htmlFor="storno-grund">Stornogrund <span className="text-destructive">*</span></Label>
+          <Textarea
+            id="storno-grund"
+            placeholder="z.B. Falscher Betrag erfasst – Korrektur durch Max Mustermann"
+            value={stornoGrund}
+            onChange={(e) => setStornoGrund(e.target.value)}
+            rows={3}
+            maxLength={500}
+          />
+          <p className="text-xs text-muted-foreground">
+            Pflichtfeld gem. § 131 BAO. Wird in der Stornobuchung gespeichert.
+          </p>
+        </div>
+
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleDelete}
-            disabled={deleting}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          <AlertDialogCancel disabled={saving} onClick={() => setStornoGrund('')}>
+            Abbrechen
+          </AlertDialogCancel>
+          <Button
+            variant="destructive"
+            onClick={handleStorno}
+            disabled={saving || !stornoGrund.trim()}
           >
-            {deleting ? 'Wird geloescht...' : 'Loeschen'}
-          </AlertDialogAction>
+            {saving ? 'Wird storniert...' : 'Stornieren'}
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

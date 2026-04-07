@@ -47,6 +47,11 @@ export interface KassaEintrag {
   beleg_id: string | null
   erstellt_am: string
   mwst_satz: number | null
+  mwst_betrag: number | null
+  lfd_nr_kassa: number | null
+  kassa_buchungstyp: string | null
+  storno_zu_id: string | null
+  storno_grund: string | null
   belege: {
     lieferant: string | null
     rechnungsnummer: string | null
@@ -124,6 +129,7 @@ export function KassabuchTabelle({
         <TableHeader>
           <TableRow>
             <TableHead className="w-10"></TableHead>
+            <TableHead className="hidden sm:table-cell w-12 text-muted-foreground">#</TableHead>
             <TableHead>Datum</TableHead>
             <TableHead className="text-right">Betrag</TableHead>
             <TableHead className="hidden md:table-cell">
@@ -136,25 +142,36 @@ export function KassabuchTabelle({
         </TableHeader>
         <TableBody>
           {eintraege.map((eintrag) => {
+            const isStorno = eintrag.kassa_buchungstyp === 'STORNO'
             const isExpense = eintrag.betrag < 0
 
             return (
-              <TableRow key={eintrag.id}>
+              <TableRow
+                key={eintrag.id}
+                className={isStorno ? 'opacity-60 bg-muted/30' : undefined}
+              >
                 <TableCell>
-                  {isExpense ? (
+                  {isStorno ? (
+                    <Ban className="h-4 w-4 text-muted-foreground" />
+                  ) : isExpense ? (
                     <ArrowUpRight className="h-4 w-4 text-red-500" />
                   ) : (
                     <ArrowDownLeft className="h-4 w-4 text-teal-500" />
                   )}
+                </TableCell>
+                <TableCell className="hidden sm:table-cell text-xs text-muted-foreground font-mono">
+                  {eintrag.lfd_nr_kassa ?? '–'}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-sm">
                   {formatDate(eintrag.datum)}
                 </TableCell>
                 <TableCell
                   className={`whitespace-nowrap text-right font-mono text-sm ${
-                    isExpense
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-teal-600 dark:text-teal-400'
+                    isStorno
+                      ? 'text-muted-foreground line-through'
+                      : isExpense
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-teal-600 dark:text-teal-400'
                   }`}
                 >
                   {formatCurrency(eintrag.betrag)}
@@ -163,10 +180,16 @@ export function KassabuchTabelle({
                   {eintrag.beschreibung || '-'}
                 </TableCell>
                 <TableCell>
-                  <AmpelBadge
-                    status={eintrag.match_status}
-                    score={eintrag.match_score}
-                  />
+                  {isStorno ? (
+                    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      Storno
+                    </span>
+                  ) : (
+                    <AmpelBadge
+                      status={eintrag.match_status}
+                      score={eintrag.match_score}
+                    />
+                  )}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
                   <BelegReferenz beleg={eintrag.belege} />
@@ -349,7 +372,7 @@ function KassaAktionenMenu({
   const canKeinBeleg =
     eintrag.match_status === 'offen' ||
     eintrag.match_status === 'vorgeschlagen'
-  const canRevertKeinBeleg = eintrag.match_status === 'kein_beleg'
+  const canRevertKeinBeleg = eintrag.match_status === 'kein_beleg' && eintrag.kassa_buchungstyp !== 'STORNO'
 
   return (
     <DropdownMenu>
@@ -365,18 +388,22 @@ function KassaAktionenMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {/* Kassa-spezifisch: Bearbeiten + Loeschen */}
-        <DropdownMenuItem onClick={() => onEdit(eintrag)}>
-          <Pencil className="mr-2 h-4 w-4" />
-          Bearbeiten
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => onDelete(eintrag)}
-          className="text-red-600 dark:text-red-400"
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Loeschen
-        </DropdownMenuItem>
+        {/* Kassa-spezifisch: Bearbeiten + Stornieren */}
+        {eintrag.kassa_buchungstyp !== 'STORNO' && (
+          <DropdownMenuItem onClick={() => onEdit(eintrag)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Bearbeiten
+          </DropdownMenuItem>
+        )}
+        {eintrag.kassa_buchungstyp !== 'STORNO' && (
+          <DropdownMenuItem
+            onClick={() => onDelete(eintrag)}
+            className="text-red-600 dark:text-red-400"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Stornieren
+          </DropdownMenuItem>
+        )}
 
         <DropdownMenuSeparator />
 

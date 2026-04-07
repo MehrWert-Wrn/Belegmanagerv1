@@ -42,6 +42,10 @@ interface KassaEintragDialogProps {
 }
 
 type MwstSatzOption = 'none' | '20' | '13' | '10' | '0'
+type KassaBuchungstyp = 'EINNAHME' | 'AUSGABE' | 'EINLAGE' | 'ENTNAHME'
+
+// Welche Buchungstypen haben positiven Betrag?
+const BUCHUNGSTYP_POSITIV: KassaBuchungstyp[] = ['EINNAHME', 'EINLAGE']
 
 function formatEur(value: number): string {
   return new Intl.NumberFormat('de-AT', {
@@ -60,9 +64,7 @@ export function KassaEintragDialog({
 
   const [datum, setDatum] = useState('')
   const [betrag, setBetrag] = useState('')
-  const [vorzeichen, setVorzeichen] = useState<'ausgabe' | 'einnahme'>(
-    'ausgabe'
-  )
+  const [buchungstyp, setBuchungstyp] = useState<KassaBuchungstyp>('AUSGABE')
   const [mwstSatz, setMwstSatz] = useState<MwstSatzOption>('none')
   const [beschreibung, setBeschreibung] = useState('')
   const [lieferant, setLieferant] = useState('')
@@ -104,7 +106,12 @@ export function KassaEintragDialog({
         setDatum(eintrag.datum)
         const absAmount = Math.abs(eintrag.betrag)
         setBetrag(absAmount.toFixed(2))
-        setVorzeichen(eintrag.betrag < 0 ? 'ausgabe' : 'einnahme')
+        // Buchungstyp aus gespeichertem Feld wiederherstellen
+        if (eintrag.kassa_buchungstyp && eintrag.kassa_buchungstyp !== 'STORNO') {
+          setBuchungstyp(eintrag.kassa_buchungstyp as KassaBuchungstyp)
+        } else {
+          setBuchungstyp(eintrag.betrag < 0 ? 'AUSGABE' : 'EINNAHME')
+        }
 
         // MwSt-Satz from eintrag
         if (eintrag.mwst_satz != null) {
@@ -118,15 +125,22 @@ export function KassaEintragDialog({
           setMwstSatz('none')
         }
 
-        // Lieferant und Beschreibung wurden beim Speichern mit " - " verbunden
+        // Lieferant und Beschreibung trennen
+        // Neues Format: U+001F (Unit Separator) | Legacy-Fallback: erstes " - "
         const desc = eintrag.beschreibung ?? ''
-        const sepIdx = desc.indexOf(' - ')
-        if (sepIdx > 0) {
-          setLieferant(desc.substring(0, sepIdx))
-          setBeschreibung(desc.substring(sepIdx + 3))
+        const unitSepIdx = desc.indexOf('\x1F')
+        if (unitSepIdx >= 0) {
+          setLieferant(desc.substring(0, unitSepIdx))
+          setBeschreibung(desc.substring(unitSepIdx + 1))
         } else {
-          setLieferant('')
-          setBeschreibung(desc)
+          const dashIdx = desc.indexOf(' - ')
+          if (dashIdx > 0) {
+            setLieferant(desc.substring(0, dashIdx))
+            setBeschreibung(desc.substring(dashIdx + 3))
+          } else {
+            setLieferant('')
+            setBeschreibung(desc)
+          }
         }
 
         // Show existing beleg info if linked
@@ -143,7 +157,7 @@ export function KassaEintragDialog({
         const today = new Date().toISOString().split('T')[0]
         setDatum(today)
         setBetrag('')
-        setVorzeichen('ausgabe')
+        setBuchungstyp('AUSGABE')
         setMwstSatz('none')
         setBeschreibung('')
         setLieferant('')
@@ -260,14 +274,15 @@ export function KassaEintragDialog({
       return
     }
 
-    const finalBetrag =
-      vorzeichen === 'ausgabe' ? -Math.abs(numericBetrag) : Math.abs(numericBetrag)
+    const isPositiv = BUCHUNGSTYP_POSITIV.includes(buchungstyp)
+    const finalBetrag = isPositiv ? Math.abs(numericBetrag) : -Math.abs(numericBetrag)
 
-    // Build description: combine lieferant and beschreibung
+    // Build description: lieferant + beschreibung, getrennt durch U+001F (Unit Separator)
+    // Dieser Trenner kommt nie in natuerlicher Sprache vor – kein falsches Splitting
     const parts: string[] = []
     if (lieferant.trim()) parts.push(lieferant.trim())
     if (beschreibung.trim()) parts.push(beschreibung.trim())
-    const fullBeschreibung = parts.join(' - ') || undefined
+    const fullBeschreibung = parts.join('\x1F') || undefined
 
     // Resolve mwst_satz for API
     const apiMwstSatz = mwstRate
@@ -290,8 +305,9 @@ export function KassaEintragDialog({
           datum,
           betrag: finalBetrag,
           beschreibung: fullBeschreibung,
-          lieferant: lieferant.trim() || undefined,
           mwst_satz: apiMwstSatz,
+          mwst_betrag: ustBetrag,
+          kassa_buchungstyp: buchungstyp,
         }
         if (belegId) {
           body.beleg_id = belegId
@@ -318,8 +334,9 @@ export function KassaEintragDialog({
           datum,
           betrag: finalBetrag,
           beschreibung: fullBeschreibung,
-          lieferant: lieferant.trim() || undefined,
           mwst_satz: apiMwstSatz,
+          mwst_betrag: ustBetrag,
+          kassa_buchungstyp: buchungstyp,
         }
         if (belegId) {
           body.beleg_id = belegId
@@ -376,21 +393,21 @@ export function KassaEintragDialog({
             />
           </div>
 
-          {/* Vorzeichen */}
+          {/* Buchungstyp */}
           <div className="space-y-2">
-            <Label htmlFor="kassa-vorzeichen">Art</Label>
+            <Label htmlFor="kassa-buchungstyp">Buchungsart</Label>
             <Select
-              value={vorzeichen}
-              onValueChange={(v) =>
-                setVorzeichen(v as 'ausgabe' | 'einnahme')
-              }
+              value={buchungstyp}
+              onValueChange={(v) => setBuchungstyp(v as KassaBuchungstyp)}
             >
-              <SelectTrigger id="kassa-vorzeichen" aria-label="Art der Bewegung">
+              <SelectTrigger id="kassa-buchungstyp" aria-label="Buchungsart">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ausgabe">Ausgabe</SelectItem>
-                <SelectItem value="einnahme">Einnahme</SelectItem>
+                <SelectItem value="AUSGABE">Ausgabe</SelectItem>
+                <SelectItem value="EINNAHME">Einnahme</SelectItem>
+                <SelectItem value="EINLAGE">Einlage (Bargeld eingelegt)</SelectItem>
+                <SelectItem value="ENTNAHME">Entnahme (Bargeld entnommen)</SelectItem>
               </SelectContent>
             </Select>
           </div>

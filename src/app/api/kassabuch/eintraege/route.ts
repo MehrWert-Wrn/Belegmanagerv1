@@ -5,15 +5,20 @@ import { getMandantId } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
+const BUCHUNGSTYPEN = ['EINNAHME', 'AUSGABE', 'EINLAGE', 'ENTNAHME'] as const
+type Buchungstyp = typeof BUCHUNGSTYPEN[number]
+
 const schema = z.object({
   datum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   betrag: z.number().refine(v => v !== 0, 'Betrag darf nicht 0 sein'),
   beschreibung: z.string().optional(),
   beleg_id: z.string().uuid().optional(),
   mwst_satz: z.number().nullable().optional(),
+  mwst_betrag: z.number().nullable().optional(),
+  kassa_buchungstyp: z.enum(BUCHUNGSTYPEN).optional(),
 })
 
-// GET /api/kassabuch/eintraege – alle Kassaeinträge
+// GET /api/kassabuch/eintraege – alle Kassaeintraege
 export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -21,9 +26,8 @@ export async function GET(request: Request) {
 
   const mandantId = await getMandantId(supabase)
   if (!mandantId) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
-  const mandant = { id: mandantId }
 
-  const kasse = await getOrCreateKasseQuelle(supabase, mandant.id)
+  const kasse = await getOrCreateKasseQuelle(supabase, mandantId)
   if (!kasse) return NextResponse.json({ error: 'Kassaquelle konnte nicht angelegt werden' }, { status: 500 })
 
   const { searchParams } = new URL(request.url)
@@ -34,12 +38,14 @@ export async function GET(request: Request) {
     .from('transaktionen')
     .select(`
       id, datum, betrag, beschreibung, match_status, match_score, match_type,
-      beleg_id, erstellt_am, mwst_satz,
+      beleg_id, erstellt_am, mwst_satz, mwst_betrag,
+      lfd_nr_kassa, kassa_buchungstyp, storno_zu_id, storno_grund,
       belege ( lieferant, rechnungsnummer, bruttobetrag )
     `)
     .eq('quelle_id', kasse.id)
     .is('geloescht_am', null)
-    .order('datum', { ascending: false })
+    .order('lfd_nr_kassa', { ascending: false })
+    .limit(1000)
 
   if (datumVon) query = query.gte('datum', datumVon)
   if (datumBis) query = query.lte('datum', datumBis)
@@ -58,25 +64,44 @@ export async function POST(request: Request) {
 
   const mandantId = await getMandantId(supabase)
   if (!mandantId) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
-  const mandant = { id: mandantId }
 
   const body = await request.json()
   const parsed = schema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
-  if (await isMonatGesperrt(supabase, mandant.id, parsed.data.datum)) {
+  if (await isMonatGesperrt(supabase, mandantId, parsed.data.datum)) {
     return NextResponse.json({ error: 'Monat ist abgeschlossen' }, { status: 403 })
   }
 
-  const kasse = await getOrCreateKasseQuelle(supabase, mandant.id)
+  const kasse = await getOrCreateKasseQuelle(supabase, mandantId)
   if (!kasse) return NextResponse.json({ error: 'Kassaquelle nicht gefunden' }, { status: 500 })
 
-  const { beleg_id, ...rest } = parsed.data
+  // BAO §131: Kassastand darf nie negativ werden
+  const { data: sumData } = await supabase
+    .from('transaktionen')
+    .select('betrag')
+    .eq('quelle_id', kasse.id)
+    .is('geloescht_am', null)
+
+  const currentSumme = (sumData ?? []).reduce((acc, t) => acc + t.betrag, 0)
+  const neuerSaldo = kasse.anfangssaldo + currentSumme + parsed.data.betrag
+  if (neuerSaldo < 0) {
+    return NextResponse.json(
+      { error: `Kassenstand wuerde negativ werden (${neuerSaldo.toFixed(2)} EUR). Buchung abgelehnt.` },
+      { status: 400 }
+    )
+  }
+
+  // Buchungstyp aus betrag ableiten wenn nicht explizit gesetzt
+  const buchungstyp: Buchungstyp = parsed.data.kassa_buchungstyp ?? (parsed.data.betrag > 0 ? 'EINNAHME' : 'AUSGABE')
+
+  const { beleg_id, kassa_buchungstyp: _bt, ...rest } = parsed.data
 
   const insert: Record<string, unknown> = {
     ...rest,
-    mandant_id: mandant.id,
+    mandant_id: mandantId,
     quelle_id: kasse.id,
+    kassa_buchungstyp: buchungstyp,
   }
 
   if (beleg_id) {

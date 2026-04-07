@@ -25,6 +25,22 @@ export async function PATCH(request: Request) {
   const kasse = await getOrCreateKasseQuelle(supabase, mandant.id)
   if (!kasse) return NextResponse.json({ error: 'Kassaquelle nicht gefunden' }, { status: 500 })
 
+  // BAO §131: Kassastand darf nie negativ werden
+  const { data: sumData } = await supabase
+    .from('transaktionen')
+    .select('betrag')
+    .eq('quelle_id', kasse.id)
+    .is('geloescht_am', null)
+
+  const summe = (sumData ?? []).reduce((acc, t) => acc + t.betrag, 0)
+  const neuerSaldo = parsed.data.anfangssaldo + summe
+  if (neuerSaldo < 0) {
+    return NextResponse.json(
+      { error: `Kassastand wuerde negativ werden (${neuerSaldo.toFixed(2)} EUR). Anfangssaldo abgelehnt.` },
+      { status: 400 }
+    )
+  }
+
   const { error } = await supabase
     .from('zahlungsquellen')
     .update({
