@@ -18,7 +18,7 @@
 | PROJ-4 | Kontoauszug-Import | Deployed | [PROJ-4-kontoauszug-import.md](PROJ-4-kontoauszug-import.md) | 2026-03-13 |
 | PROJ-5 | Matching-Engine | Deployed | [PROJ-5-matching-engine.md](PROJ-5-matching-engine.md) | 2026-03-13 |
 | PROJ-6 | Manuelle Zuordnung | In Review | [PROJ-6-manuelle-zuordnung.md](PROJ-6-manuelle-zuordnung.md) | 2026-03-13 |
-| PROJ-7 | Kassabuch | In Review | [PROJ-7-kassabuch.md](PROJ-7-kassabuch.md) | 2026-03-13 |
+| PROJ-7 | Kassabuch | Deployed | [PROJ-7-kassabuch.md](PROJ-7-kassabuch.md) | 2026-03-13 |
 | PROJ-8 | Monatsabschluss-Workflow | In Review | [PROJ-8-monatsabschluss.md](PROJ-8-monatsabschluss.md) | 2026-03-13 |
 | PROJ-9 | DATEV-Export | In Review | [PROJ-9-datev-export.md](PROJ-9-datev-export.md) | 2026-03-13 |
 | PROJ-10 | Zahlungsquellen-Verwaltung (v2) | In Review | [PROJ-10-zahlungsquellen-verwaltung.md](PROJ-10-zahlungsquellen-verwaltung.md) | 2026-03-13 |
@@ -27,10 +27,11 @@
 | PROJ-13 | Reisekostenabrechnung | Planned | [PROJ-13-reisekostenabrechnung.md](PROJ-13-reisekostenabrechnung.md) | 2026-03-13 |
 | PROJ-14 | Kontoauszug-Import Verbesserungen | Deployed | [PROJ-14-kontoauszug-import-verbesserungen.md](PROJ-14-kontoauszug-import-verbesserungen.md) | 2026-03-19 |
 | PROJ-15 | OCR-Erkennung & Massenimport | In Review | [PROJ-15-ocr-massenimport.md](PROJ-15-ocr-massenimport.md) | 2026-03-26 |
-| PROJ-16 | SaaS-Billing via GoCardless | In Review | [PROJ-16-saas-billing-gocardless.md](PROJ-16-saas-billing-gocardless.md) | 2026-03-31 |
+| PROJ-16 | SaaS-Billing via GoCardless | Deployed | [PROJ-16-saas-billing-gocardless.md](PROJ-16-saas-billing-gocardless.md) | 2026-03-31 |
 
 <!-- Add features above this line -->
 
 | PROJ-17 | Eigenbeleg-Erstellung | In Review | [PROJ-17-eigenbeleg.md](PROJ-17-eigenbeleg.md) | 2026-04-02 |
+| PROJ-18 | Mobile App – Belegerfassung (iOS & Android) | Planned | [PROJ-18-mobile-app-belegerfassung.md](PROJ-18-mobile-app-belegerfassung.md) | 2026-04-07 |
 
-## Next Available ID: PROJ-18
+## Next Available ID: PROJ-19

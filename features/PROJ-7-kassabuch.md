@@ -1,6 +1,6 @@
 # PROJ-7: Kassabuch
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-03-13
 **Last Updated:** 2026-03-18
 
@@ -794,4 +794,10 @@ All 4 bugs from Round 3 have been re-checked against current code:
 - **Production Ready:** NO -- 3 medium-severity bugs must be fixed first. BUG-PROJ7-8 and BUG-PROJ7-12 are BAO compliance gaps.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-07
+**Commit:** 85357ae
+**Migrations applied:**
+- `billing_rls_role_fix` – Billing RLS auf Owner/Admin beschränkt
+- `trial_ends_at_eod` – Trial-Ende auf 23:59:59 UTC Tag 30
+- `kassabuch_bao_compliance` – BAO-Spalten + lfd_nr-Trigger
