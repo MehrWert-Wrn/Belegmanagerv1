@@ -14,6 +14,11 @@ import { Progress } from '@/components/ui/progress'
 
 const TOTAL_STEPS = 3
 
+const BUCHFUEHRUNGSARTEN = [
+  { value: 'DOPPELT', label: 'Doppelte Buchhaltung' },
+  { value: 'EAR', label: 'Ein-/Ausgabenrechner' },
+]
+
 const RECHTSFORMEN = [
   'GmbH',
   'GmbH & Co KG',
@@ -43,6 +48,8 @@ const MONATE = [
 const step1Schema = z.object({
   firmenname: z.string().min(1, 'Firmenname ist erforderlich'),
   rechtsform: z.string().min(1, 'Rechtsform ist erforderlich'),
+  buchfuehrungsart: z.string().min(1, 'Bitte Buchführungsart wählen'),
+  firmenbuchnummer: z.string().optional().or(z.literal('')),
   uid_nummer: z.string().regex(/^(ATU\d{8})?$/, 'Format: ATU gefolgt von 8 Ziffern (z.B. ATU12345678)').optional().or(z.literal('')),
 })
 
@@ -50,6 +57,7 @@ const step2Schema = z.object({
   strasse: z.string().optional(),
   plz: z.string().optional(),
   ort: z.string().optional(),
+  telefonnummer: z.string().min(1, 'Telefonnummer ist erforderlich'),
 })
 
 const step3Schema = z.object({
@@ -63,10 +71,13 @@ type Step3Data = z.infer<typeof step3Schema>
 type WizardData = {
   firmenname: string
   rechtsform: string
+  buchfuehrungsart: string
+  firmenbuchnummer: string
   uid_nummer: string
   strasse: string
   plz: string
   ort: string
+  telefonnummer: string
   geschaeftsjahr_beginn: string
 }
 
@@ -86,8 +97,8 @@ function OnboardingWizard() {
       if (!saved) return
       const parsed: Partial<WizardData> = JSON.parse(saved)
       setData(parsed)
-      form1.reset({ firmenname: parsed.firmenname || '', rechtsform: parsed.rechtsform || '', uid_nummer: parsed.uid_nummer || '' })
-      form2.reset({ strasse: parsed.strasse || '', plz: parsed.plz || '', ort: parsed.ort || '' })
+      form1.reset({ firmenname: parsed.firmenname || '', rechtsform: parsed.rechtsform || '', buchfuehrungsart: parsed.buchfuehrungsart || '', firmenbuchnummer: parsed.firmenbuchnummer || '', uid_nummer: parsed.uid_nummer || '' })
+      form2.reset({ strasse: parsed.strasse || '', plz: parsed.plz || '', ort: parsed.ort || '', telefonnummer: parsed.telefonnummer || '' })
       form3.reset({ geschaeftsjahr_beginn: parsed.geschaeftsjahr_beginn || '1' })
     } catch { /* ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,13 +126,13 @@ function OnboardingWizard() {
   // Step 1
   const form1 = useForm<Step1Data>({
     resolver: zodResolver(step1Schema),
-    defaultValues: { firmenname: data.firmenname || '', rechtsform: data.rechtsform || '', uid_nummer: data.uid_nummer || '' },
+    defaultValues: { firmenname: data.firmenname || '', rechtsform: data.rechtsform || '', buchfuehrungsart: data.buchfuehrungsart || '', firmenbuchnummer: data.firmenbuchnummer || '', uid_nummer: data.uid_nummer || '' },
   })
 
   // Step 2
   const form2 = useForm<Step2Data>({
     resolver: zodResolver(step2Schema),
-    defaultValues: { strasse: data.strasse || '', plz: data.plz || '', ort: data.ort || '' },
+    defaultValues: { strasse: data.strasse || '', plz: data.plz || '', ort: data.ort || '', telefonnummer: data.telefonnummer || '' },
   })
 
   // Step 3
@@ -157,10 +168,13 @@ function OnboardingWizard() {
         body: JSON.stringify({
           firmenname: merged.firmenname,
           rechtsform: merged.rechtsform || null,
+          buchfuehrungsart: merged.buchfuehrungsart || null,
+          firmenbuchnummer: merged.firmenbuchnummer || null,
           uid_nummer: merged.uid_nummer || null,
           strasse: merged.strasse || null,
           plz: merged.plz || null,
           ort: merged.ort || null,
+          telefonnummer: merged.telefonnummer || null,
           geschaeftsjahr_beginn: parseInt(merged.geschaeftsjahr_beginn || '1'),
         }),
       })
@@ -227,6 +241,29 @@ function OnboardingWizard() {
                 )}
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="buchfuehrungsart">Buchführungsart *</Label>
+                <Select
+                  onValueChange={(v) => form1.setValue('buchfuehrungsart', v)}
+                  value={form1.watch('buchfuehrungsart') || ''}
+                >
+                  <SelectTrigger id="buchfuehrungsart">
+                    <SelectValue placeholder="Bitte wählen..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BUCHFUEHRUNGSARTEN.map(b => (
+                      <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form1.formState.errors.buchfuehrungsart && (
+                  <p className="text-xs text-destructive">{form1.formState.errors.buchfuehrungsart.message}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="firmenbuchnummer">Firmenbuchnummer <span className="text-gray-400">(optional)</span></Label>
+                <Input id="firmenbuchnummer" placeholder="FN 123456a" {...form1.register('firmenbuchnummer')} />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="uid_nummer">UID-Nummer <span className="text-gray-400">(optional)</span></Label>
                 <Input id="uid_nummer" placeholder="ATU12345678" {...form1.register('uid_nummer')} />
                 {form1.formState.errors.uid_nummer && (
@@ -266,6 +303,13 @@ function OnboardingWizard() {
               <div className="space-y-1.5">
                 <Label>Land</Label>
                 <Input value="Österreich" disabled className="bg-gray-50" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="telefonnummer">Telefonnummer *</Label>
+                <Input id="telefonnummer" type="tel" placeholder="+43 1 234 5678" {...form2.register('telefonnummer')} />
+                {form2.formState.errors.telefonnummer && (
+                  <p className="text-xs text-destructive">{form2.formState.errors.telefonnummer.message}</p>
+                )}
               </div>
             </CardContent>
             <CardFooter className="flex gap-3">
@@ -311,8 +355,11 @@ function OnboardingWizard() {
                 <p className="font-medium text-gray-700">Zusammenfassung</p>
                 <div className="space-y-1 text-gray-600">
                   <p><span className="text-gray-400">Firma:</span> {data.firmenname} ({data.rechtsform})</p>
+                  {data.buchfuehrungsart && <p><span className="text-gray-400">Buchführung:</span> {BUCHFUEHRUNGSARTEN.find(b => b.value === data.buchfuehrungsart)?.label}</p>}
+                  {data.firmenbuchnummer && <p><span className="text-gray-400">FN:</span> {data.firmenbuchnummer}</p>}
                   {data.uid_nummer && <p><span className="text-gray-400">UID:</span> {data.uid_nummer}</p>}
                   {data.ort && <p><span className="text-gray-400">Adresse:</span> {data.strasse}, {data.plz} {data.ort}</p>}
+                  {data.telefonnummer && <p><span className="text-gray-400">Tel:</span> {data.telefonnummer}</p>}
                 </div>
               </div>
 

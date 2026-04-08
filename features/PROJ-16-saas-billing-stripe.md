@@ -1,6 +1,6 @@
-# PROJ-16: SaaS-Billing via GoCardless
+# PROJ-16: SaaS-Billing via Stripe
 
-**Status:** In Review
+**Status:** In Progress
 **Created:** 2026-03-31
 **Priority:** P1
 
@@ -425,3 +425,316 @@ Mandant               Next.js App              GoCardless             Webhook
    |                      |<- Subscription aktiv ----------------------- |
    |<-- /settings/abonnement (Status: Aktiv) -----|                      |
 ```
+
+---
+
+## QA Test Results
+
+**Tested:** 2026-04-06
+**App URL:** https://app.belegmanager.at (Production) + Code Review
+**Tester:** QA Engineer (AI)
+**Method:** Static code analysis + build verification (npm run build: PASS)
+
+### Acceptance Criteria Status
+
+#### US-1: Mandat erteilen (Onboarding-Flow)
+- [x] Button "Abo abschliessen" on `/settings/abonnement` page (line 193-201 abonnement-page-client.tsx)
+- [x] Click calls POST `/api/billing/setup` which creates GoCardless Billing Request Flow and returns `authorisation_url`
+- [x] After successful mandate: redirect back to `/settings/abonnement?success=true`
+- [x] Success toast: "Mandat erfolgreich eingerichtet -- Abonnement wird aktiviert" (line 84)
+- [x] Mandate status stored in DB via webhook `billing_requests.fulfilled` -> saves `gc_mandate_id` + sets status `active`
+
+#### US-2: Abo-Status einsehen
+- [x] Page `/settings/abonnement` shows plan name ("Belegmanager") and status badge (Aktiv/Ausstehend/Fehlgeschlagen/Gekuendigt)
+- [ ] BUG-001: Next payment date + amount not fully shown -- `currentPeriodEnd` is displayed but amount is NOT shown next to it
+- [x] Last payment visible in Zahlungshistorie table (last 12 entries)
+- [ ] BUG-002: Masked IBAN (e.g. "DE** **** 1234") is NOT shown anywhere on the page -- spec requires it
+
+#### US-3: Abo kuendigen
+- [x] Button "Abo kuendigen" visible when subscription is active (line 213-239)
+- [x] Confirmation dialog with explanation text present (AlertDialog)
+- [ ] BUG-003: Confirmation dialog says "Dein Konto bleibt bis zum Ende der aktuellen Periode aktiv" but does NOT show the actual date (spec requires "[Datum]")
+- [x] GoCardless Subscription cancelled via API (`gc.subscriptions.cancel`)
+- [x] Status changes to "cancelled" in DB
+- [x] No automatic data loss on cancellation (data remains in DB)
+
+#### US-4: Zahlungsfehlschlag behandeln
+- [x] Webhook `payments.failed` is processed and updates status to `payment_failed`
+- [x] `payment_failed_at` timestamp stored for grace period calculation
+- [ ] BUG-004: E-Mail notification to mandant is NOT implemented (TODO comment on line 186 of webhook/route.ts)
+- [ ] BUG-005: In-App dashboard banner for payment_failed is NOT implemented -- no billing status check in `/dashboard/page.tsx`
+- [x] Link to `/settings/abonnement` for mandate update exists on the abonnement page itself
+
+#### US-5: Zahlungsbestaetigung verarbeiten
+- [x] Webhook `payments.paid_out` processed and upserted into `billing_payments` (idempotent via `gc_payment_id`)
+- [x] Mandant status set to `active` after successful payment
+- [x] Webhook signature verified via `parse()` from `gocardless-nodejs/webhooks`
+
+#### US-6: Mandat aktualisieren
+- [x] Button "Bankverbindung aktualisieren" shown when `payment_failed` status
+- [x] Clicking triggers new GoCardless Billing Request Flow (reuses `handleSetup`)
+- [ ] BUG-006: Old mandate is NOT explicitly cancelled when new mandate is set up -- the webhook creates a new subscription record but old mandate may remain active in GoCardless
+
+#### US-7: Testzeitraum (30 Tage)
+- [x] `trial_ends_at = NOW() + 30 days` set automatically via DB trigger on mandanten insert
+- [x] No manual intervention needed (trigger handles it)
+- [x] Full access during trial (same as active subscription)
+- [x] After trial expiry without subscription: BlockedView shown (layout.tsx line 35-36)
+- [x] BlockedView text: "Testzeitraum abgelaufen" with "Jetzt abonnieren" button
+- [x] Button on BlockedView links to `/settings/abonnement`
+
+#### US-8: Trial-Banner in Sidebar
+- [x] Banner at bottom of sidebar, above user avatar (app-sidebar.tsx line 120)
+- [x] Text: "Jetzt Belegmanager-ABO sichern!" + countdown "Noch X Tage kostenlos"
+- [x] Button: "Abonnieren" links to `/settings/abonnement`
+- [x] Banner only visible when: trial active AND no active subscription (`showTrialBanner` logic)
+- [x] 7 days or less: Magenta color scheme (`isUrgent` flag with `#E50046`)
+- [x] After subscription: banner disappears (controlled by `showTrialBanner`)
+
+#### US-9: Zugangskontrolle (Trial + Abo)
+- [x] Access allowed when: trial active OR subscription active OR grace period active
+- [x] Access blocked when: trial expired AND no active subscription
+- [x] Access check is server-side in App Layout (Server Component, not client-only)
+- [ ] BUG-007 (CRITICAL): `/settings/abonnement` is NOT excluded from BlockedView -- the layout.tsx shows BlockedView for ALL children when `!billing.hasAccess`, including `/settings/abonnement`. The spec explicitly requires this page to remain accessible even when blocked.
+- [x] Grace period: 3 days after `payment_failed` (computed in billing.ts line 40-42)
+
+### Edge Cases Status
+
+#### EC-1: Mandant bricht Hosted Flow ab
+- [x] Handled: `exit_uri` redirects to `/settings/abonnement?cancelled=true`, toast shows "Abo-Einrichtung abgebrochen"
+
+#### EC-2: Webhook kommt vor Redirect
+- [x] Handled: Status set via webhook (not redirect parameter). Redirect only shows toast.
+
+#### EC-3: Doppelklick auf Setup
+- [x] Partially handled: Idempotency check for `pending_mandate` status exists (setup/route.ts line 23-29)
+- [ ] BUG-008: The existing subscription reuse only updates `gc_billing_request_id` but a NEW billing request is still created at GoCardless (line 44). Not truly idempotent -- creates a new GC resource each time.
+
+#### EC-4: Mandat abgelaufen (expired)
+- [x] Handled: `mandates.expired` webhook sets status to `payment_failed`
+
+#### EC-5: Mandant kuendigt waehrend laufender Zahlung
+- [x] Handled: Subscription cancelled, status set to `cancelled`. Current payment still processes.
+
+#### EC-6: GoCardless-API nicht erreichbar
+- [x] Handled: try/catch with error message "Zahlungsservice momentan nicht verfuegbar" (502 response)
+
+#### EC-7: Webhook-Duplikate
+- [x] Handled: `billing_payments` has UNIQUE constraint on `gc_payment_id`, upsert with `onConflict`
+
+#### EC-8: Trial laeuft genau um Mitternacht ab
+- [ ] BUG-009: Trial expiry is NOT set to 23:59:59 as spec requires. The trigger sets `NOW() + INTERVAL '30 days'` which uses the exact timestamp of creation, not end-of-day. If a mandant is created at 10:00, their trial ends at 10:00 on day 30, not at 23:59:59.
+
+#### EC-9: Mandant schliesst Abo noch am letzten Trial-Tag ab
+- [x] Handled: Seamless transition since both `trialActive` and `subscriptionActive` are checked independently
+
+#### EC-10: Trial bereits abgelaufen beim ersten Login
+- [x] Handled: BlockedView shown immediately
+
+#### EC-11: `payment_failed` + Trial gleichzeitig abgelaufen
+- [x] Handled: Grace period check is independent of trial. If trial expired, grace period still evaluated. No double-access.
+
+### Security Audit Results
+
+#### Authentication
+- [x] All billing API routes verify user session via `supabase.auth.getUser()` before processing
+- [x] Webhook endpoint correctly skips auth (uses HMAC signature instead)
+- [x] Unauthenticated requests return 401
+
+#### Authorization
+- [x] API routes use `admin.from('mandanten').eq('owner_id', user.id)` to scope to current user's mandant
+- [x] RLS policies on all billing tables restrict to mandant's own data
+- [ ] BUG-010 (HIGH): RLS INSERT policy on `billing_subscriptions` allows ANY mandant_user (even non-admin "buchhalter" role) to insert subscriptions. A Buchhalter should likely NOT be able to set up billing. The policy checks `mandant_users.aktiv = true` but does not check role.
+- [ ] BUG-011 (HIGH): RLS UPDATE policy on `billing_subscriptions` similarly allows any active mandant_user to update subscription records, regardless of role.
+
+#### Input Validation
+- [ ] BUG-012 (MEDIUM): No Zod validation on any billing API route. The `/api/billing/setup` and `/api/billing/cancel` routes accept POST with no body validation. While they currently don't parse a request body, the security rules mandate server-side Zod validation on all inputs.
+
+#### Webhook Security
+- [x] Webhook signature verified via GoCardless SDK `parse()` function
+- [x] Missing signature returns 401
+- [x] Invalid signature returns 401
+- [x] Individual event processing errors don't fail the entire webhook (continues processing remaining events)
+
+#### Secrets Management
+- [x] GoCardless tokens stored in environment variables, not in code
+- [x] `.env.local.example` documents all required GoCardless variables with dummy values
+- [x] `GOCARDLESS_ACCESS_TOKEN` not exposed to frontend (no `NEXT_PUBLIC_` prefix)
+
+#### Rate Limiting
+- [ ] BUG-013 (MEDIUM): No rate limiting on `/api/billing/setup`. An authenticated user could spam GoCardless Billing Requests by repeatedly calling this endpoint. Each call creates a real GoCardless resource.
+
+#### Data Exposure
+- [x] Payment history only returns own mandant's data (scoped by mandant_id)
+- [x] GoCardless internal IDs (gc_subscription_id, gc_mandate_id) are returned in billing status but are not actionable by the client
+
+#### Cache Security
+- [x] Billing status cached via `unstable_cache` with mandant-specific key -- no cross-tenant cache leakage
+- [ ] BUG-014 (LOW): Cache invalidation uses `revalidatePath('/', 'layout')` which is a broad invalidation. The `_mandantId` parameter is accepted but unused (prefixed with underscore). Tag-based invalidation per mandant would be more precise.
+
+### Cross-Browser Testing
+- Not applicable for code review (requires manual browser testing)
+- Build passes successfully, no TypeScript errors
+- shadcn/ui components used throughout (Button, Card, Badge, AlertDialog) -- these have cross-browser support
+
+### Responsive Testing
+- Not applicable for code review (requires manual browser testing)
+- Layout uses Tailwind responsive classes and `max-w-2xl` for content width
+- Trial banner uses `mx-2 mb-2` with flex layout -- should render correctly on mobile
+
+### Bugs Found
+
+#### BUG-001: Next payment amount not shown alongside date
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Go to `/settings/abonnement` with active subscription
+  2. Look at "Naechste Zahlung" row
+  3. Expected: Date AND amount (e.g. "01.05.2026 -- 29,00 EUR")
+  4. Actual: Only date shown from `currentPeriodEnd`, no amount
+- **Priority:** Fix in next sprint
+
+#### BUG-002: Masked IBAN not displayed
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Go to `/settings/abonnement` with active mandate
+  2. Expected: Mandate reference with masked IBAN (e.g. "DE** **** 1234")
+  3. Actual: No IBAN information shown anywhere on the page
+- **Priority:** Fix before deployment
+
+#### BUG-003: Cancellation dialog missing actual end date
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Click "Abo kuendigen" on `/settings/abonnement`
+  2. Expected: Dialog shows "Dein Konto bleibt bis [specific date] aktiv"
+  3. Actual: Generic text without the actual period end date
+- **Priority:** Fix in next sprint
+
+#### BUG-004: Payment failure e-mail not implemented
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. Payment fails via GoCardless
+  2. Expected: E-Mail sent to mandant notifying about failed payment
+  3. Actual: TODO comment in webhook handler, no email sent
+- **Priority:** Fix before deployment
+
+#### BUG-005: Dashboard payment failure banner missing
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. Mandant has `payment_failed` status
+  2. Go to `/dashboard`
+  3. Expected: Red banner "Zahlungsproblem -- bitte Zahlungsmethode aktualisieren"
+  4. Actual: No banner shown on dashboard (billing status not checked in dashboard page)
+- **Priority:** Fix before deployment
+
+#### BUG-006: Old mandate not cancelled on mandate update
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Have a mandant with `payment_failed` status
+  2. Click "Bankverbindung aktualisieren"
+  3. Complete new mandate flow
+  4. Expected: Old mandate cancelled, new mandate active, new subscription created
+  5. Actual: New billing request created but old mandate/subscription not explicitly cleaned up
+- **Priority:** Fix before deployment
+
+#### BUG-007: BlockedView blocks access to /settings/abonnement (CRITICAL)
+- **Severity:** Critical
+- **Steps to Reproduce:**
+  1. Have a mandant with expired trial and no active subscription
+  2. Navigate to `/settings/abonnement`
+  3. Expected: Abonnement page renders normally (spec: "Ausnahme: /settings/abonnement bleibt immer zugaenglich")
+  4. Actual: BlockedView overlay replaces ALL children in layout.tsx including `/settings/abonnement`. The layout does not check the current route before showing the overlay.
+- **File:** `src/app/(app)/layout.tsx` line 35-38
+- **Priority:** Fix before deployment (BLOCKER -- users cannot subscribe when blocked)
+
+#### BUG-008: GoCardless billing request created on every setup attempt
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Have a `pending_mandate` subscription
+  2. Call POST `/api/billing/setup` again
+  3. Expected: Reuse existing billing request
+  4. Actual: New GoCardless Billing Request created, only `gc_billing_request_id` updated in DB. Old GC resource orphaned.
+- **Priority:** Fix in next sprint
+
+#### BUG-009: Trial expiry not set to end-of-day
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Create a mandant at 14:00 UTC
+  2. Expected: Trial ends at 23:59:59 UTC on day 30
+  3. Actual: Trial ends at 14:00 UTC on day 30 (exact 30 days from creation timestamp)
+- **Priority:** Nice to have
+
+#### BUG-010: Buchhalter role can create billing subscriptions via RLS
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. Login as a user with "buchhalter" role (non-admin) for a mandant
+  2. Directly call INSERT on `billing_subscriptions` via Supabase client
+  3. Expected: Denied (only admin/owner should manage billing)
+  4. Actual: RLS INSERT policy allows any active `mandant_user` regardless of role
+- **File:** `supabase/migrations/20260331000002_billing.sql` line 101-108
+- **Priority:** Fix before deployment
+
+#### BUG-011: Buchhalter role can update billing subscriptions via RLS
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. Login as "buchhalter" role user
+  2. Issue UPDATE on `billing_subscriptions`
+  3. Expected: Denied
+  4. Actual: Allowed by RLS policy
+- **File:** `supabase/migrations/20260331000002_billing.sql` line 110-117
+- **Priority:** Fix before deployment
+
+#### BUG-012: No Zod input validation on billing API routes
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Review `/api/billing/setup`, `/api/billing/cancel`, `/api/billing/status`
+  2. Expected: Zod schema validation per security rules
+  3. Actual: No Zod schemas defined or used in any billing route
+- **Priority:** Fix in next sprint
+
+#### BUG-013: No rate limiting on billing setup endpoint
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Rapidly call POST `/api/billing/setup` 100 times
+  2. Expected: Rate limiting after N requests
+  3. Actual: Each call creates a new GoCardless Billing Request -- no throttling
+- **Priority:** Fix before deployment
+
+#### BUG-014: Cache invalidation is overly broad
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Webhook triggers `invalidateBillingCache(mandantId)`
+  2. Expected: Only the specific mandant's cache is invalidated
+  3. Actual: `revalidatePath('/', 'layout')` invalidates the entire layout cache for all users
+- **Priority:** Nice to have
+
+### Summary
+- **Acceptance Criteria:** 27/36 passed (9 failed across 6 user stories)
+- **Bugs Found:** 14 total (1 critical, 4 high, 4 medium, 5 low)
+- **Security:** Issues found (RLS role-check gap, no rate limiting, no Zod validation)
+- **Production Ready:** NO
+- **Recommendation:** Fix BUG-007 (CRITICAL blocker), BUG-004/005/010/011 (HIGH) before deployment. BUG-007 is a complete blocker: blocked users cannot reach the subscription page to subscribe, making the entire billing flow unusable for expired trial users.
+
+---
+
+## Bug Fix Log (2026-04-06)
+
+All 14 bugs fixed. Build: PASS.
+
+| Bug | Severity | Fix |
+|-----|----------|-----|
+| BUG-007 | Critical | Created `AccessGuard` client component using `usePathname()` to exclude `/settings/abonnement` from BlockedView. Replaced inline conditional in `layout.tsx`. |
+| BUG-010 | High | New migration `20260406000001_billing_rls_role_fix.sql`: INSERT policy now restricts to owner + `rolle = 'admin'` only. |
+| BUG-011 | High | Same migration: UPDATE policy restricted to owner + admin role. |
+| BUG-004 | High | Installed Resend. Created `src/lib/email.ts` with `sendPaymentFailedEmail()`. Called in `payments.failed` webhook handler. Added `RESEND_API_KEY` to `.env.local.example`. |
+| BUG-005 | High | Dashboard page now checks billing status and renders a fixed red banner when `payment_failed`. |
+| BUG-006 | Medium | Webhook `billing_requests.fulfilled` handler now cancels old `payment_failed` subscription mandates via GoCardless API and sets them to `cancelled` before activating the new one. |
+| BUG-002 | Medium | `fetchMaskedIban()` in `abonnement/page.tsx` fetches mandate → customer bank account → `account_number_ending` + `country_code`. Displayed as `{country}** **** {ending}` with Landmark icon. |
+| BUG-012 | Medium | Added Zod `SetupSchema` / `CancelSchema` to setup and cancel routes. Validates body when `Content-Type: application/json` is sent. |
+| BUG-013 | Medium | Setup route counts `billing_subscriptions` created in last 5 min for this mandant. Returns 429 if ≥ 3. |
+| BUG-001 | Low | "Nächste Zahlung" row now appends plan amount from most recent payment: `{date} – {amount}`. |
+| BUG-003 | Low | Cancellation dialog now shows `billing.currentPeriodEnd` formatted as `dd.MM.yyyy`. Falls back to generic text if null. |
+| BUG-008 | Low | Setup route reuses existing `gc_billing_request_id` from pending_mandate record; only creates new GC billing request if none exists. |
+| BUG-009 | Low | New migration `20260406000002_trial_ends_at_eod.sql`: trigger now sets `trial_ends_at` to `23:59:59 UTC` on day 30 (not exact creation timestamp). |
+| BUG-014 | Low | `invalidateBillingCache()` now calls `revalidatePath('/settings/abonnement')` + `revalidatePath('/dashboard')` for scoped invalidation. |
+
+**Also fixed:** `sendMandateExpiredEmail()` called in `mandates.cancelled/expired` webhook handler (was a second TODO comment).

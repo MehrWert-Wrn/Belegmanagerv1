@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 
   // Send invite email via Supabase Admin
   const adminClient = createAdminClient()
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('.supabase.co', '.vercel.app') || 'http://localhost:3000'
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
   const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
     email.toLowerCase(),

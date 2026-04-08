@@ -6,6 +6,8 @@ import { z } from 'zod'
 const onboardingSchema = z.object({
   firmenname: z.string().min(1, 'Firmenname ist erforderlich').max(255),
   rechtsform: z.string().min(1, 'Rechtsform ist erforderlich').max(100),
+  buchfuehrungsart: z.enum(['DOPPELT', 'EAR']).nullable().optional(),
+  firmenbuchnummer: z.string().max(50).optional().nullable(),
   uid_nummer: z
     .string()
     .regex(/^(ATU\d{8})?$/, 'Format: ATU gefolgt von 8 Ziffern')
@@ -14,6 +16,7 @@ const onboardingSchema = z.object({
   strasse: z.string().max(255).optional().nullable(),
   plz: z.string().max(10).optional().nullable(),
   ort: z.string().max(100).optional().nullable(),
+  telefonnummer: z.string().min(1, 'Telefonnummer ist erforderlich').max(50),
   geschaeftsjahr_beginn: z.number().int().min(1).max(12),
 })
 
@@ -39,10 +42,13 @@ export async function POST(request: Request) {
       owner_id: user.id,
       firmenname: d.firmenname,
       rechtsform: d.rechtsform || null,
+      buchfuehrungsart: d.buchfuehrungsart || null,
+      firmenbuchnummer: d.firmenbuchnummer || null,
       uid_nummer: d.uid_nummer || null,
       strasse: d.strasse || null,
       plz: d.plz || null,
       ort: d.ort || null,
+      telefonnummer: d.telefonnummer,
       land: 'AT',
       geschaeftsjahr_beginn: d.geschaeftsjahr_beginn,
       onboarding_abgeschlossen: true,

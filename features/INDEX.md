@@ -27,7 +27,7 @@
 | PROJ-13 | Reisekostenabrechnung | Planned | [PROJ-13-reisekostenabrechnung.md](PROJ-13-reisekostenabrechnung.md) | 2026-03-13 |
 | PROJ-14 | Kontoauszug-Import Verbesserungen | Deployed | [PROJ-14-kontoauszug-import-verbesserungen.md](PROJ-14-kontoauszug-import-verbesserungen.md) | 2026-03-19 |
 | PROJ-15 | OCR-Erkennung & Massenimport | In Review | [PROJ-15-ocr-massenimport.md](PROJ-15-ocr-massenimport.md) | 2026-03-26 |
-| PROJ-16 | SaaS-Billing via GoCardless | Deployed | [PROJ-16-saas-billing-gocardless.md](PROJ-16-saas-billing-gocardless.md) | 2026-03-31 |
+| PROJ-16 | SaaS-Billing via Stripe | In Progress | [PROJ-16-saas-billing-stripe.md](PROJ-16-saas-billing-stripe.md) | 2026-03-31 |
 
 <!-- Add features above this line -->
 

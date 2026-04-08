@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
     const supabase = createClient()
 
     await supabase.auth.resetPasswordForEmail(data.email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || window.location.origin}/auth/callback?next=/reset-password`,
     })
 
     // Always show success to avoid user enumeration
