@@ -1,6 +1,6 @@
 # PROJ-16: SaaS-Billing via Stripe
 
-**Status:** In Progress
+**Status:** Deployed
 **Created:** 2026-03-31
 **Priority:** P1
 
