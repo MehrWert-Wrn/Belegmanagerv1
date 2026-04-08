@@ -53,7 +53,20 @@ export async function GET(request: Request) {
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ eintraege: data, anfangssaldo: kasse.anfangssaldo })
+  // Eintraege die bereits storniert wurden markieren
+  // (ein anderer Eintrag hat storno_zu_id = diese id)
+  const stornierteIds = new Set(
+    (data ?? [])
+      .filter(e => e.storno_zu_id !== null)
+      .map(e => e.storno_zu_id as string)
+  )
+
+  const eintraege = (data ?? []).map(e => ({
+    ...e,
+    ist_storniert: stornierteIds.has(e.id),
+  }))
+
+  return NextResponse.json({ eintraege, anfangssaldo: kasse.anfangssaldo })
 }
 
 // POST /api/kassabuch/eintraege – neuer Kassaeintrag

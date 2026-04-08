@@ -173,12 +173,17 @@ export async function DELETE(request: Request, { params }: Params) {
   }
 
   // Stornobuchung einfuegen (gegenlaeufige Buchung mit STORNO-Typ)
+  // Beschreibung: Stornogrund immer sichtbar, Original-Beschreibung optional dahinter
+  const stornoBeschreibung = original.beschreibung
+    ? `STORNO (${parsed.data.storno_grund}): ${original.beschreibung}`
+    : `STORNO: ${parsed.data.storno_grund}`
+
   const stornoInsert = {
     mandant_id: original.mandant_id,
     quelle_id: original.quelle_id,
     datum: original.datum,
     betrag: stornoBetrag,
-    beschreibung: `STORNO: ${original.beschreibung ?? ''}`.trim(),
+    beschreibung: stornoBeschreibung,
     kassa_buchungstyp: 'STORNO',
     storno_zu_id: id,
     storno_grund: parsed.data.storno_grund,
@@ -191,13 +196,9 @@ export async function DELETE(request: Request, { params }: Params) {
 
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
 
-  // Original als storniert markieren (geloescht_am = Audit-Marker, kein echtes Loeschen)
-  const { error: markError } = await supabase
-    .from('transaktionen')
-    .update({ geloescht_am: new Date().toISOString() })
-    .eq('id', id)
-
-  if (markError) return NextResponse.json({ error: markError.message }, { status: 500 })
+  // BAO §131: Original NICHT verstecken – beide Eintraege (Original + Storno) bleiben
+  // im Kassabuch sichtbar und heben sich im Saldo gegenseitig auf.
+  // Das Original wird nur als "storniert" markiert via kassa_buchungstyp des Storno-Eintrags.
 
   // Beleg freigeben wenn vorhanden
   if (original.beleg_id) {

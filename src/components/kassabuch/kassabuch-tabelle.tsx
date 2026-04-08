@@ -52,6 +52,7 @@ export interface KassaEintrag {
   kassa_buchungstyp: string | null
   storno_zu_id: string | null
   storno_grund: string | null
+  ist_storniert: boolean
   belege: {
     lieferant: string | null
     rechnungsnummer: string | null
@@ -143,15 +144,16 @@ export function KassabuchTabelle({
         <TableBody>
           {eintraege.map((eintrag) => {
             const isStorno = eintrag.kassa_buchungstyp === 'STORNO'
+            const isStorniert = eintrag.ist_storniert
             const isExpense = eintrag.betrag < 0
 
             return (
               <TableRow
                 key={eintrag.id}
-                className={isStorno ? 'opacity-60 bg-muted/30' : undefined}
+                className={isStorno || isStorniert ? 'opacity-50 bg-muted/20' : undefined}
               >
                 <TableCell>
-                  {isStorno ? (
+                  {isStorno || isStorniert ? (
                     <Ban className="h-4 w-4 text-muted-foreground" />
                   ) : isExpense ? (
                     <ArrowUpRight className="h-4 w-4 text-red-500" />
@@ -184,6 +186,10 @@ export function KassabuchTabelle({
                     <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
                       Storno
                     </span>
+                  ) : isStorniert ? (
+                    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground line-through">
+                      Storniert
+                    </span>
                   ) : (
                     <AmpelBadge
                       status={eintrag.match_status}
@@ -195,13 +201,15 @@ export function KassabuchTabelle({
                   <BelegReferenz beleg={eintrag.belege} />
                 </TableCell>
                 <TableCell>
-                  <KassaAktionenMenu
-                    eintrag={eintrag}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onManualAssign={onManualAssign}
-                    onActionComplete={onActionComplete}
-                  />
+                  {!isStorniert && (
+                    <KassaAktionenMenu
+                      eintrag={eintrag}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                      onManualAssign={onManualAssign}
+                      onActionComplete={onActionComplete}
+                    />
+                  )}
                 </TableCell>
               </TableRow>
             )
