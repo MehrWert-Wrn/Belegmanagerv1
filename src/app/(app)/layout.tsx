@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { AppSidebar } from '@/components/app-sidebar'
+import { getBillingStatus } from '@/lib/billing'
+import { AccessGuard } from '@/components/billing/access-guard'
 
 export default async function AppLayout({
   children,
@@ -14,9 +17,20 @@ export default async function AppLayout({
     redirect('/login')
   }
 
+  const admin = createAdminClient()
+  const { data: mandant } = await admin
+    .from('mandanten')
+    .select('id')
+    .eq('owner_id', user.id)
+    .maybeSingle()
+
+  const billing = mandant ? await getBillingStatus(mandant.id) : null
+
   return (
-    <AppSidebar userEmail={user.email ?? ''}>
-      {children}
+    <AppSidebar userEmail={user.email ?? ''} billingStatus={billing}>
+      <AccessGuard hasAccess={billing?.hasAccess ?? true}>
+        {children}
+      </AccessGuard>
     </AppSidebar>
   )
 }

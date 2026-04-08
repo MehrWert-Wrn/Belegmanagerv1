@@ -12,6 +12,8 @@ import {
   LogOut,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { TrialBanner } from '@/components/billing/trial-banner'
+import type { BillingStatus } from '@/lib/billing'
 import {
   Sidebar,
   SidebarContent,
@@ -48,9 +50,10 @@ const navItems = [
 interface AppSidebarProps {
   userEmail: string
   children: React.ReactNode
+  billingStatus?: BillingStatus | null
 }
 
-export function AppSidebar({ userEmail, children }: AppSidebarProps) {
+export function AppSidebar({ userEmail, children, billingStatus }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -114,6 +117,7 @@ export function AppSidebar({ userEmail, children }: AppSidebarProps) {
         </SidebarContent>
 
         <SidebarFooter>
+          {billingStatus && <TrialBanner billing={billingStatus} />}
           <SidebarSeparator />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
