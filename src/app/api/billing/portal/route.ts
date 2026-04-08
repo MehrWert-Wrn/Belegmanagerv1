@@ -3,11 +3,21 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { stripe } from '@/lib/stripe'
 import { NextResponse } from 'next/server'
 
+const rateLimit = new Map<string, number[]>()
+function isRateLimited(userId: string, maxPerMinute = 5): boolean {
+  const now = Date.now()
+  const timestamps = (rateLimit.get(userId) ?? []).filter(t => now - t < 60_000)
+  if (timestamps.length >= maxPerMinute) return true
+  rateLimit.set(userId, [...timestamps, now])
+  return false
+}
+
 // POST /api/billing/portal – Stripe Customer Portal Session erstellen
 export async function POST() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (isRateLimited(user.id)) return NextResponse.json({ error: 'Zu viele Anfragen' }, { status: 429 })
 
   const admin = createAdminClient()
   const { data: mandant } = await admin

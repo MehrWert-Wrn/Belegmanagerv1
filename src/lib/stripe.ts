@@ -21,4 +21,4 @@ export const stripe = new Proxy({} as Stripe, {
   },
 })
 
-export const STRIPE_PRICE_ID = 'price_1TK2PB3SIXh5JMBkKSxuFyWE'
+export const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID ?? 'price_1TK2PB3SIXh5JMBkKSxuFyWE'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
 interface AccessGuardProps {
@@ -10,8 +10,9 @@ interface AccessGuardProps {
 
 export function AccessGuard({ hasAccess, children }: AccessGuardProps) {
   const router = useRouter()
+  const pathname = usePathname()
 
-  if (hasAccess) return <>{children}</>
+  if (hasAccess || pathname === '/settings/abonnement') return <>{children}</>
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-8 text-center">

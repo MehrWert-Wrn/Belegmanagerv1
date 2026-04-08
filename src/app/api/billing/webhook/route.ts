@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       const mandantId = await getMandantId(customerId)
       if (!mandantId) break
 
-      await admin.from('billing_payments').insert({
+      await admin.from('billing_payments').upsert({
         mandant_id: mandantId,
         stripe_invoice_id: invoice.id,
         stripe_payment_intent_id: null,
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         charge_date: invoice.created
           ? new Date(invoice.created * 1000).toISOString().split('T')[0]
           : null,
-      })
+      }, { onConflict: 'stripe_invoice_id' })
 
       // payment_failed zurücksetzen
       await admin.from('billing_subscriptions').update({

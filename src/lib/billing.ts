@@ -5,6 +5,7 @@ export type SubscriptionStatus =
   | 'past_due'
   | 'cancelled'
   | 'incomplete'
+  | 'unpaid'
   | 'none'
 
 export interface BillingStatus {
@@ -35,11 +36,12 @@ export async function getBillingStatus(mandantId: string): Promise<BillingStatus
     if (sub.status === 'active' || sub.status === 'trialing') status = 'active'
     else if (sub.status === 'past_due') status = 'past_due'
     else if (sub.status === 'canceled' || sub.status === 'cancelled') status = 'cancelled'
+    else if (sub.status === 'unpaid') status = 'unpaid'
     else status = 'incomplete'
   }
 
   const result: BillingStatus = {
-    hasAccess: status === 'active' || status === 'none', // 'none' = noch kein Abo → Zugang offen (pre-launch)
+    hasAccess: status === 'active' || status === 'none' || status === 'past_due', // past_due = Stripe retried, Zugang bleibt
     subscriptionStatus: status,
     stripeCustomerId: sub?.stripe_customer_id ?? null,
     stripeSubscriptionId: sub?.stripe_subscription_id ?? null,

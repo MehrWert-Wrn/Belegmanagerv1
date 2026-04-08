@@ -1,6 +1,6 @@
 # PROJ-16: SaaS-Billing via Stripe
 
-**Status:** Deployed
+**Status:** In Review
 **Created:** 2026-03-31
 **Priority:** P1
 
@@ -216,3 +216,199 @@ STRIPE_WEBHOOK_SECRET=     # Stripe Webhook Signing Secret (whsec_...)
 - `src/components/billing/trial-banner.tsx` — Sidebar-Banner
 - `src/app/(app)/settings/abonnement/page.tsx` — Abonnement-Seite
 - `supabase/migrations/20260402000003_migrate_billing_to_stripe.sql` — DB-Migration
+
+---
+
+## QA Test Results
+
+**Tested:** 2026-04-08
+**App URL:** http://localhost:3000
+**Tester:** QA Engineer (AI)
+
+### Acceptance Criteria Status
+
+#### US-1: Abo abschliessen (Checkout)
+- [x] Button "Jetzt abonnieren" on `/settings/abonnement`
+- [x] Klick startet Stripe Checkout Session (subscription mode, STRIPE_PRICE_ID)
+- [x] Nach erfolgreichem Checkout: Mandant wird zu `/settings/abonnement?success=1` weitergeleitet
+- [x] Webhook `checkout.session.completed` speichert Subscription-Daten in DB via upsert
+- [x] Stripe Customer wird einmalig angelegt und wiederverwendet (upsert via `mandant_id`)
+- [x] Aktives Abo wird per 409 abgelehnt (kein doppelter Checkout)
+
+#### US-2: Abo-Status einsehen
+- [x] Seite zeigt: Status-Badge (Aktiv / Zahlung offen / Gekuendigt / Kein Abo)
+- [x] Naechstes Abbuchungsdatum sichtbar (current_period_end)
+- [x] Zahlungshistorie: letzte 12 Zahlungen (Betrag, Datum, Status)
+- [x] Button "Abonnement verwalten" oeffnet Stripe Customer Portal
+
+#### US-3: Abo verwalten / kuendigen
+- [x] Button "Abonnement verwalten" startet Stripe Customer Portal Session
+- [x] Webhook `customer.subscription.deleted` aktualisiert DB-Status auf canceled
+- [ ] BUG-001: Zugangskontrolle sperrt `past_due` faelschlicherweise (siehe BUG-002)
+
+#### US-4: Zahlungsfehlschlag behandeln
+- [x] Webhook `invoice.payment_failed` setzt `payment_failed_at` in `billing_subscriptions`
+- [ ] BUG-002: `past_due` wird als "kein Zugang" behandelt -- Mandant wird ausgesperrt statt nur Banner zu sehen
+- [x] Link in Banner zu `/settings/abonnement` fuer Zahlungsmethoden-Update
+
+#### US-5: Zahlungsbestaetigung verarbeiten
+- [x] Webhook `invoice.payment_succeeded` speichert Zahlung in `billing_payments`
+- [x] `payment_failed_at` wird nach erfolgreicher Zahlung auf `null` zurueckgesetzt
+- [x] Billing-Cache wird nach jedem Webhook-Event invalidiert
+
+#### US-6: Trial-Banner in der Sidebar
+- [x] Banner am unteren Ende der linken Sidebar (oberhalb des User-Avatars)
+- [x] Status `none` (kein Abo): teal Banner "Jetzt abonnieren"
+- [x] Status `past_due`: roter Banner "Zahlung fehlgeschlagen"
+- [x] Bei aktivem Abo: kein Banner
+- [ ] BUG-003: Status `cancelled`/`incomplete` zeigt keinen Banner -- Mandant hat kein Feedback
+
+#### US-7: Zugangskontrolle
+- [ ] BUG-002: `past_due` wird geblockt, obwohl laut Spec nur `canceled`/`unpaid` geblockt werden sollen
+- [ ] BUG-004: `/settings/abonnement` ist NICHT vom AccessGuard ausgenommen -- gesperrte Mandanten koennen die Abo-Seite nicht erreichen (Deadlock)
+- [x] Zugangspruefung im App-Layout (serverseitig via AccessGuard)
+- [x] Blocked-View zeigt: "Abonnement erforderlich" mit Button zum Portal/Checkout
+
+### Edge Cases Status
+
+#### EC-1: Mandant bricht Checkout ab
+- [x] Korrekt: `?cancelled=1` Parameter zeigt Toast, kein Abo aktiv
+
+#### EC-2: Webhook kommt vor Redirect
+- [x] DB wird via Webhook aktualisiert, Client-Seite pollt Status via GET /api/billing/status
+
+#### EC-3: Stripe Customer bereits angelegt
+- [x] Upsert via `mandant_id` verhindert Duplikate
+
+#### EC-4: current_period_end Feld (SDK v22+)
+- [x] Korrekt: Liest aus `subscription.items.data[0].current_period_end`
+
+#### EC-5: STRIPE_SECRET_KEY nicht gesetzt
+- [x] Lazy Proxy wirft erst beim ersten API-Call
+
+#### EC-6: Webhook-Duplikate
+- [x] `billing_subscriptions` upsert/update sind idempotent
+- [ ] BUG-005: `billing_payments` INSERT ist NICHT idempotent -- doppelte Webhooks erzeugen doppelte Zahlungseintraege
+
+#### EC-7: Mandant kuendigt waehrend laufender Zahlung
+- [x] `cancel_at_period_end` via Portal; Webhook-Handler setzt `cancelled_at`
+
+#### EC-8: Pre-Launch-Grace
+- [x] Status `none` = hasAccess true
+
+### Security Audit Results
+
+- [x] Authentication: Alle API-Routen (checkout, portal, status) pruefen auth via `supabase.auth.getUser()`
+- [x] Authentication: Webhook-Route prueft Stripe-Signatur via `constructEvent`
+- [x] Authorization: Mandant-Lookup via `owner_id = user.id` verhindert fremden Zugriff
+- [x] RLS: billing_subscriptions und billing_payments haben RLS-Policies (owner + admin only fuer write)
+- [x] Secrets: Keine Secrets im Client-Code, STRIPE_SECRET_KEY nur serverseitig
+- [x] Security Headers: X-Frame-Options, HSTS, X-Content-Type-Options alle konfiguriert
+- [x] Webhook integrity: Signatur-Verifikation vor Event-Verarbeitung
+- [ ] BUG-006: Keine Rate-Limiting auf /api/billing/checkout und /api/billing/portal -- Angreifer koennte massenhaft Stripe-Sessions erstellen
+- [ ] BUG-007: STRIPE_PRICE_ID ist hardcoded (`price_1TK2PB3SIXh5JMBkKSxuFyWE`) statt Environment-Variable -- Test/Live-Umgebung nicht trennbar
+- [ ] BUG-008: `stripe_payment_intent_id` wird immer als `null` gespeichert -- forensische Nachvollziehbarkeit eingeschraenkt
+- [x] No GoCardless remnants in source code (clean migration)
+- [ ] BUG-009: Leere Verzeichnisse `src/app/api/billing/cancel/` und `src/app/api/billing/setup/` von GoCardless-Migration uebrig -- keine Sicherheitsluecke, aber Cleanup noetig
+- [x] NEXT_PUBLIC_ Prefix: STRIPE_PUBLISHABLE_KEY ist im .env.local.example ohne NEXT_PUBLIC_ Prefix und wird nirgends im Frontend verwendet (korrekt, da Stripe Checkout hosted ist)
+- [ ] BUG-010: `unpaid` Status aus Spec wird nie gesetzt -- SubscriptionStatus-Typ hat kein `unpaid`, Billing-Logik kann diesen Spec-Status nie abbilden
+
+### Bugs Found
+
+#### BUG-001: past_due Status sperrt Zugang (Spec-Widerspruch)
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. Mandant hat aktives Abo
+  2. Zahlung schlaegt fehl, Stripe setzt Status auf `past_due`
+  3. `getBillingStatus()` setzt `hasAccess = false` (nur `active`/`none` = true)
+  4. Expected: Mandant hat weiterhin Zugang, sieht nur roten Banner
+  5. Actual: Mandant wird komplett ausgesperrt
+- **File:** `src/lib/billing.ts` Zeile 42
+- **Priority:** Fix before deployment
+
+#### BUG-002: /settings/abonnement nicht vom AccessGuard ausgenommen (Deadlock)
+- **Severity:** Critical
+- **Steps to Reproduce:**
+  1. Mandant hat Status `canceled`
+  2. AccessGuard zeigt Blocked-View mit Button "Abonnement verwalten"
+  3. Button navigiert zu `/settings/abonnement`
+  4. `/settings/abonnement` ist innerhalb des `AccessGuard` gerendert
+  5. Expected: Abonnement-Seite wird angezeigt
+  6. Actual: Blocked-View wird erneut angezeigt -- Mandant kann Abo nicht verwalten/erneuern
+- **File:** `src/app/(app)/layout.tsx` Zeile 31-33, `src/components/billing/access-guard.tsx`
+- **Priority:** Fix before deployment
+
+#### BUG-003: Kein Banner fuer cancelled/incomplete Status
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Mandant hat Status `cancelled` oder `incomplete`
+  2. TrialBanner gibt `null` zurueck (kein Banner)
+  3. Expected: Informationsbanner mit Aktion (re-subscribe / complete setup)
+  4. Actual: Kein visueller Hinweis in der Sidebar
+- **File:** `src/components/billing/trial-banner.tsx` Zeile 41-43
+- **Priority:** Fix in next sprint (nur relevant wenn BUG-002 gefixt ist)
+
+#### BUG-004: billing_payments nicht idempotent bei Webhook-Duplikaten
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Stripe sendet `invoice.payment_succeeded` Webhook
+  2. Payment wird in `billing_payments` per INSERT gespeichert
+  3. Stripe sendet denselben Webhook erneut (Retry)
+  4. Expected: Keine doppelte Zeile (upsert oder UNIQUE constraint)
+  5. Actual: Zweite Zeile mit identischen Daten wird eingefuegt
+- **File:** `src/app/api/billing/webhook/route.ts` Zeile 93-103
+- **Fix:** UNIQUE-Index auf `stripe_invoice_id` + upsert statt insert
+- **Priority:** Fix before deployment
+
+#### BUG-005: Keine Rate-Limiting auf Billing-API-Routen
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Authentifizierter Benutzer sendet 100x POST an `/api/billing/checkout`
+  2. Expected: Rate-Limit greift nach N Requests
+  3. Actual: 100 Stripe Checkout Sessions werden erstellt (Kosten/Spam-Risiko)
+- **Priority:** Fix in next sprint
+
+#### BUG-006: STRIPE_PRICE_ID hardcoded statt Environment-Variable
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Inspect `src/lib/stripe.ts` Zeile 24
+  2. `STRIPE_PRICE_ID = 'price_1TK2PB3SIXh5JMBkKSxuFyWE'` ist hardcoded
+  3. Expected: `process.env.STRIPE_PRICE_ID` fuer Test/Live Trennung
+  4. Actual: Gleiche Price ID in allen Umgebungen
+- **Priority:** Fix before deployment
+
+#### BUG-007: stripe_payment_intent_id immer null
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. `invoice.payment_succeeded` Webhook wird verarbeitet
+  2. `stripe_payment_intent_id` wird als `null` gespeichert (Zeile 96)
+  3. Expected: `invoice.payment_intent` extrahieren und speichern
+  4. Actual: Immer null -- Zahlungs-Forensik eingeschraenkt
+- **File:** `src/app/api/billing/webhook/route.ts` Zeile 96
+- **Priority:** Nice to have
+
+#### BUG-008: Leere GoCardless-Verzeichnisse nicht aufgeraeumt
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. `ls src/app/api/billing/cancel/` -- leer
+  2. `ls src/app/api/billing/setup/` -- leer
+  3. Expected: Verzeichnisse nach GoCardless-Migration entfernt
+  4. Actual: Leere Verzeichnisse verbleiben
+- **Priority:** Nice to have
+
+#### BUG-009: `unpaid` Status nicht implementiert
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Spec definiert `unpaid` als blockierenden Status (US-7 AC)
+  2. `SubscriptionStatus` Typ hat kein `unpaid` (nur active/past_due/cancelled/incomplete/none)
+  3. Stripe verwendet `unpaid` als terminalen Status nach allen Payment-Retries
+  4. Expected: `unpaid` als eigener Status mit `hasAccess = false`
+  5. Actual: Wuerde als `incomplete` gemappt, was korrekt blockt, aber nicht explizit
+- **Priority:** Fix in next sprint
+
+### Summary
+- **Acceptance Criteria:** 19/25 passed (6 failed across US-3, US-4, US-6, US-7)
+- **Bugs Found:** 9 total (1 critical, 1 high, 3 medium, 4 low)
+- **Security:** Rate-limiting fehlt; PRICE_ID hardcoded; sonst solide (Webhook-Signatur, Auth, RLS)
+- **Production Ready:** NO
+- **Recommendation:** BUG-002 (Critical: AccessGuard Deadlock) und BUG-001 (High: past_due sperrt) muessen vor Deployment gefixt werden. BUG-004 (Payment-Idempotenz) und BUG-006 (hardcoded Price ID) sind ebenfalls vor Go-Live zu beheben.

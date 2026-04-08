@@ -13,7 +13,8 @@ export function TrialBanner({ billing }: TrialBannerProps) {
 
   if (billing.subscriptionStatus === 'active') return null
 
-  if (billing.subscriptionStatus === 'past_due') {
+  if (billing.subscriptionStatus === 'past_due' || billing.subscriptionStatus === 'cancelled' || billing.subscriptionStatus === 'incomplete' || billing.subscriptionStatus === 'unpaid') {
+    const label = billing.subscriptionStatus === 'cancelled' ? 'Abonnement gekündigt' : 'Zahlung fehlgeschlagen'
     return (
       <button
         onClick={() => router.push('/settings/abonnement')}
@@ -21,7 +22,7 @@ export function TrialBanner({ billing }: TrialBannerProps) {
       >
         <div className="flex items-center gap-1.5 font-semibold">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Zahlung fehlgeschlagen
+          {label}
         </div>
         <div className="mt-0.5 text-red-600">Jetzt Abonnement verwalten →</div>
       </button>
