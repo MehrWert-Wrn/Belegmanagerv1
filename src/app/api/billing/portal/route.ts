@@ -40,10 +40,14 @@ export async function POST() {
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: sub.stripe_customer_id,
-    return_url: `${siteUrl}/settings/abonnement`,
-  })
-
-  return NextResponse.json({ url: session.url })
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: sub.stripe_customer_id,
+      return_url: `${siteUrl}/settings/abonnement`,
+    })
+    return NextResponse.json({ url: session.url })
+  } catch (err) {
+    console.error('[billing/portal]', err)
+    return NextResponse.json({ error: 'Stripe-Fehler – bitte versuche es erneut' }, { status: 500 })
+  }
 }

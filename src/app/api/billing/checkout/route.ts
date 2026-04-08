@@ -42,35 +42,39 @@ export async function POST() {
 
   let customerId = existingSub?.stripe_customer_id ?? null
 
-  // Stripe Customer anlegen falls noch keiner existiert
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      name: mandant.firmenname,
-      metadata: { mandant_id: mandant.id },
+  try {
+    // Stripe Customer anlegen falls noch keiner existiert
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: mandant.firmenname,
+        metadata: { mandant_id: mandant.id },
+      })
+      customerId = customer.id
+
+      await admin.from('billing_subscriptions').upsert({
+        mandant_id: mandant.id,
+        stripe_customer_id: customerId,
+        status: 'incomplete',
+      }, { onConflict: 'mandant_id' })
+    }
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: 'subscription',
+      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      success_url: `${siteUrl}/settings/abonnement?success=1`,
+      cancel_url: `${siteUrl}/settings/abonnement?cancelled=1`,
+      allow_promotion_codes: true,
+      billing_address_collection: 'auto',
+      customer_update: { address: 'auto', name: 'auto' },
     })
-    customerId = customer.id
 
-    // Customer ID direkt speichern
-    await admin.from('billing_subscriptions').upsert({
-      mandant_id: mandant.id,
-      stripe_customer_id: customerId,
-      status: 'incomplete',
-    }, { onConflict: 'mandant_id' })
+    return NextResponse.json({ url: session.url })
+  } catch (err) {
+    console.error('[billing/checkout]', err)
+    return NextResponse.json({ error: 'Stripe-Fehler – bitte versuche es erneut' }, { status: 500 })
   }
-
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
-
-  const session = await stripe.checkout.sessions.create({
-    customer: customerId,
-    mode: 'subscription',
-    line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
-    success_url: `${siteUrl}/settings/abonnement?success=1`,
-    cancel_url: `${siteUrl}/settings/abonnement?cancelled=1`,
-    allow_promotion_codes: true,
-    billing_address_collection: 'auto',
-    customer_update: { address: 'auto', name: 'auto' },
-  })
-
-  return NextResponse.json({ url: session.url })
 }
