@@ -39,6 +39,7 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 | P1 | Multi-Tenant User-Rollen | Admin / Buchhalter-Rollen, Einladung per E-Mail | Planned |
 | P1 | OCR-Erkennung & Massenimport | OCR Auto-Fill beim Einzelupload, Massenimport mit Review-Modus | Planned |
 | P2 | Reisekostenabrechnung | Eigenes Modul – bewusst aus MVP ausgelagert | Planned |
+| P1 | Admin Panel | Mandanten-Impersonation, manuelle Abo-Override, Support-Ticket-System mit E-Mail-Benachrichtigungen | Planned |
 
 > Details zu jeder Feature (User Stories, Acceptance Criteria, Edge Cases, Tech Design) → `features/`
 

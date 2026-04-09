@@ -20,6 +20,20 @@ export async function GET() {
 
   const status = await getBillingStatus(mandant.id)
 
+  // Check admin override
+  const { data: sub } = await admin
+    .from('billing_subscriptions')
+    .select('admin_override_type, admin_override_until')
+    .eq('mandant_id', mandant.id)
+    .maybeSingle()
+
+  let adminOverrideActive = false
+  if (sub?.admin_override_type === 'permanent') {
+    adminOverrideActive = true
+  } else if (sub?.admin_override_type === 'until_date' && sub.admin_override_until) {
+    adminOverrideActive = new Date(sub.admin_override_until) > new Date()
+  }
+
   // Zahlungshistorie
   const { data: payments } = await admin
     .from('billing_payments')
@@ -28,5 +42,12 @@ export async function GET() {
     .order('charge_date', { ascending: false })
     .limit(12)
 
-  return NextResponse.json({ ...status, payments: payments ?? [] })
+  return NextResponse.json({
+    ...status,
+    admin_override_active: adminOverrideActive,
+    adminOverrideActive,
+    adminOverrideType: sub?.admin_override_type ?? null,
+    adminOverrideUntil: sub?.admin_override_until ?? null,
+    payments: payments ?? [],
+  })
 }

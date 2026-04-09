@@ -13,6 +13,8 @@ interface BillingData {
   subscriptionStatus: string
   currentPeriodEnd: string | null
   stripeCustomerId: string | null
+  adminOverrideType?: string | null
+  adminOverrideUntil?: string | null
   payments: {
     amount_cents: number
     currency: string
@@ -99,6 +101,7 @@ export default function AbonnementPage() {
   const isActive = data?.subscriptionStatus === 'active'
   const isPastDue = data?.subscriptionStatus === 'past_due'
   const hasCustomer = !!data?.stripeCustomerId
+  const hasAdminOverride = !!data?.adminOverrideType
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8 max-w-2xl">
@@ -126,6 +129,16 @@ export default function AbonnementPage() {
             </div>
           ) : (
             <>
+              {hasAdminOverride && (
+                <div className="flex items-center gap-2 rounded-md border border-purple-200 bg-purple-50 p-3 text-sm text-purple-700">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  Vom Support aktiviert
+                  {data?.adminOverrideType === 'until_date' && data?.adminOverrideUntil && (
+                    <span className="text-purple-500"> (bis {formatDate(data.adminOverrideUntil)})</span>
+                  )}
+                </div>
+              )}
+
               {isPastDue && (
                 <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
                   <AlertTriangle className="h-4 w-4 shrink-0" />

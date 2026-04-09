@@ -14,6 +14,7 @@ export interface BillingStatus {
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
   currentPeriodEnd: string | null
+  adminOverrideActive: boolean
 }
 
 // Simple in-memory cache (per-process, resets on cold start)
@@ -27,7 +28,7 @@ export async function getBillingStatus(mandantId: string): Promise<BillingStatus
   const admin = createAdminClient()
   const { data: sub } = await admin
     .from('billing_subscriptions')
-    .select('status, stripe_customer_id, stripe_subscription_id, current_period_end')
+    .select('status, stripe_customer_id, stripe_subscription_id, current_period_end, admin_override_type, admin_override_until')
     .eq('mandant_id', mandantId)
     .maybeSingle()
 
@@ -40,15 +41,24 @@ export async function getBillingStatus(mandantId: string): Promise<BillingStatus
     else status = 'incomplete'
   }
 
+  // Check admin override
+  let adminOverrideActive = false
+  if (sub?.admin_override_type === 'permanent') {
+    adminOverrideActive = true
+  } else if (sub?.admin_override_type === 'until_date' && sub.admin_override_until) {
+    adminOverrideActive = new Date(sub.admin_override_until) > new Date()
+  }
+
   const result: BillingStatus = {
     // PRE-LAUNCH: Zugang für alle Mandanten offen bis Go-Live-Freigabe
     // TODO: Auf echte Prüfung umstellen wenn Billing aktiviert wird:
-    // hasAccess: status === 'active' || status === 'none' || status === 'past_due'
+    // hasAccess: status === 'active' || status === 'none' || status === 'past_due' || adminOverrideActive
     hasAccess: true,
     subscriptionStatus: status,
     stripeCustomerId: sub?.stripe_customer_id ?? null,
     stripeSubscriptionId: sub?.stripe_subscription_id ?? null,
     currentPeriodEnd: sub?.current_period_end ?? null,
+    adminOverrideActive,
   }
 
   cache.set(mandantId, { value: result, expiresAt: Date.now() + CACHE_TTL_MS })

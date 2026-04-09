@@ -33,5 +33,6 @@
 
 | PROJ-17 | Eigenbeleg-Erstellung | In Review | [PROJ-17-eigenbeleg.md](PROJ-17-eigenbeleg.md) | 2026-04-02 |
 | PROJ-18 | Mobile App – Belegerfassung (iOS & Android) | Planned | [PROJ-18-mobile-app-belegerfassung.md](PROJ-18-mobile-app-belegerfassung.md) | 2026-04-07 |
+| PROJ-19 | Admin Panel | In Review | [PROJ-19-admin-panel.md](PROJ-19-admin-panel.md) | 2026-04-09 |
 
-## Next Available ID: PROJ-19
+## Next Available ID: PROJ-20
