@@ -17,27 +17,15 @@ import {
 
 export function SupportWidget() {
   const [open, setOpen] = useState(false)
-  const [openTicketCount, setOpenTicketCount] = useState(0)
+  // Badge deliberately hidden until chatbot unread-message logic is implemented
+  // const [openTicketCount, setOpenTicketCount] = useState(0)
 
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  useEffect(() => {
-    async function fetchCount() {
-      try {
-        const res = await fetch('/api/tickets?count_only=true')
-        if (res.ok) {
-          const data = await res.json()
-          setOpenTicketCount(data.open_count ?? 0)
-        }
-      } catch {
-        // non-fatal
-      }
-    }
-    fetchCount()
-  }, [submitted])
+  // Badge fetch removed – will be re-enabled when chatbot unread logic is ready
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -89,17 +77,7 @@ export function SupportWidget() {
         {open ? (
           <X className="h-6 w-6" />
         ) : (
-          <>
-            <MessageCircle className="h-6 w-6" />
-            {openTicketCount > 0 && (
-              <Badge
-                variant="destructive"
-                className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full px-1.5 text-[10px]"
-              >
-                {openTicketCount}
-              </Badge>
-            )}
-          </>
+          <MessageCircle className="h-6 w-6" />
         )}
       </button>
 
