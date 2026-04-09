@@ -1,6 +1,6 @@
 # PROJ-19: Admin Panel
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-04-09
 **Last Updated:** 2026-04-09
 
@@ -636,4 +636,13 @@ Note: Cross-browser testing was done via code review only (no live browser testi
 10. **BUG-005** -- Missing "Letzte Aktivitaet" in mandant widget
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-09
+**Commit:** `993f704`
+**Branch:** main → Vercel Auto-Deploy
+
+### Post-Deploy Schritte (manuell erforderlich)
+1. **Supabase Migration:** `supabase/migrations/20260409000000_admin_panel.sql` in Supabase Cloud ausführen
+2. **Vercel Env Var:** `RESEND_API_KEY` in Vercel Dashboard setzen + Redeploy
+3. **Admin-User:** `UPDATE profiles SET is_admin = true WHERE email = 'admin@email.at';`
+4. **Resend:** Domain `belegmanager.at` verifizieren für `noreply@belegmanager.at`
