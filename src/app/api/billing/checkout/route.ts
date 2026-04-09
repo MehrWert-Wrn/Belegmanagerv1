@@ -74,7 +74,8 @@ export async function POST() {
 
     return NextResponse.json({ url: session.url })
   } catch (err) {
-    console.error('[billing/checkout]', err)
-    return NextResponse.json({ error: 'Stripe-Fehler – bitte versuche es erneut' }, { status: 500 })
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[billing/checkout]', message)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
