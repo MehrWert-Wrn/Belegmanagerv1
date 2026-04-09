@@ -41,7 +41,10 @@ export async function getBillingStatus(mandantId: string): Promise<BillingStatus
   }
 
   const result: BillingStatus = {
-    hasAccess: status === 'active' || status === 'none' || status === 'past_due', // past_due = Stripe retried, Zugang bleibt
+    // PRE-LAUNCH: Zugang für alle Mandanten offen bis Go-Live-Freigabe
+    // TODO: Auf echte Prüfung umstellen wenn Billing aktiviert wird:
+    // hasAccess: status === 'active' || status === 'none' || status === 'past_due'
+    hasAccess: true,
     subscriptionStatus: status,
     stripeCustomerId: sub?.stripe_customer_id ?? null,
     stripeSubscriptionId: sub?.stripe_subscription_id ?? null,
