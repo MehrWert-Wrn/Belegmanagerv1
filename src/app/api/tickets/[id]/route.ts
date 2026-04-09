@@ -41,7 +41,7 @@ export async function GET(
   }
 
   return NextResponse.json({
-    ...ticket,
+    ticket,
     messages: messages || [],
   })
 }
