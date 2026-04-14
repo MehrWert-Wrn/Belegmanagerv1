@@ -1,6 +1,6 @@
 # PROJ-20: FinAPI-Integration – Automatischer Kontoauszug-Import
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-04-14
 **Last Updated:** 2026-04-14
 
@@ -532,4 +532,22 @@ All 8 bugs fixed. Build passes without errors.
 ### Production-Ready Decision: READY
 
 ## Deployment
-*(wird nach Deployment befüllt)*
+
+**Deployed:** 2026-04-14
+**Production URL:** https://belegmanagerv1.vercel.app/settings/bankverbindungen
+**Git Tag:** v1.20.0-PROJ-20
+**Migration:** 20260414100000_finapi_integration (applied to xltqorivnsnmimxvukxp)
+
+### Changes Deployed
+- `src/app/(app)/settings/bankverbindungen/page.tsx` – neue Bankverbindungen-Seite
+- `src/components/bankverbindungen/` – BankverbindungKarte + Types
+- `src/app/api/finapi/` – 4 neue API-Routen (verbindungen, callback, sync, [id])
+- `src/lib/finapi.ts` – FinAPI Service (Token, WebForm, Transaktionen, AES-Verschlüsselung)
+- `src/app/(app)/settings/layout.tsx` – "Bankverbindungen" in Settings-Navigation
+- `supabase/migrations/20260414100000_finapi_integration.sql` – 3 neue Tabellen, 2 neue Transaktionen-Spalten
+
+### Erforderliche Vercel-Umgebungsvariablen
+- `FINAPI_ENV=sandbox`
+- `FINAPI_CLIENT_ID` – Sandbox Client ID
+- `FINAPI_CLIENT_SECRET` – Sandbox Client Secret
+- `FINAPI_ENCRYPTION_KEY` – 64-Zeichen Hex-Key (AES-256, via `openssl rand -hex 32`)
