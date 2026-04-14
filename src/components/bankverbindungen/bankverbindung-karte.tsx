@@ -1,0 +1,263 @@
+'use client'
+
+import { useState } from 'react'
+import { RefreshCw, Trash2, ShieldAlert, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import type { BankVerbindung, SyncErgebnis } from './types'
+
+interface BankverbindungKarteProps {
+  verbindung: BankVerbindung
+  onSync: (id: string) => Promise<SyncErgebnis | null>
+  onErneuern: (id: string) => Promise<void>
+  onTrennen: (id: string) => Promise<void>
+}
+
+function formatIBAN(iban: string | null): string {
+  if (!iban) return '-'
+  if (iban.length <= 8) return iban
+  return `${iban.substring(0, 4)} **** ${iban.slice(-4)}`
+}
+
+function formatDateTime(dateStr: string | null): string {
+  if (!dateStr) return '-'
+  return new Intl.DateTimeFormat('de-AT', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(dateStr))
+}
+
+function StatusBadge({ status }: { status: BankVerbindung['status'] }) {
+  switch (status) {
+    case 'aktiv':
+      return <Badge variant="default" className="bg-teal-600 hover:bg-teal-600">Aktiv</Badge>
+    case 'sca_faellig':
+      return <Badge variant="destructive">SCA-Erneuerung notwendig</Badge>
+    case 'fehler':
+      return <Badge variant="destructive">Fehler</Badge>
+    case 'getrennt':
+      return <Badge variant="secondary">Getrennt</Badge>
+    default:
+      return null
+  }
+}
+
+export function BankverbindungKarte({
+  verbindung,
+  onSync,
+  onErneuern,
+  onTrennen,
+}: BankverbindungKarteProps) {
+  const [syncing, setSyncing] = useState(false)
+  const [erneuern, setErneuern] = useState(false)
+  const [trennen, setTrennen] = useState(false)
+  const [syncResult, setSyncResult] = useState<SyncErgebnis | null>(null)
+  const [showHistorie, setShowHistorie] = useState(false)
+
+  const isSyncDisabled = verbindung.status === 'sca_faellig' || verbindung.status === 'fehler'
+
+  async function handleSync() {
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const result = await onSync(verbindung.id)
+      setSyncResult(result)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  async function handleErneuern() {
+    setErneuern(true)
+    try {
+      await onErneuern(verbindung.id)
+    } finally {
+      setErneuern(false)
+    }
+  }
+
+  async function handleTrennen() {
+    setTrennen(true)
+    try {
+      await onTrennen(verbindung.id)
+    } finally {
+      setTrennen(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1">
+            <CardTitle className="text-base">
+              {verbindung.bank_name || 'Bankkonto'}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground font-mono">
+              {formatIBAN(verbindung.iban)}
+            </p>
+          </div>
+          <StatusBadge status={verbindung.status} />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Zahlungsquelle */}
+        {verbindung.zahlungsquellen && (
+          <div className="text-sm text-muted-foreground">
+            Zahlungsquelle: <span className="font-medium text-foreground">{verbindung.zahlungsquellen.name}</span>
+          </div>
+        )}
+
+        {/* Letzter Sync */}
+        <div className="text-sm text-muted-foreground">
+          Letzter Sync: {formatDateTime(verbindung.letzter_sync_at)}
+          {verbindung.letzter_sync_at && (
+            <span className="ml-1">
+              ({verbindung.letzter_sync_anzahl} Transaktionen)
+            </span>
+          )}
+        </div>
+
+        {/* Sync Result Alert */}
+        {syncResult && (
+          <div className="rounded-md border bg-muted/50 p-3 text-sm space-y-1">
+            <p className="font-medium">Synchronisierung abgeschlossen</p>
+            <p>{syncResult.anzahl_importiert} importiert, {syncResult.anzahl_duplikate} Duplikate</p>
+            {(syncResult.anzahl_gesperrte_monate ?? 0) > 0 && (
+              <p className="text-amber-600">{syncResult.anzahl_gesperrte_monate} in gesperrten Monaten (uebersprungen)</p>
+            )}
+            {syncResult.matching_quote > 0 && (
+              <p>Matching-Quote: {syncResult.matching_quote}%</p>
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex flex-wrap gap-2">
+          {/* Sync Button */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSync}
+                    disabled={isSyncDisabled || syncing}
+                  >
+                    {syncing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    Jetzt synchronisieren
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isSyncDisabled && (
+                <TooltipContent>
+                  {verbindung.status === 'sca_faellig'
+                    ? 'Bitte erneuere zuerst die Bankverbindung (SCA)'
+                    : 'Verbindung hat einen Fehler. Bitte erneuern.'}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* SCA Renewal Button */}
+          {(verbindung.status === 'sca_faellig' || verbindung.status === 'fehler') && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={handleErneuern}
+              disabled={erneuern}
+            >
+              {erneuern ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <ShieldAlert className="mr-2 h-4 w-4" />
+              )}
+              Verbindung erneuern
+            </Button>
+          )}
+
+          {/* Disconnect Button */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={trennen}>
+                {trennen ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+                Trennen
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Bankverbindung trennen?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Die Verbindung zu {verbindung.bank_name || 'diesem Bankkonto'} wird getrennt.
+                  Bereits importierte Transaktionen bleiben erhalten, es werden jedoch keine neuen
+                  Transaktionen mehr synchronisiert.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction onClick={handleTrennen} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Trennen
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+
+        {/* Sync Historie Toggle */}
+        {verbindung.sync_historie.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowHistorie(!showHistorie)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showHistorie ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              Sync-Historie ({verbindung.sync_historie.length})
+            </button>
+            {showHistorie && (
+              <div className="mt-2 space-y-1">
+                {verbindung.sync_historie.map((entry, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className={entry.status === 'fehler' ? 'text-destructive' : 'text-teal-600'}>
+                      {entry.status === 'fehler' ? 'Fehler' : 'Erfolg'}
+                    </span>
+                    <span>{formatDateTime(entry.sync_at)}</span>
+                    {entry.status === 'erfolg' && (
+                      <span>{entry.anzahl_importiert} importiert</span>
+                    )}
+                    {entry.fehler_meldung && (
+                      <span className="text-destructive truncate max-w-48" title={entry.fehler_meldung}>
+                        {entry.fehler_meldung}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 const settingsNav = [
   { label: 'Firma', href: '/settings/firma' },
   { label: 'Zahlungsquellen', href: '/settings/zahlungsquellen' },
+  { label: 'Bankverbindungen', href: '/settings/bankverbindungen' },
   { label: 'Benutzer', href: '/settings/benutzer' },
   { label: 'Abonnement', href: '/settings/abonnement' },
 ]
