@@ -48,7 +48,6 @@ function getConfig() {
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
-const TAG_LENGTH = 16
 
 /**
  * Derive a 32-byte key from the FINAPI_ENCRYPTION_KEY.
@@ -168,14 +167,6 @@ export async function getUserToken(finapiUserId: string, encryptedPassword: stri
 // User Management
 // ---------------------------------------------------------------------------
 
-interface FinAPIUser {
-  id: string
-  password: string
-  email: string
-  phone: string
-  isAutoUpdateEnabled: boolean
-}
-
 /**
  * Create a new FinAPI user for a mandant.
  * Returns the user ID and the raw password (caller must encrypt before storing).
@@ -241,11 +232,33 @@ interface WebFormResponse {
 }
 
 /**
+ * Appends redirect URLs as query parameters to a FinAPI WebForm URL.
+ *
+ * Per FinAPI WebForm 2.0 docs ("For Best Results"):
+ * - redirectUrl      → user redirect on successful completion (GET)
+ * - errorRedirectUrl → user redirect on unexpected error (GET)
+ * - abortRedirectUrl → user redirect when user cancels (GET)
+ *
+ * These are appended to the WebForm URL itself, NOT sent in the POST body.
+ * The POST body's callbacks.finalised is a server-to-server webhook (POST),
+ * which is a separate mechanism we don't use here.
+ */
+function appendRedirectParams(webFormUrl: string, callbackBase: string): string {
+  const url = new URL(webFormUrl)
+  url.searchParams.set('redirectUrl',      `${callbackBase}&status=COMPLETED`)
+  url.searchParams.set('errorRedirectUrl', `${callbackBase}&status=FAILED`)
+  url.searchParams.set('abortRedirectUrl', `${callbackBase}&status=ABORTED`)
+  return url.toString()
+}
+
+/**
  * Create a WebForm for importing a new bank connection.
+ * callbackBase: the base callback URL including sessionId, e.g.
+ *   https://app.example.com/api/finapi/callback?sessionId=<uuid>
  */
 export async function createBankConnectionWebForm(
   userToken: string,
-  callbackUrl: string
+  callbackBase: string
 ): Promise<{ webFormId: string; webFormUrl: string }> {
   const config = getConfig()
 
@@ -255,11 +268,7 @@ export async function createBankConnectionWebForm(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${userToken}`,
     },
-    body: JSON.stringify({
-      callbacks: {
-        finalised: callbackUrl,
-      },
-    }),
+    body: JSON.stringify({}),
   })
 
   if (!res.ok) {
@@ -268,16 +277,21 @@ export async function createBankConnectionWebForm(
   }
 
   const data: WebFormResponse = await res.json()
-  return { webFormId: data.id, webFormUrl: data.url }
+  return {
+    webFormId: data.id,
+    webFormUrl: appendRedirectParams(data.url, callbackBase),
+  }
 }
 
 /**
  * Create a WebForm for updating (SCA renewal) an existing bank connection.
+ * callbackBase: the base callback URL including sessionId, e.g.
+ *   https://app.example.com/api/finapi/callback?sessionId=<uuid>
  */
 export async function createBankConnectionUpdateWebForm(
   userToken: string,
   bankConnectionId: number,
-  callbackUrl: string
+  callbackBase: string
 ): Promise<{ webFormId: string; webFormUrl: string }> {
   const config = getConfig()
 
@@ -287,12 +301,7 @@ export async function createBankConnectionUpdateWebForm(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${userToken}`,
     },
-    body: JSON.stringify({
-      bankConnectionId,
-      callbacks: {
-        finalised: callbackUrl,
-      },
-    }),
+    body: JSON.stringify({ bankConnectionId }),
   })
 
   if (!res.ok) {
@@ -301,7 +310,10 @@ export async function createBankConnectionUpdateWebForm(
   }
 
   const data: WebFormResponse = await res.json()
-  return { webFormId: data.id, webFormUrl: data.url }
+  return {
+    webFormId: data.id,
+    webFormUrl: appendRedirectParams(data.url, callbackBase),
+  }
 }
 
 /**
