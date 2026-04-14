@@ -489,6 +489,7 @@ export async function getTransactions(
 
   while (true) {
     const params = new URLSearchParams({
+      view: 'userView',
       bankConnectionIds: bankConnectionIds.join(','),
       page: String(page),
       perPage: String(perPage),
