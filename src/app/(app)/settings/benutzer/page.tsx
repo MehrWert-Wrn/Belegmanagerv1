@@ -9,13 +9,23 @@ import { UserPlus } from 'lucide-react'
 import type { BenutzerListItem } from '@/lib/supabase/types'
 import { BenutzerTabelle } from '@/components/benutzer/benutzer-tabelle'
 import { EinladungsDialog } from '@/components/benutzer/einladungs-dialog'
+import { createClient } from '@/lib/supabase/client'
 
 export default function BenutzerSettingsPage() {
   const router = useRouter()
   const [users, setUsers] = useState<BenutzerListItem[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showInviteDialog, setShowInviteDialog] = useState(false)
+
+  // Einmalig beim Mount: aktuellen User laden
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setCurrentUserId(user.id)
+    })
+  }, [])
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -103,6 +113,7 @@ export default function BenutzerSettingsPage() {
             users={users}
             loading={loading}
             onRefresh={fetchUsers}
+            currentUserId={currentUserId}
           />
         </CardContent>
       </Card>

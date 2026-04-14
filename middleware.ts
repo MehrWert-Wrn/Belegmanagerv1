@@ -119,7 +119,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // 2. Authenticated → weg von Auth-Seiten
-  if (user && isAuthRoute) {
+  // Ausnahme: /reset-password bleibt zugänglich, da der User nach dem
+  // Code-Exchange bereits eingeloggt ist und dort erst das Passwort setzt.
+  if (user && isAuthRoute && !pathname.startsWith('/reset-password')) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

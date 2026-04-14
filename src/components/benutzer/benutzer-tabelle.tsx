@@ -19,13 +19,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MoreHorizontal, UserX, RefreshCw, Shield } from 'lucide-react'
+import { MoreHorizontal, UserX, RefreshCw, Shield, KeyRound } from 'lucide-react'
 import { RolleAendernDialog } from './rolle-aendern-dialog'
+import { PasswortAendernDialog } from './passwort-aendern-dialog'
 
 interface BenutzerTabelleProps {
   users: BenutzerListItem[]
   loading: boolean
   onRefresh: () => void
+  currentUserId?: string | null
 }
 
 function formatDate(dateStr: string | null) {
@@ -74,8 +76,9 @@ function RolleBadge({ rolle }: { rolle: string }) {
   )
 }
 
-export function BenutzerTabelle({ users, loading, onRefresh }: BenutzerTabelleProps) {
+export function BenutzerTabelle({ users, loading, onRefresh, currentUserId }: BenutzerTabelleProps) {
   const [rolleDialogUser, setRolleDialogUser] = useState<BenutzerListItem | null>(null)
+  const [showPasswortDialog, setShowPasswortDialog] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   async function handleStatusToggle(user: BenutzerListItem) {
@@ -202,6 +205,12 @@ export function BenutzerTabelle({ users, loading, onRefresh }: BenutzerTabellePr
                         Einladung erneut senden
                       </DropdownMenuItem>
                     )}
+                    {currentUserId && user.user_id === currentUserId && (
+                      <DropdownMenuItem onClick={() => setShowPasswortDialog(true)}>
+                        <KeyRound className="mr-2 h-4 w-4" />
+                        Passwort ändern
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
@@ -223,6 +232,11 @@ export function BenutzerTabelle({ users, loading, onRefresh }: BenutzerTabellePr
           }}
         />
       )}
+
+      <PasswortAendernDialog
+        open={showPasswortDialog}
+        onOpenChange={setShowPasswortDialog}
+      />
     </>
   )
 }

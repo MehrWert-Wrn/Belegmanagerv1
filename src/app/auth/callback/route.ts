@@ -37,8 +37,15 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
+      const type = searchParams.get('type')
+
+      // Password reset: send user to the reset-password page so they can set a new password
+      if (type === 'recovery') {
+        return NextResponse.redirect(`${origin}/reset-password`)
+      }
+
       // Link invited user to their mandant_users record
-      if (searchParams.get('type') === 'invite') {
+      if (type === 'invite') {
         const { data: { user: authUser } } = await supabase.auth.getUser()
         if (authUser?.email) {
           await supabase
