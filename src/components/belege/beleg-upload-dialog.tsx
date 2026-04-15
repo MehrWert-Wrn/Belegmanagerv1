@@ -460,7 +460,8 @@ export function BelegUploadDialog({
       try {
         // Check for duplicate before uploading
         const fileHash = await computeFileHash(item.file)
-        const checkRes = await fetch(`/api/belege/check-hash?hash=${fileHash}`)
+        const encodedFilename = encodeURIComponent(item.file.name)
+        const checkRes = await fetch(`/api/belege/check-hash?hash=${fileHash}&filename=${encodedFilename}`)
         if (checkRes.ok) {
           const { duplicate } = await checkRes.json()
           if (duplicate) {
@@ -618,7 +619,8 @@ export function BelegUploadDialog({
     try {
       // Compute hash and check for duplicate before storage upload
       const fileHash = await computeFileHash(file)
-      const checkRes = await fetch(`/api/belege/check-hash?hash=${fileHash}`)
+      const encodedFilename = encodeURIComponent(file.name)
+      const checkRes = await fetch(`/api/belege/check-hash?hash=${fileHash}&filename=${encodedFilename}`)
       if (checkRes.ok) {
         const { duplicate } = await checkRes.json()
         if (duplicate) {
