@@ -313,8 +313,6 @@ export function OnboardingCheckliste() {
           )}
         </div>
 
-        {/* Team section */}
-        <TeamSektion />
       </CardContent>
     </Card>
   )
@@ -458,45 +456,3 @@ function StepContent({ stepKey, isDone, updating, onToggle, onCopyWhatsApp }: St
   }
 }
 
-function TeamSektion() {
-  const [imgError, setImgError] = useState(false)
-
-  return (
-    <div className="mt-6 rounded-lg border border-teal-100 bg-white p-5">
-      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-        {!imgError ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src="/team/mehrwert-team.jpg"
-            alt="Das Team der Mehr.Wert Gruppe GmbH"
-            className="h-24 w-24 rounded-full border-2 border-teal-200 object-cover sm:h-28 sm:w-28"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div
-            className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-teal-200 bg-teal-50 text-2xl font-semibold text-teal-700 sm:h-28 sm:w-28"
-            aria-hidden="true"
-          >
-            M+
-          </div>
-        )}
-        <div className="flex flex-1 flex-col gap-3 text-center sm:text-left">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">Du bist in guten Händen</h3>
-            <p className="text-sm text-muted-foreground">
-              Unser Team kümmert sich persönlich um dein Anliegen.
-            </p>
-          </div>
-          <div>
-            <Button className="bg-teal-600 hover:bg-teal-700" asChild>
-              <a href={MEETING_URL} target="_blank" rel="noopener noreferrer">
-                <Calendar className="mr-2 h-4 w-4" />
-                Jetzt 15-Min-Meeting buchen
-              </a>
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
