@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   LogOut,
   Shield,
+  BookOpen,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -39,6 +40,7 @@ import { Button } from '@/components/ui/button'
 const adminNavItems = [
   { title: 'Mandanten', href: '/admin/mandanten', icon: Users },
   { title: 'Support-Tickets', href: '/admin/tickets', icon: TicketIcon },
+  { title: 'Hilfe-Artikel verwalten', href: '/admin/help', icon: BookOpen },
 ]
 
 interface AdminSidebarProps {

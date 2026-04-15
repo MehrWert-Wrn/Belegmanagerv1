@@ -10,6 +10,7 @@ import {
   CalendarCheck,
   Settings,
   LogOut,
+  HelpCircle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { TrialBanner } from '@/components/billing/trial-banner'
@@ -45,6 +46,7 @@ const navItems = [
   { title: 'Kassabuch', href: '/kassabuch', icon: BookOpen },
   { title: 'Monatsabschluss', href: '/monatsabschluss', icon: CalendarCheck },
   { title: 'Einstellungen', href: '/settings/firma', icon: Settings },
+  { title: 'Hilfe-Center', href: '/help', icon: HelpCircle },
 ]
 
 interface AppSidebarProps {

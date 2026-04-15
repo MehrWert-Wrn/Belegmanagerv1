@@ -41,6 +41,9 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 | P2 | Reisekostenabrechnung | Eigenes Modul – bewusst aus MVP ausgelagert | Planned |
 | P1 | Admin Panel | Mandanten-Impersonation, manuelle Abo-Override, Support-Ticket-System mit E-Mail-Benachrichtigungen | Planned |
 | P1 | FinAPI-Integration | Automatischer Kontoauszug-Import via PSD2-API (FinAPI Access + WebForm 2.0), parallel zum CSV-Upload | Planned |
+| P1 | Onboarding-Checkliste am Dashboard | Temporäre Checkliste nach Erstanmeldung mit Fortschrittsbalken, Onboarding-Schritten und Team-Sektion | Planned |
+| P1 | Hilfe-Center | Themen-basierte Wissensdatenbank unter /help, Admin-Content-Management mit Text & Videos, Sidebar-Verlinkung | Planned |
+| P1 | KI-Chatbot | Eingebetteter Chat-Assistent rechts unten, RAG-basiert auf Hilfe-Center-Inhalten, Support-Ticket-Weiterleitung | Planned |
 
 > Details zu jeder Feature (User Stories, Acceptance Criteria, Edge Cases, Tech Design) → `features/`
 
