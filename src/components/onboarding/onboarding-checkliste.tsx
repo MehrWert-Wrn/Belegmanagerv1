@@ -350,13 +350,14 @@ function StepContent({ stepKey, isDone, updating, onToggle, onCopyWhatsApp }: St
       return (
         <div className="space-y-2 text-sm text-muted-foreground">
           <p>
-            <strong className="text-foreground">Empfehlung:</strong> Eine reine
-            Rechnungs-Mailadresse, an die alle Belege einlangen.
-          </p>
-          <p>
             Richte idealerweise eine eigene E-Mail-Adresse (z.B.{' '}
             <code className="rounded bg-muted px-1.5 py-0.5 text-xs">belege@deinefirma.at</code>)
             ein, die ausschließlich für Rechnungen und Belege verwendet wird.
+          </p>
+          <p>
+            Das ist ein Vorschlag, deinen Prozess zu optimieren, aber kein Muss!
+            Der Belegmanager läuft auch mit deiner persönlichen Mailadresse oder
+            einer Office-Mailadresse.
           </p>
           {markAsDone}
         </div>
@@ -368,24 +369,28 @@ function StepContent({ stepKey, isDone, updating, onToggle, onCopyWhatsApp }: St
           <p>Klicke auf deinen E-Mail-Anbieter für eine Schritt-für-Schritt-Anleitung:</p>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
-              <Link href="/help/erste-schritte/e-mail-postfach-microsoft-365">
+              <Link href="/help/erste-schritte/email-microsoft-365">
                 Microsoft 365
                 <ExternalLink className="ml-1.5 h-3 w-3" />
               </Link>
             </Button>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/help/erste-schritte/e-mail-postfach-gmail">
+              <Link href="/help/erste-schritte/email-gmail">
                 Gmail
                 <ExternalLink className="ml-1.5 h-3 w-3" />
               </Link>
             </Button>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/help/erste-schritte/e-mail-postfach-imap">
+              <Link href="/help/erste-schritte/email-imap">
                 IMAP
                 <ExternalLink className="ml-1.5 h-3 w-3" />
               </Link>
             </Button>
           </div>
+          <p>
+            Falls du dir nicht sicher bist, wie die Postfach-Anbindung funktioniert,
+            wende dich gerne an deinen IT-Dienstleister – er kann dir dabei helfen.
+          </p>
           {markAsDone}
         </div>
       )
