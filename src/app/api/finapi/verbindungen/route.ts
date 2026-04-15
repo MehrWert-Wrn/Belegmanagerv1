@@ -196,9 +196,24 @@ export async function POST(request: Request) {
         .eq('mandant_id', mandantId)
         .eq('finapi_user_id', finapiUserId)
         .limit(1)
-        .single()
+        .maybeSingle()
 
       encryptedPassword = existingConn?.finapi_user_password_encrypted ?? null
+
+      // Fallback: if no connection exists yet (e.g. previous webform was aborted before callback),
+      // look up the password from the most recent webform session
+      if (!encryptedPassword) {
+        const { data: lastSession } = await supabase
+          .from('finapi_webform_sessions')
+          .select('finapi_user_password_encrypted')
+          .eq('mandant_id', mandantId)
+          .eq('finapi_user_id', finapiUserId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        encryptedPassword = lastSession?.finapi_user_password_encrypted ?? null
+      }
     }
 
     if (!encryptedPassword) {
