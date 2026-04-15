@@ -90,5 +90,17 @@ export async function POST(request: Request) {
     // Non-fatal: don't block onboarding
   }
 
+  // PROJ-21: Create the onboarding progress row (opt-in mechanism).
+  // Only new mandanten (via this POST) get a row -> existing mandanten will not see the checklist.
+  const { error: progressError } = await supabase
+    .from('onboarding_progress')
+    .insert({ mandant_id: mandant.id })
+
+  if (progressError && progressError.code !== '23505') {
+    // 23505 = unique_violation -> Eintrag existiert bereits (z.B. Re-Submit), das ist OK
+    console.error('Failed to create onboarding_progress row:', progressError.message)
+    // Non-fatal: mandant is created, checklist just won't be shown
+  }
+
   return NextResponse.json({ mandant_id: mandant.id })
 }

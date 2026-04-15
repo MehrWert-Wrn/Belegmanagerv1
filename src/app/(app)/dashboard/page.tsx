@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { TicketsUebersicht } from '@/components/support/tickets-uebersicht'
+import { OnboardingCheckliste } from '@/components/onboarding/onboarding-checkliste'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -16,6 +17,8 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground">Eingeloggt als {user.email}</p>
       </div>
+
+      <OnboardingCheckliste />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
         <TicketsUebersicht />
