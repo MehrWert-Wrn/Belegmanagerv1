@@ -1,6 +1,6 @@
 # PROJ-21: Onboarding-Checkliste am Dashboard
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-04-14
 **Last Updated:** 2026-04-15
 
@@ -239,4 +239,14 @@ Neue Datei: `supabase/migrations/20260415000000_onboarding_progress.sql`
 _To be added by /qa_
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-15
+**Production URL:** https://belegmanagerv1.vercel.app/dashboard
+**Git Tag:** v1.21.0-PROJ-21
+**Migration:** 20260415000000_onboarding_progress (applied to Supabase)
+
+### Changes Deployed
+- `supabase/migrations/20260415000000_onboarding_progress.sql` – Tabelle `onboarding_progress` + RLS + Trigger
+- `src/app/api/onboarding/progress/route.ts` – GET + PATCH Endpoints
+- `src/components/onboarding/onboarding-checkliste.tsx` – Client Component mit 5 Steps + Team-Sektion
+- `src/app/(app)/dashboard/page.tsx` – Integration der Checkliste

@@ -2,7 +2,7 @@
 
 ## Status: Deployed
 **Created:** 2026-04-14
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-04-15
 
 ### Backend Implementation Notes (2026-04-14)
 - Database migration created: `20260414100000_finapi_integration.sql`
@@ -551,3 +551,7 @@ All 8 bugs fixed. Build passes without errors.
 - `FINAPI_CLIENT_ID` – Sandbox Client ID
 - `FINAPI_CLIENT_SECRET` – Sandbox Client Secret
 - `FINAPI_ENCRYPTION_KEY` – 64-Zeichen Hex-Key (AES-256, via `openssl rand -hex 32`)
+
+### Bug Fix Deployed (2026-04-15)
+- **Tag:** v1.20.1-PROJ-20-bugfix
+- **Fix:** `src/app/api/finapi/verbindungen/route.ts` – Fallback auf `finapi_webform_sessions` wenn `finapi_verbindungen` noch leer (WebForm zuvor abgebrochen). `.single()` → `.maybeSingle()` um PostgREST-Fehler zu vermeiden.

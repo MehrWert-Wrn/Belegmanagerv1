@@ -35,7 +35,7 @@
 | PROJ-18 | Mobile App – Belegerfassung (iOS & Android) | Planned | [PROJ-18-mobile-app-belegerfassung.md](PROJ-18-mobile-app-belegerfassung.md) | 2026-04-07 |
 | PROJ-19 | Admin Panel | Deployed | [PROJ-19-admin-panel.md](PROJ-19-admin-panel.md) | 2026-04-09 |
 | PROJ-20 | FinAPI-Integration – Automatischer Kontoauszug-Import | Deployed | [PROJ-20-finapi-integration.md](PROJ-20-finapi-integration.md) | 2026-04-14 |
-| PROJ-21 | Onboarding-Checkliste am Dashboard | In Review | [PROJ-21-onboarding-checkliste.md](PROJ-21-onboarding-checkliste.md) | 2026-04-14 |
+| PROJ-21 | Onboarding-Checkliste am Dashboard | Deployed | [PROJ-21-onboarding-checkliste.md](PROJ-21-onboarding-checkliste.md) | 2026-04-14 |
 | PROJ-22 | Hilfe-Center | In Progress | [PROJ-22-hilfe-center.md](PROJ-22-hilfe-center.md) | 2026-04-14 |
 | PROJ-23 | KI-Chatbot | Planned | [PROJ-23-ki-chatbot.md](PROJ-23-ki-chatbot.md) | 2026-04-14 |
 
