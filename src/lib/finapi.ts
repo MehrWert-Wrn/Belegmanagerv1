@@ -450,9 +450,6 @@ export async function updateBankConnection(
     body: JSON.stringify({
       bankConnectionId,
       bankingInterface,
-      importNewAccounts: true,
-      skipPositionsDownload: false,
-      maxDaysForDownload: 90,
     }),
   })
 
