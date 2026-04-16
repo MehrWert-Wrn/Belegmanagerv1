@@ -86,18 +86,38 @@ export async function POST(
       verbindung.finapi_user_password_encrypted
     )
 
-    // Step 1b: Trigger bank connection update to fetch fresh data from the bank.
-    // FinAPI WebForm creates the connection but doesn't automatically pull transaction data.
-    // The update endpoint requires the bankingInterface used for this connection (e.g. XS2A).
+    // Step 1b: Trigger bank connection update to fetch fresh data from the bank,
+    // then poll until the update is complete (max 30s) before fetching transactions.
+    // maxDaysForDownload=90 ensures historical transactions are included.
     try {
       const conn = await getBankConnection(userToken, verbindung.finapi_bank_connection_id)
-      console.log(`[PROJ-20] Bank connection raw:`, JSON.stringify(conn))
-      const bankingInterface = conn?.interfaces?.[0]?.interface
-        ?? (conn?.interfaces?.[0] as Record<string, unknown>)?.['bankingInterface'] as string | undefined
-      console.log(`[PROJ-20] Resolved bankingInterface:`, bankingInterface)
+      const bankingInterface = conn?.interfaces?.[0]?.bankingInterface
 
       if (bankingInterface) {
-        await updateBankConnection(userToken, verbindung.finapi_bank_connection_id, bankingInterface)
+        const triggered = await updateBankConnection(
+          userToken,
+          verbindung.finapi_bank_connection_id,
+          bankingInterface
+        )
+
+        if (triggered) {
+          // Poll until updateStatus === 'READY' (max 30s, every 3s)
+          for (let attempt = 0; attempt < 10; attempt++) {
+            await new Promise(r => setTimeout(r, 3000))
+            const updated = await getBankConnection(userToken, verbindung.finapi_bank_connection_id)
+            console.log(`[PROJ-20] Poll ${attempt + 1}: updateStatus=${updated?.updateStatus}`)
+            if (updated?.updateStatus === 'READY') break
+          }
+        }
+        // If 422 (already in progress): also poll until ready
+        else {
+          for (let attempt = 0; attempt < 10; attempt++) {
+            await new Promise(r => setTimeout(r, 3000))
+            const updated = await getBankConnection(userToken, verbindung.finapi_bank_connection_id)
+            console.log(`[PROJ-20] Poll ${attempt + 1} (in-progress): updateStatus=${updated?.updateStatus}`)
+            if (updated?.updateStatus === 'READY') break
+          }
+        }
       } else {
         console.warn('[PROJ-20] No bankingInterface found on connection, skipping update')
       }

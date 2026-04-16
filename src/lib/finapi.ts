@@ -352,12 +352,12 @@ interface BankConnection {
   bankingCustomerId: string | null
   bankingPin: string | null
   type: string
-  updateStatus: string
+  updateStatus: string  // 'READY' | 'IN_PROGRESS' | 'BANK_SERVER_ERROR' etc.
   categorizationStatus: string
   lastSuccessfulUpdate: string | null
   accountIds: number[]
   interfaces: Array<{
-    interface: string
+    bankingInterface: string  // 'XS2A' | 'FINTS_SERVER' | 'WEB_SCRAPER'
     status: string
     capabilities: string[]
     lastSuccessfulCommunication: string | null
@@ -452,6 +452,7 @@ export async function updateBankConnection(
       bankingInterface,
       importNewAccounts: true,
       skipPositionsDownload: false,
+      maxDaysForDownload: 90,
     }),
   })
 
