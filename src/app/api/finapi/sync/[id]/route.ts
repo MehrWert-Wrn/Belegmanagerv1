@@ -91,8 +91,10 @@ export async function POST(
     // The update endpoint requires the bankingInterface used for this connection (e.g. XS2A).
     try {
       const conn = await getBankConnection(userToken, verbindung.finapi_bank_connection_id)
+      console.log(`[PROJ-20] Bank connection raw:`, JSON.stringify(conn))
       const bankingInterface = conn?.interfaces?.[0]?.interface
-      console.log(`[PROJ-20] Bank connection interfaces:`, JSON.stringify(conn?.interfaces?.map(i => i.interface)))
+        ?? (conn?.interfaces?.[0] as Record<string, unknown>)?.['bankingInterface'] as string | undefined
+      console.log(`[PROJ-20] Resolved bankingInterface:`, bankingInterface)
 
       if (bankingInterface) {
         await updateBankConnection(userToken, verbindung.finapi_bank_connection_id, bankingInterface)
