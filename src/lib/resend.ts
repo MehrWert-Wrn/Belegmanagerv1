@@ -108,6 +108,73 @@ export async function sendTicketStatusEmail(params: {
   }
 }
 
+/**
+ * Send notification to office when a mandant submits email credentials (PROJ-24).
+ * Does NOT include any credential values – only metadata.
+ */
+export async function sendCredentialNotificationEmail(params: {
+  firmenname: string
+  provider: string
+  submittedAt: string
+}): Promise<void> {
+  const { firmenname, provider, submittedAt } = params
+
+  const providerLabels: Record<string, string> = {
+    imap: 'IMAP',
+    microsoft365: 'Microsoft 365',
+    gmail: 'Gmail',
+  }
+  const providerLabel = providerLabels[provider] || provider
+
+  const formattedDate = new Date(submittedAt).toLocaleString('de-AT', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Europe/Vienna',
+  })
+
+  try {
+    const resend = getResend()
+    await resend.emails.send({
+      from: SENDER,
+      to: 'office@online-mehrwert.at',
+      subject: `[Belegmanager] Neue Zugangsdaten von ${firmenname}`,
+      html: `
+        <div style="font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #0d9488;">Neue E-Mail-Zugangsdaten eingegangen</h2>
+          <table style="border-collapse: collapse; margin: 16px 0;">
+            <tr>
+              <td style="padding: 8px 16px 8px 0; color: #6b7280;">Firma:</td>
+              <td style="padding: 8px 0; color: #374151; font-weight: 600;">${escapeHtml(firmenname)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 16px 8px 0; color: #6b7280;">Anbieter:</td>
+              <td style="padding: 8px 0; color: #374151; font-weight: 600;">${escapeHtml(providerLabel)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 16px 8px 0; color: #6b7280;">Zeitpunkt:</td>
+              <td style="padding: 8px 0; color: #374151;">${escapeHtml(formattedDate)}</td>
+            </tr>
+          </table>
+          <p style="color: #374151;">
+            Bitte im Admin-Panel die Zugangsdaten einsehen und die E-Mail-Anbindung einrichten.
+          </p>
+          <p>
+            <a href="${getSiteUrl()}/admin" style="display: inline-block; background: #0d9488; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">
+              Zum Admin-Panel
+            </a>
+          </p>
+          <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
+            Belegmanager - Buchhaltungsvorbereitung fuer oesterreichische KMUs
+          </p>
+        </div>
+      `,
+    })
+  } catch (error) {
+    console.error('[Resend] Failed to send credential notification email:', error)
+    // Do not throw - email failure should not block the submission
+  }
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

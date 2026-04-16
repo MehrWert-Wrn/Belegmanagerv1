@@ -1,8 +1,21 @@
 # PROJ-24: Sichere Zugangsdaten-Übermittlung für E-Mail-Anbindung
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-04-16
 **Last Updated:** 2026-04-16
+
+### Implementation Notes (Backend)
+- Migration: `supabase/migrations/20260416000000_mandant_credentials.sql`
+- pgcrypto extension + `encrypt_credential_payload` / `decrypt_credential_payload` RPC functions (SECURITY DEFINER, revoked from PUBLIC)
+- RLS: SELECT own rows, INSERT own (with duplicate check), no UPDATE/DELETE for mandants
+- API Routes:
+  - `POST /api/onboarding/credentials` – Zod-validated, encrypts via RPC, updates onboarding_progress, sends Resend notification
+  - `GET /api/onboarding/credentials` – returns status only (no payload)
+  - `GET /api/admin/credentials` – Super-Admin, decrypts all submissions
+  - `PATCH /api/admin/credentials/[id]` – Super-Admin, sets acknowledged_at
+  - `DELETE /api/admin/credentials/[id]` – Super-Admin, hard delete (only if acknowledged)
+- Email notification via existing Resend integration (`sendCredentialNotificationEmail` in `src/lib/resend.ts`)
+- New env var: `CREDENTIALS_ENCRYPTION_KEY` (documented in `.env.local.example`)
 
 ---
 
@@ -58,12 +71,12 @@ Mandanten müssen ihre E-Mail-Zugangsdaten (Microsoft 365, Gmail oder IMAP) sich
   - **Gmail:** E-Mail-Adresse des Google-Kontos, Client ID, Client Secret
 - [ ] Alle Pflichtfelder werden clientseitig validiert (kein leeres Submit)
 - [ ] Passwort-Felder sind vom Typ `password` (nicht sichtbar)
+- [ ] **Sicherheits-Badge prominent sichtbar** im Formular (vor dem Submit-Button): Lock-Icon + "AES-256-verschlüsselt · Nach Einrichtung gelöscht · DSGVO-konform" – teal-farbig, gut lesbar
 - [ ] Nach Absenden: Schritt 2 (`email_connection_done`) in `onboarding_progress` wird automatisch auf `true` gesetzt
-- [ ] Nach Absenden: Formular verschwindet, Status-Badge "Zugangsdaten übermittelt" wird angezeigt
-- [ ] Status-Badge zeigt an: "Wir richten deine Anbindung ein – du wirst benachrichtigt, sobald sie aktiv ist."
-- [ ] Hinweis vor dem Absenden: "Deine Zugangsdaten werden verschlüsselt übertragen und nach der Einrichtung gelöscht."
+- [ ] Nach Absenden: Formular verschwindet, Status-Banner "Zugangsdaten übermittelt" wird angezeigt
+- [ ] Status-Banner enthält: Checkmark-Icon + "Deine Zugangsdaten wurden sicher übermittelt. Wir richten deine E-Mail-Anbindung ein und löschen die Daten danach."
 - [ ] Ist bereits eine Submission vorhanden (acknowledged_at IS NULL): Status anzeigen, kein erneutes Absenden möglich
-- [ ] Ist acknowledged_at gesetzt: "Deine E-Mail-Anbindung ist aktiv." anzeigen
+- [ ] Ist acknowledged_at gesetzt: Grünes Banner "Deine E-Mail-Anbindung ist aktiv." anzeigen
 
 ### Datenspeicherung & Sicherheit
 
@@ -73,6 +86,15 @@ Mandanten müssen ihre E-Mail-Zugangsdaten (Microsoft 365, Gmail oder IMAP) sich
 - [ ] Kein Klartext-Logging der Credential-Werte in Vercel Logs oder Supabase Logs
 - [ ] RLS: Mandant kann nur eine eigene Row pro Provider lesen (nur `submitted_at` und `acknowledged_at`, nicht `payload_encrypted`)
 - [ ] `payload_encrypted` ist über RLS für Mandanten nicht lesbar – nur über Service Role Key (serverseitig)
+
+### E-Mail-Benachrichtigung
+
+- [ ] Nach erfolgreichem Absenden wird automatisch eine Benachrichtigungs-E-Mail an `office@online-mehrwert.at` gesendet
+- [ ] Betreff: `[Belegmanager] Neue Zugangsdaten von [Firmenname]`
+- [ ] Inhalt: Firmenname des Mandanten, gewählter Provider (IMAP / Microsoft 365 / Gmail), Zeitstempel der Übermittlung
+- [ ] **Kein Credential-Inhalt** in der E-Mail – nur die Benachrichtigung dass neue Daten vorliegen
+- [ ] E-Mail-Versand über Supabase SMTP (bestehende Konfiguration) oder Resend API
+- [ ] Bei E-Mail-Fehler: Submission trotzdem erfolgreich (kein Rollback) – Fehler wird geloggt
 
 ### Admin-Panel
 
