@@ -490,12 +490,14 @@ export async function getTransactions(
   while (true) {
     const params = new URLSearchParams({
       view: 'userView',
-      bankConnectionIds: bankConnectionIds.join(','),
       page: String(page),
       perPage: String(perPage),
-      order: 'bankBookingDate,asc',
-      direction: 'all',
     })
+
+    // bankConnectionIds: repeated params (e.g. ?bankConnectionIds=1&bankConnectionIds=2)
+    for (const id of bankConnectionIds) {
+      params.append('bankConnectionIds', String(id))
+    }
 
     if (minDate) params.set('minBankBookingDate', minDate)
     if (maxDate) params.set('maxBankBookingDate', maxDate)
@@ -504,6 +506,7 @@ export async function getTransactions(
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${userToken}`,
+        'Content-Type': 'application/json',
       },
     })
 
@@ -512,10 +515,16 @@ export async function getTransactions(
       throw new Error(`FinAPI get transactions failed (${res.status}): ${text}`)
     }
 
-    const data: TransactionPage = await res.json()
-    allTransactions.push(...data.transactions)
+    const raw = await res.json()
+    console.log('[PROJ-20] FinAPI transactions raw response keys:', Object.keys(raw), 'paging:', JSON.stringify(raw.paging))
 
-    if (page >= data.paging.pageCount) break
+    // FinAPI v2 response: { transactions: [...], paging: { ... } }
+    const transactions: FinAPITransaction[] = raw.transactions ?? raw.items ?? []
+    const paging = raw.paging ?? { page: 1, pageCount: 1, totalCount: transactions.length }
+
+    allTransactions.push(...transactions)
+
+    if (page >= paging.pageCount || transactions.length === 0) break
     page++
   }
 

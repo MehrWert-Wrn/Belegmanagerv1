@@ -105,6 +105,8 @@ export async function POST(
       minDate
     )
 
+    console.log(`[PROJ-20] Sync debug: bankConnectionId=${verbindung.finapi_bank_connection_id}, minDate=${minDate}, finapiTransactions.length=${finapiTransactions.length}`, finapiTransactions.length > 0 ? JSON.stringify(finapiTransactions[0]) : '(empty)')
+
     if (finapiTransactions.length === 0) {
       // Update sync timestamp even if no new transactions
       await supabase
