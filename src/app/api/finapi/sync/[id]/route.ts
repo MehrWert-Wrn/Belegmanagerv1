@@ -9,6 +9,7 @@ import { executeMatching } from '@/lib/execute-matching'
 import { NextResponse } from 'next/server'
 import {
   getUserToken,
+  getBankConnection,
   updateBankConnection,
   getTransactions,
   normalizeTransaction,
@@ -86,10 +87,18 @@ export async function POST(
     )
 
     // Step 1b: Trigger bank connection update to fetch fresh data from the bank.
-    // FinAPI WebForm creates the connection but requires a separate update to
-    // actually pull transaction data. Errors here are non-fatal (we still try to read).
+    // FinAPI WebForm creates the connection but doesn't automatically pull transaction data.
+    // The update endpoint requires the bankingInterface used for this connection (e.g. XS2A).
     try {
-      await updateBankConnection(userToken, verbindung.finapi_bank_connection_id)
+      const conn = await getBankConnection(userToken, verbindung.finapi_bank_connection_id)
+      const bankingInterface = conn?.interfaces?.[0]?.interface
+      console.log(`[PROJ-20] Bank connection interfaces:`, JSON.stringify(conn?.interfaces?.map(i => i.interface)))
+
+      if (bankingInterface) {
+        await updateBankConnection(userToken, verbindung.finapi_bank_connection_id, bankingInterface)
+      } else {
+        console.warn('[PROJ-20] No bankingInterface found on connection, skipping update')
+      }
     } catch (updateErr) {
       console.warn('[PROJ-20] Bank update warning (non-fatal):', updateErr instanceof Error ? updateErr.message : updateErr)
     }

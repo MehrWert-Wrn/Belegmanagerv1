@@ -427,13 +427,17 @@ export async function getAccounts(userToken: string, bankConnectionId: number): 
 /**
  * Trigger a bank connection update (fetches fresh transaction data from the bank).
  * FinAPI creates the connection via WebForm but requires a separate update call
- * to actually pull transaction data. This is a fire-and-wait operation.
+ * to actually pull transaction data.
+ *
+ * bankingInterface is required by FinAPI (e.g. 'XS2A', 'FINTS_SERVER', 'WEB_SCRAPER').
+ * We read it from the existing bank connection's interfaces array.
  *
  * Returns true on success, false if update is already in progress (safe to continue).
  */
 export async function updateBankConnection(
   userToken: string,
-  bankConnectionId: number
+  bankConnectionId: number,
+  bankingInterface: string
 ): Promise<boolean> {
   const config = getConfig()
 
@@ -445,6 +449,7 @@ export async function updateBankConnection(
     },
     body: JSON.stringify({
       bankConnectionId,
+      bankingInterface,
       importNewAccounts: true,
       skipPositionsDownload: false,
     }),
@@ -462,6 +467,24 @@ export async function updateBankConnection(
   }
 
   return true
+}
+
+/**
+ * Get a single bank connection by ID to read its interface type.
+ */
+export async function getBankConnection(
+  userToken: string,
+  bankConnectionId: number
+): Promise<BankConnection | null> {
+  const config = getConfig()
+
+  const res = await fetch(`${config.baseUrl}/api/v2/bankConnections/${bankConnectionId}`, {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${userToken}` },
+  })
+
+  if (!res.ok) return null
+  return await res.json()
 }
 
 /**
