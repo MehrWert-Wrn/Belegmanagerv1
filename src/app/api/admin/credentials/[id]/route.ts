@@ -1,22 +1,41 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyAdmin, logAdminAction } from '@/lib/admin-context'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-// PATCH /api/admin/credentials/[id] – Mark as acknowledged (eingerichtet)
+// BUG-4: Simple UUID v4 format check
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isValidUuid(value: string): boolean {
+  return UUID_REGEX.test(value)
+}
+
+// PATCH /api/admin/credentials/[id] – Mark as acknowledged
 export async function PATCH(request: Request, { params }: RouteParams) {
   const adminUser = await verifyAdmin()
   if (!adminUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // BUG-3: Rate limiting
+  const rl = checkRateLimit(`admin:credentials:patch:${adminUser.adminId}`, 30, 60 * 1000)
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Zu viele Anfragen.' }, { status: 429 })
+  }
+
   const { id } = await params
+
+  // BUG-4: UUID validation
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Ungültige ID' }, { status: 400 })
+  }
+
   const admin = createAdminClient()
 
-  // Check credential exists
   const { data: credential, error: fetchError } = await admin
     .from('mandant_credentials')
     .select('id, mandant_id, provider, acknowledged_at')
@@ -28,13 +47,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   if (credential.acknowledged_at) {
-    return NextResponse.json(
-      { error: 'Bereits als eingerichtet markiert' },
-      { status: 409 }
-    )
+    return NextResponse.json({ error: 'Bereits als eingerichtet markiert' }, { status: 409 })
   }
 
-  // Set acknowledged_at
   const { error: updateError } = await admin
     .from('mandant_credentials')
     .update({ acknowledged_at: new Date().toISOString() })
@@ -42,10 +57,10 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
   if (updateError) {
     console.error('[Admin Credentials] Acknowledge failed:', updateError.message)
-    return NextResponse.json({ error: updateError.message }, { status: 500 })
+    // BUG-8: Generic error to client
+    return NextResponse.json({ error: 'Aktualisierung fehlgeschlagen' }, { status: 500 })
   }
 
-  // Audit log
   await logAdminAction(
     adminUser.adminId,
     'credentials_acknowledged',
@@ -63,10 +78,21 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // BUG-3: Rate limiting
+  const rl = checkRateLimit(`admin:credentials:delete:${adminUser.adminId}`, 20, 60 * 1000)
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Zu viele Anfragen.' }, { status: 429 })
+  }
+
   const { id } = await params
+
+  // BUG-4: UUID validation
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Ungültige ID' }, { status: 400 })
+  }
+
   const admin = createAdminClient()
 
-  // Check credential exists and is acknowledged
   const { data: credential, error: fetchError } = await admin
     .from('mandant_credentials')
     .select('id, mandant_id, provider, acknowledged_at')
@@ -79,12 +105,11 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
   if (!credential.acknowledged_at) {
     return NextResponse.json(
-      { error: 'Credentials koennen erst nach Bestätigung der Einrichtung geloescht werden.' },
+      { error: 'Credentials können erst nach Bestätigung der Einrichtung gelöscht werden.' },
       { status: 409 }
     )
   }
 
-  // Hard delete
   const { error: deleteError } = await admin
     .from('mandant_credentials')
     .delete()
@@ -92,10 +117,10 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
   if (deleteError) {
     console.error('[Admin Credentials] Delete failed:', deleteError.message)
-    return NextResponse.json({ error: deleteError.message }, { status: 500 })
+    // BUG-8: Generic error to client
+    return NextResponse.json({ error: 'Löschen fehlgeschlagen' }, { status: 500 })
   }
 
-  // Audit log
   await logAdminAction(
     adminUser.adminId,
     'credentials_deleted',

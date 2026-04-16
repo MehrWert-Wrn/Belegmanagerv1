@@ -1,8 +1,16 @@
 # PROJ-24: Sichere Zugangsdaten-Übermittlung für E-Mail-Anbindung
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-04-16
 **Last Updated:** 2026-04-16
+
+### Implementation Notes (Frontend)
+- `src/components/onboarding/credential-form.tsx` – Provider-aware credential submission form (IMAP/Microsoft 365/Gmail), integrated into onboarding checklist Step 2
+- `src/components/admin/credentials-tabelle.tsx` – Admin table with decrypted detail view, acknowledge + delete actions
+- `src/app/admin/credentials/page.tsx` – Admin credentials management page
+- Admin sidebar updated with "Zugangsdaten" nav item (KeyRound icon)
+- Onboarding checklist refreshes progress after credential submission (auto-marks Step 2 done)
+- States: loading, error, empty, submitted (pending), acknowledged (active)
 
 ### Implementation Notes (Backend)
 - Migration: `supabase/migrations/20260416000000_mandant_credentials.sql`
@@ -98,7 +106,7 @@ Mandanten müssen ihre E-Mail-Zugangsdaten (Microsoft 365, Gmail oder IMAP) sich
 
 ### Admin-Panel
 
-- [ ] Admin-Übersichtsseite zeigt Badge "X neue Zugangsdaten" wenn `acknowledged_at IS NULL AND deleted_at IS NULL`
+- [ ] Admin-Übersichtsseite zeigt Badge "X neue Zugangsdaten" wenn `acknowledged_at IS NULL`
 - [ ] Detailansicht: Provider, Mandant, Submission-Datum, entschlüsselte Felder strukturiert angezeigt
 - [ ] Button "Als eingerichtet markieren" → setzt `acknowledged_at = now()`
 - [ ] Button "Credentials löschen" → hard delete der Row (kein soft delete)
@@ -119,7 +127,7 @@ Mandanten müssen ihre E-Mail-Zugangsdaten (Microsoft 365, Gmail oder IMAP) sich
 | `payload_encrypted` | `text` | AES-256-verschlüsselter JSON-Blob der Credentials |
 | `submitted_at` | `timestamptz` | Zeitpunkt des Absendens |
 | `acknowledged_at` | `timestamptz` (nullable) | Zeitpunkt der Bestätigung durch Admin |
-| `deleted_at` | `timestamptz` (nullable) | Zeitpunkt der Löschmarkierung (wird direkt hard-deleted) |
+| *(kein deleted_at)* | — | Hard delete, kein Soft delete — keine Spalte nötig |
 
 **UNIQUE Constraint:** `(mandant_id, provider)` – pro Mandant und Provider nur eine aktive Submission
 
@@ -193,3 +201,163 @@ Schritt 2: E-Mail-Postfach anbinden
 
 [Als erledigt markieren ✓]
 ```
+
+---
+
+## QA Test Results
+
+### Round 2 (2026-04-16) -- Code Review + Static Analysis
+
+**Tested:** 2026-04-16
+**App URL:** http://localhost:3000
+**Tester:** QA Engineer (AI) -- Code Review + Static Analysis (Round 2)
+
+#### Acceptance Criteria Status
+
+##### AC-1: Mandant-Formular (Schritt 2 Onboarding-Checkliste)
+
+- [x] PASS: Formular zur Provider-Auswahl (Microsoft 365 / Gmail / IMAP) vorhanden in `credential-form.tsx`, integriert in onboarding-checkliste.tsx Schritt 2
+- [x] PASS: Nach Auswahl eines Providers werden nur die relevanten Felder angezeigt (IMAP: Host, Port, SSL, E-Mail, Passwort; MS365: Tenant ID, Client ID, Client Secret; Gmail: E-Mail, Client ID, Client Secret) -- conditional rendering per provider value
+- [x] PASS: Alle Pflichtfelder werden clientseitig validiert (required-Attribute + JS-Check vor Submit, z.B. `if (!imapHost || !imapEmail || !imapPassword)`)
+- [x] PASS: Passwort-Felder sind vom Typ `password` (IMAP Passwort, MS365 Client Secret, Gmail Client Secret) -- verified `type="password"` on all 3
+- [x] PASS: Sicherheits-Badge sichtbar im Formular: Lock-Icon + "AES-256-verschluesselt / Nach Einrichtung geloescht / DSGVO-konform" in teal-Farbe (border-teal-200 bg-teal-50/60 text-teal-800)
+- [x] PASS: Nach Absenden: `email_connection_done` in `onboarding_progress` wird auf `true` gesetzt (via admin client in POST route, line 122-126)
+- [x] PASS: Nach Absenden: Status-Banner "Zugangsdaten uebermittelt" wird angezeigt (via fetchStatus refresh + onSubmitted callback)
+- [x] PASS: Status-Banner enthaelt CheckCircle2-Icon + korrekte Nachricht ("Deine Zugangsdaten ... wurden sicher uebermittelt. Wir richten deine E-Mail-Anbindung ein und loeschen die Daten danach.")
+- [x] PASS: Ist bereits eine Submission vorhanden (acknowledged_at IS NULL): Status anzeigen, kein erneutes Absenden moeglich (409 Conflict from API + status banner in UI)
+- [x] PASS: Ist acknowledged_at gesetzt: Gruenes Banner "Deine E-Mail-Anbindung ist aktiv." angezeigt (allAcknowledged branch, line 173-188)
+
+##### AC-2: Datenspeicherung und Sicherheit
+
+- [x] PASS: Credentials werden ausschliesslich serverseitig (API Route) entgegengenommen -- POST handler in route.ts, no encryption in frontend
+- [x] PASS: Speicherung erfolgt AES-256-verschluesselt via pgcrypto (pgp_sym_encrypt) mit CREDENTIALS_ENCRYPTION_KEY -- RPC call on line 96-99
+- [x] PASS: Encryption Key existiert nur als Server-seitiges Environment-Variable, nicht im Frontend-Bundle (kein NEXT_PUBLIC_ prefix) -- documented in .env.local.example
+- [ ] FAIL: payload_encrypted ueber RLS fuer Mandanten nicht lesbar -- NICHT ERFUELLT (siehe BUG-1)
+- [ ] FAIL: Kein Klartext-Logging-Schutz verifizierbar (siehe BUG-2)
+
+##### AC-3: E-Mail-Benachrichtigung
+
+- [x] PASS: Nach erfolgreichem Absenden wird automatisch eine Benachrichtigungs-E-Mail an office@online-mehrwert.at gesendet (sendCredentialNotificationEmail in resend.ts)
+- [x] PASS: Betreff: "[Belegmanager] Neue Zugangsdaten von [Firmenname]" (line 140 in resend.ts)
+- [x] PASS: Inhalt: Firmenname, Provider, Zeitstempel -- kein Credential-Inhalt -- escapeHtml() applied to all dynamic values
+- [x] PASS: E-Mail-Versand ueber Resend API (getResend() call)
+- [x] PASS: Bei E-Mail-Fehler: Submission trotzdem erfolgreich (fire-and-forget with .catch(), lines 140-145 in POST route)
+
+##### AC-4: Admin-Panel
+
+- [x] PASS: Admin-Sidebar hat "Zugangsdaten" Nav-Item mit KeyRound-Icon (admin-sidebar.tsx line 43)
+- [x] PASS: Admin-Uebersichtsseite zeigt Badge "X neue Zugangsdaten warten auf Einrichtung" wenn pending vorhanden (credentials-tabelle.tsx line 188-194)
+- [x] PASS: Detailansicht: Provider, Mandant, Submission-Datum, entschluesselte Felder strukturiert angezeigt (CredentialDetailDialog component)
+- [x] PASS: Button "Als eingerichtet markieren" setzt acknowledged_at = now() (PATCH route line 38-42)
+- [x] PASS: Button "Credentials loeschen" fuehrt hard delete durch (DELETE route line 88-91)
+- [x] PASS: Nach hard delete: keine Moeglichkeit zur Wiederherstellung (no soft delete, no backup)
+- [x] PASS: Loeschen nur moeglich wenn acknowledged_at IS NOT NULL (Backend check line 80 + UI conditional line 272)
+
+##### Edge Cases Status
+
+- [x] EC-1 PASS: Mandant sendet mehrfach ab -- UNIQUE + 409
+- [x] EC-2 PASS: Admin loescht vor Einrichtung -- acknowledged_at check
+- [x] EC-3 PASS: Mandant wechselt Provider -- separate record
+- [x] EC-4 PASS: Network-Fehler beim Submit -- try/catch, fields preserved
+- [x] EC-5 PASS: Payload zu gross -- maxLength + Zod max()
+- [ ] EC-6 FAIL: Brute-Force auf Admin-Credentials-Ansicht -- kein Rate-Limiting (BUG-3)
+- [x] EC-7 PASS: Encryption Key rotiert -- graceful error display
+
+---
+
+### Round 3 (2026-04-16) -- Verification + Deep Security Audit
+
+**Tested:** 2026-04-16
+**Tester:** QA Engineer (AI) -- Deep Code Review + Security Pen-Test (Round 3)
+
+#### Bug Status Check (from Round 2)
+
+All 7 bugs from Round 2 remain UNFIXED. No code changes detected since Round 2.
+
+| Bug | Severity | Status | Notes |
+|-----|----------|--------|-------|
+| BUG-1 | HIGH | OPEN | No column-level REVOKE added, no view created |
+| BUG-2 | MEDIUM | OPEN | Still passing cleartext to pgcrypto RPC |
+| BUG-3 | MEDIUM | OPEN | No checkRateLimit() calls added to any credential endpoint |
+| BUG-4 | LOW | OPEN | No UUID validation on [id] param |
+| BUG-5 | HIGH | OPEN | No isImpersonating check in POST route |
+| BUG-6 | HIGH | OPEN | getEffectiveContext() still does not compare admin_id to current session |
+| BUG-7 | LOW | OPEN | Spec still lists deleted_at column |
+
+#### Additional Findings (Round 3)
+
+##### BUG-8 (NEW): Admin GET /api/admin/credentials leaks Supabase error messages to client
+- **Severity:** LOW
+- **Location:** `src/app/api/admin/credentials/route.ts` line 30
+- **Steps to Reproduce:**
+  1. Trigger a database error on the admin GET endpoint (e.g., table does not exist, connection timeout)
+  2. Expected: Generic error message returned to client
+  3. Actual: `error.message` from Supabase is returned directly: `return NextResponse.json({ error: error.message }, { status: 500 })`
+- **Root Cause:** Raw Supabase error messages may contain internal table names, column names, or constraint names that reveal database schema details to the admin client.
+- **Note:** Risk is mitigated by the fact that only verified admins can access this endpoint, but defense-in-depth suggests generic error messages. The same pattern exists in the mandant GET route (line 171 in onboarding/credentials/route.ts).
+- **Priority:** Nice to have
+
+##### BUG-9 (NEW): Admin decryption runs N+1 sequential RPC calls without pagination
+- **Severity:** MEDIUM
+- **Location:** `src/app/api/admin/credentials/route.ts` lines 49-84
+- **Steps to Reproduce:**
+  1. 50+ mandants submit credentials (each with 1-3 providers)
+  2. Admin opens /admin/credentials page
+  3. Expected: Reasonable response time
+  4. Actual: Each credential is decrypted with a separate `admin.rpc('decrypt_credential_payload')` call via `Promise.all()`. With 100 rows, this fires 100 concurrent RPC calls against the database.
+- **Root Cause:** Decryption is done row-by-row in a `Promise.all(credentials.map(...))` loop. No pagination, no batching. The `.limit(100)` is a hard ceiling, but 100 concurrent decrypt calls is significant load.
+- **Impact:** Combined with BUG-3 (no rate limiting), an attacker with admin credentials could trigger massive DB load by repeatedly hitting this endpoint.
+- **Fix:** Add server-side pagination (page/limit query params) and consider a single SQL query that decrypts all rows in one call: `SELECT id, pgp_sym_decrypt(...) FROM mandant_credentials`
+- **Priority:** Should fix before production scale
+
+#### Acceptance Criteria Re-verification
+
+All 18 previously passing acceptance criteria re-confirmed via code review. No regressions.
+
+The 2 previously failing criteria (BUG-1, BUG-2) remain failed.
+
+#### Security Audit Deepening (Round 3)
+
+- [x] PASS: POST route correctly uses `createAdminClient()` (Service Role) for INSERT, bypassing RLS -- mandant identity verified via getEffectiveContext() before insert
+- [x] PASS: GET route (mandant) correctly uses `createClient()` (user session) with RLS -- only own rows returned
+- [x] PASS: Zod discriminatedUnion rejects unknown providers (e.g., `provider: "oauth2"` returns 400)
+- [x] PASS: IMAP port validated as integer 1-65535 via Zod (rejects port 0, port 99999, port "abc")
+- [x] PASS: Email fields validated as proper email format via z.string().email()
+- [x] PASS: Admin PATCH route prevents double-acknowledge (returns 409 if already acknowledged)
+- [x] PASS: Dialog in admin credentials table resets showSecrets on close (onOpenChange handler)
+- [x] PASS: Impersonation cookie is HttpOnly + Secure (in production) + SameSite=strict -- cannot be read by client-side JS
+- [ ] NOTE: However BUG-6 remains -- the cookie value is not cryptographically signed, so it can be forged by any authenticated server-side code path or manipulated via browser dev tools
+
+#### Cross-Browser / Responsive Re-check (Code Review)
+
+- [x] PASS: Form uses standard HTML input types (text, email, password, number, checkbox) -- universal browser support
+- [x] PASS: `sm:grid-cols-2` responsive grid for IMAP host/port fields (stacks on mobile)
+- [x] PASS: All interactive elements use shadcn/ui primitives (no custom implementations)
+- [x] PASS: No CSS custom properties, no `backdrop-filter`, no `gap` on flexbox (all have wide support)
+- [x] PASS: No `fetch()` usage with unsupported options (standard JSON POST/GET only)
+
+### Summary (Round 3 -- Cumulative)
+
+- **Acceptance Criteria:** 18/20 passed (2 failed -- BUG-1 payload exposure, BUG-2 log exposure)
+- **Edge Cases:** 6/7 passed (1 failed -- BUG-3 no rate limiting)
+- **Bugs Found:** 9 total
+  - 3 High: BUG-1 (payload exposure), BUG-5 (impersonation bypass), BUG-6 (cookie forgery)
+  - 3 Medium: BUG-2 (log exposure), BUG-3 (no rate limiting), BUG-9 (N+1 decryption)
+  - 3 Low: BUG-4 (UUID validation), BUG-7 (spec inconsistency), BUG-8 (error message leak)
+- **Security Audit:** 3 HIGH security issues remain unfixed
+- **Production Ready:** NO
+
+#### Blocking bugs (MUST FIX before deployment):
+1. **BUG-1 (High)** -- REVOKE SELECT on payload_encrypted for authenticated role, or create a restricted view
+2. **BUG-5 (High)** -- Add `if (ctx.isImpersonating) return 403` to POST /api/onboarding/credentials
+3. **BUG-6 (High)** -- Upstream PROJ-19 fix: verify `payload.admin_id === currentUser.id` in getEffectiveContext()
+4. **BUG-3 (Medium)** -- Add checkRateLimit() to all 4 credential endpoints (pattern already exists in codebase)
+
+#### Should fix before production scale:
+5. **BUG-9 (Medium)** -- Pagination + batch decryption for admin GET endpoint
+6. **BUG-2 (Medium)** -- Move encryption to Node.js layer (crypto.createCipheriv) to avoid cleartext in SQL logs
+
+#### Deferrable:
+7. **BUG-4 (Low)** -- UUID validation on [id] route param
+8. **BUG-7 (Low)** -- Spec cleanup: remove deleted_at references
+9. **BUG-8 (Low)** -- Generic error messages on admin endpoints

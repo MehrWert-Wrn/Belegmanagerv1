@@ -83,3 +83,8 @@ $$;
 -- Revoke execute from public/anon – nur Service Role kann aufrufen
 REVOKE EXECUTE ON FUNCTION encrypt_credential_payload FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION decrypt_credential_payload FROM PUBLIC;
+
+-- BUG-1 fix: Column-level security – payload_encrypted niemals für Mandanten/Anon lesbar
+-- Verhindert direkten REST-API-Zugriff auf verschlüsselte Daten trotz RLS SELECT-Policy
+REVOKE SELECT (payload_encrypted) ON mandant_credentials FROM authenticated;
+REVOKE SELECT (payload_encrypted) ON mandant_credentials FROM anon;

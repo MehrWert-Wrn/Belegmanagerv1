@@ -30,6 +30,14 @@ export async function getEffectiveContext(): Promise<EffectiveContext | null> {
     try {
       const payload: ImpersonationPayload = JSON.parse(impersonationCookie.value)
 
+      // BUG-6 fix: verify the current session user IS the admin in the cookie
+      // Prevents cookie forgery by non-admin users who know an admin's UUID
+      const supabase = await createClient()
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      if (!currentUser || currentUser.id !== payload.admin_id) {
+        return null
+      }
+
       // Verify the admin is still a valid admin
       const admin = createAdminClient()
       const { data: profile } = await admin
