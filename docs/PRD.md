@@ -44,6 +44,7 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 | P1 | Onboarding-Checkliste am Dashboard | Temporäre Checkliste nach Erstanmeldung mit Fortschrittsbalken, Onboarding-Schritten und Team-Sektion | Planned |
 | P1 | Hilfe-Center | Themen-basierte Wissensdatenbank unter /help, Admin-Content-Management mit Text & Videos, Sidebar-Verlinkung | Planned |
 | P1 | KI-Chatbot | Eingebetteter Chat-Assistent rechts unten, RAG-basiert auf Hilfe-Center-Inhalten, Support-Ticket-Weiterleitung | Planned |
+| P1 | Sichere Zugangsdaten-Übermittlung | AES-256-verschlüsselte Übermittlung von E-Mail-Credentials (IMAP/M365/Gmail) direkt im Onboarding, Admin-Verwaltung mit Hard-Delete | Planned |
 
 > Details zu jeder Feature (User Stories, Acceptance Criteria, Edge Cases, Tech Design) → `features/`
 
