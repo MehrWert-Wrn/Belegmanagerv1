@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe'
+import { stripe, getStripePriceId } from '@/lib/stripe'
 import { NextResponse } from 'next/server'
 
 const rateLimit = new Map<string, number[]>()
@@ -64,7 +64,7 @@ export async function POST() {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
-      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      line_items: [{ price: getStripePriceId(), quantity: 1 }],
       success_url: `${siteUrl}/settings/abonnement?success=1`,
       cancel_url: `${siteUrl}/settings/abonnement?cancelled=1`,
       allow_promotion_codes: true,

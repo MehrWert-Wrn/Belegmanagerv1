@@ -17,6 +17,8 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  FastForward,
+  AlertTriangle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -29,6 +31,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   Form,
   FormControl,
@@ -94,6 +106,9 @@ export function BelegReviewModus({
   const [belege, setBelege] = useState<Beleg[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingAll, setSavingAll] = useState(false)
+  const [showSkipAllConfirm, setShowSkipAllConfirm] = useState(false)
+  const [bulkSkipReasons, setBulkSkipReasons] = useState<{ id: string; name: string; reason: string }[]>([])
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [previewError, setPreviewError] = useState(false)
@@ -316,6 +331,85 @@ export function BelegReviewModus({
     return sum + (isNaN(val) ? 0 : val)
   }, 0)
 
+  async function handleSkipReview() {
+    setSavingAll(true)
+    setShowSkipAllConfirm(false)
+
+    const toSave: Beleg[] = []
+    const skipped: { id: string; name: string; reason: string }[] = []
+
+    // Duplicate detection within batch: same rechnungsnummer + lieferant
+    const seen = new Map<string, string>()
+
+    for (const beleg of belege) {
+      // Already reviewed (has rechnungsname set) – no action needed
+      if (beleg.rechnungsname) continue
+
+      // Check required fields
+      if (!beleg.rechnungsdatum) {
+        skipped.push({ id: beleg.id, name: beleg.original_filename ?? beleg.id, reason: 'Rechnungsdatum fehlt' })
+        continue
+      }
+      if (!beleg.bruttobetrag) {
+        skipped.push({ id: beleg.id, name: beleg.original_filename ?? beleg.id, reason: 'Bruttobetrag fehlt' })
+        continue
+      }
+
+      // Intra-batch duplicate check
+      if (beleg.rechnungsnummer && beleg.lieferant) {
+        const key = `${beleg.lieferant.toLowerCase()}__${beleg.rechnungsnummer.toLowerCase()}`
+        if (seen.has(key)) {
+          skipped.push({ id: beleg.id, name: beleg.original_filename ?? beleg.id, reason: 'Dublett (gleiche Rechnungsnummer + Lieferant im Batch)' })
+          continue
+        }
+        seen.set(key, beleg.id)
+      }
+
+      toSave.push(beleg)
+    }
+
+    let savedCount = 0
+    const failedNames: string[] = []
+
+    for (const beleg of toSave) {
+      try {
+        const res = await fetch(`/api/belege/${beleg.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rechnungsname: beleg.original_filename }),
+        })
+        if (res.ok) {
+          savedCount++
+        } else {
+          failedNames.push(beleg.original_filename ?? beleg.id)
+        }
+      } catch {
+        failedNames.push(beleg.original_filename ?? beleg.id)
+      }
+    }
+
+    setSavingAll(false)
+
+    if (failedNames.length > 0) {
+      toast.error(`${savedCount} Beleg${savedCount !== 1 ? 'e' : ''} gespeichert, ${failedNames.length} fehlgeschlagen.`)
+    }
+
+    if (skipped.length > 0) {
+      setBulkSkipReasons(skipped)
+      // Keep only skipped belege in the queue for manual review
+      setBelege(prev => prev.filter(b => skipped.some(s => s.id === b.id)))
+      setCurrentIndex(0)
+      setReviewedCount(savedCount)
+      toast.info(
+        `${savedCount} Beleg${savedCount !== 1 ? 'e' : ''} direkt gespeichert. ${skipped.length} Beleg${skipped.length !== 1 ? 'e benötigen' : ' benötigt'} manuelle Prüfung.`
+      )
+    } else {
+      toast.success(`${savedCount} Beleg${savedCount !== 1 ? 'e' : ''} direkt gespeichert.`)
+      onComplete()
+      onOpenChange(false)
+    }
+  }
+
   function moveToNext() {
     if (currentIndex < totalCount - 1) {
       setCurrentIndex((prev) => prev + 1)
@@ -400,6 +494,7 @@ export function BelegReviewModus({
   const isImage = currentBeleg?.dateityp === 'jpg' || currentBeleg?.dateityp === 'jpeg' || currentBeleg?.dateityp === 'png'
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col w-[calc(100vw-260px)] sm:max-w-none overflow-hidden p-0" side="right">
         {/* Header */}
@@ -419,6 +514,21 @@ export function BelegReviewModus({
           </SheetDescription>
           {totalCount > 0 && (
             <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                disabled={savingAll || saving}
+                onClick={() => setShowSkipAllConfirm(true)}
+              >
+                {savingAll ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <FastForward className="h-3.5 w-3.5" />
+                )}
+                Belegprüfung überspringen
+              </Button>
               <div className="min-w-[160px] space-y-0.5">
                 <Progress value={progressPercent} className="h-1.5" />
                 <p className="text-xs text-muted-foreground">
@@ -536,6 +646,17 @@ export function BelegReviewModus({
 
             {/* Right: Form */}
             <div className="flex w-2/5 flex-col overflow-y-auto px-6 py-4">
+              {/* Bulk-skip reason banner */}
+              {bulkSkipReasons.length > 0 && (() => {
+                const reason = bulkSkipReasons.find(r => r.id === currentBeleg?.id)
+                if (!reason) return null
+                return (
+                  <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>Manuelle Prüfung nötig: <strong>{reason.reason}</strong></span>
+                  </div>
+                )
+              })()}
               {/* OCR hint */}
               {ocrFields.size > 0 && (
                 <div className="mb-4 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
@@ -872,5 +993,24 @@ export function BelegReviewModus({
         ) : null}
       </SheetContent>
     </Sheet>
+
+    <AlertDialog open={showSkipAllConfirm} onOpenChange={setShowSkipAllConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Belegprüfung überspringen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Alle Belege mit vollständigen Pflichtfeldern (Rechnungsdatum und Bruttobetrag) werden direkt gespeichert.
+            Belege mit fehlenden Feldern oder Dubletten bleiben zur manuellen Prüfung in der Warteschlange.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction onClick={handleSkipReview}>
+            Direkt speichern
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   )
 }

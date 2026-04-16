@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, FileText, FileQuestion, ExternalLink, Plus, Trash2 } from 'lucide-react'
+import { Loader2, FileText, FileQuestion, ExternalLink, Plus, Trash2, ScanText } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -84,6 +84,7 @@ export function BelegDetailSheet({
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [previewError, setPreviewError] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [ocrRunning, setOcrRunning] = useState(false)
 
   const form = useForm<UpdateFormValues>({
     resolver: zodResolver(updateSchema),
@@ -227,6 +228,70 @@ export function BelegDetailSheet({
       })
       .finally(() => setLoadingPreview(false))
   }, [beleg, open])
+
+  async function handleReOcr() {
+    if (!beleg) return
+    setOcrRunning(true)
+
+    try {
+      const response = await fetch(`/api/belege/${beleg.id}/ocr`, { method: 'POST' })
+      if (!response.ok) {
+        const err = await response.json()
+        toast.error(`OCR fehlgeschlagen: ${err.error || 'Unbekannter Fehler'}`)
+        return
+      }
+
+      const ocr = await response.json()
+      let filled = 0
+
+      // Helper: is a form string field empty?
+      const isEmpty = (v: string | null | undefined) => !v || v.trim() === ''
+
+      if (isEmpty(form.getValues('lieferant')) && ocr.lieferant) {
+        form.setValue('lieferant', ocr.lieferant)
+        filled++
+      }
+      if (isEmpty(form.getValues('rechnungsnummer')) && ocr.rechnungsnummer) {
+        form.setValue('rechnungsnummer', ocr.rechnungsnummer)
+        filled++
+      }
+      if (isEmpty(form.getValues('rechnungsdatum')) && ocr.rechnungsdatum) {
+        form.setValue('rechnungsdatum', ocr.rechnungsdatum)
+        filled++
+      }
+
+      // Steuerzeilen: only fill if the single existing row has no amounts at all
+      const currentRows = form.getValues('steuerzeilen')
+      const allEmpty = currentRows.every(
+        (z) =>
+          (z.bruttobetrag == null || z.bruttobetrag === '') &&
+          (z.nettobetrag == null || z.nettobetrag === '') &&
+          (z.mwst_satz == null || z.mwst_satz === '')
+      )
+
+      if (allEmpty) {
+        const ocrRows = ocr.steuerzeilen ?? (
+          ocr.bruttobetrag != null || ocr.nettobetrag != null
+            ? [{ nettobetrag: ocr.nettobetrag, mwst_satz: ocr.mwst_satz, bruttobetrag: ocr.bruttobetrag }]
+            : null
+        )
+        if (ocrRows && ocrRows.length > 0) {
+          form.setValue('steuerzeilen', ocrRows)
+          filled++
+        }
+      }
+
+      if (filled > 0) {
+        toast.success(`${filled} Feld${filled === 1 ? '' : 'er'} durch OCR ausgefüllt`)
+      } else {
+        toast.info('Alle Felder sind bereits ausgefüllt – keine Änderungen.')
+      }
+    } catch {
+      toast.error('Ein unerwarteter Fehler ist aufgetreten.')
+    } finally {
+      setOcrRunning(false)
+    }
+  }
 
   async function onSubmit(values: UpdateFormValues) {
     if (!beleg) return
@@ -733,6 +798,21 @@ export function BelegDetailSheet({
                 />
 
                 <SheetFooter className="gap-2 pt-4">
+                  {hasDocument && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleReOcr}
+                      disabled={ocrRunning || saving}
+                      className="mr-auto"
+                      title="Nicht ausgefüllte Felder per OCR automatisch befüllen"
+                    >
+                      {ocrRunning
+                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        : <ScanText className="mr-2 h-4 w-4" />}
+                      OCR
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"

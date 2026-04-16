@@ -166,7 +166,16 @@ export function ArticleForm({ mode, topics, initial }: ArticleFormProps) {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Artikel konnte nicht gespeichert werden.')
+        console.error('[article-form] save error response:', JSON.stringify(data, null, 2))
+        // Zod-Felddetails anzeigen wenn vorhanden
+        const fieldErrors = data.details?.fieldErrors ?? {}
+        const formErrors = data.details?.formErrors ?? []
+        const fieldMessages = Object.entries(fieldErrors as Record<string, string[]>)
+          .map(([field, msgs]) => `${field}: ${(msgs as string[]).join(', ')}`)
+          .join(' | ')
+        const formMessages = (formErrors as string[]).join(', ')
+        const detail = [fieldMessages, formMessages].filter(Boolean).join(' | ')
+        throw new Error(detail ? `${data.error} – ${detail}` : (data.error || 'Artikel konnte nicht gespeichert werden.'))
       }
       const saved = (await res.json()) as { id: string }
 

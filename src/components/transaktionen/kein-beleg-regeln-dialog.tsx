@@ -24,9 +24,10 @@ interface KeinBelegRegelnDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   prefillPattern?: string
+  onRuleCreated?: () => void
 }
 
-export function KeinBelegRegelnDialog({ open, onOpenChange, prefillPattern }: KeinBelegRegelnDialogProps) {
+export function KeinBelegRegelnDialog({ open, onOpenChange, prefillPattern, onRuleCreated }: KeinBelegRegelnDialogProps) {
   const [regeln, setRegeln] = useState<KeinBelegRegel[]>([])
   const [loading, setLoading] = useState(false)
   const [newPattern, setNewPattern] = useState('')
@@ -71,6 +72,7 @@ export function KeinBelegRegelnDialog({ open, onOpenChange, prefillPattern }: Ke
       setRegeln(prev => [created, ...prev])
       setNewPattern('')
       toast.success('Regel gespeichert')
+      onRuleCreated?.()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Fehler')
     } finally {

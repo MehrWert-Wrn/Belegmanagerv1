@@ -10,8 +10,8 @@ const articleUpdateSchema = z.object({
   topic_id: z.string().uuid().optional(),
   title: z.string().trim().min(2).max(200).optional(),
   slug: z.string().trim().min(2).max(200).optional(),
-  summary: z.string().max(500).optional(),
-  content_html: z.string().max(200_000).optional(),
+  summary: z.string().max(1000).optional(),
+  content_html: z.string().optional(),
   status: z.enum(['draft', 'published']).optional(),
   video_url: z.string().url().max(500).nullable().optional(),
   video_storage_path: z.string().max(500).nullable().optional(),
@@ -74,8 +74,14 @@ export async function PUT(
 
   const parsed = articleUpdateSchema.safeParse(body)
   if (!parsed.success) {
+    const flat = parsed.error.flatten()
+    const fieldMessages = Object.entries(flat.fieldErrors)
+      .map(([f, msgs]) => `${f}: ${(msgs ?? []).join(', ')}`)
+      .join('; ')
+    const msg = fieldMessages || flat.formErrors.join('; ') || 'Unbekanntes Feld'
+    console.error('[admin/help/articles/:id] Zod validation failed:', JSON.stringify(flat, null, 2))
     return NextResponse.json(
-      { error: 'Ungültige Daten.', details: parsed.error.flatten() },
+      { error: `Ungültige Daten – ${msg}`, details: flat },
       { status: 400 },
     )
   }

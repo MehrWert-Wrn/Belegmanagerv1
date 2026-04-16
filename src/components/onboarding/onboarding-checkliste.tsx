@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CredentialForm } from '@/components/onboarding/credential-form'
 import {
   Accordion,
   AccordionContent,
@@ -276,6 +277,7 @@ export function OnboardingCheckliste() {
                     updating={updating === step.key}
                     onToggle={() => handleToggleStep(step.key)}
                     onCopyWhatsApp={handleCopyWhatsApp}
+                    onCredentialSubmitted={fetchProgress}
                   />
                 </AccordionContent>
               </AccordionItem>
@@ -324,9 +326,10 @@ interface StepContentProps {
   updating: boolean
   onToggle: () => void
   onCopyWhatsApp: () => void
+  onCredentialSubmitted?: () => void
 }
 
-function StepContent({ stepKey, isDone, updating, onToggle, onCopyWhatsApp }: StepContentProps) {
+function StepContent({ stepKey, isDone, updating, onToggle, onCopyWhatsApp, onCredentialSubmitted }: StepContentProps) {
   const markAsDone = (
     <div className="mt-4 flex items-center gap-2">
       <Checkbox
@@ -366,7 +369,7 @@ function StepContent({ stepKey, isDone, updating, onToggle, onCopyWhatsApp }: St
     case 'email_connection_done':
       return (
         <div className="space-y-3 text-sm text-muted-foreground">
-          <p>Klicke auf deinen E-Mail-Anbieter für eine Schritt-für-Schritt-Anleitung:</p>
+          <p>Klicke auf deinen E-Mail-Anbieter fuer eine Schritt-fuer-Schritt-Anleitung:</p>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
               <Link href="/help/erste-schritte/email-microsoft-365">
@@ -389,8 +392,12 @@ function StepContent({ stepKey, isDone, updating, onToggle, onCopyWhatsApp }: St
           </div>
           <p>
             Falls du dir nicht sicher bist, wie die Postfach-Anbindung funktioniert,
-            wende dich gerne an deinen IT-Dienstleister – er kann dir dabei helfen.
+            wende dich gerne an deinen IT-Dienstleister &ndash; er kann dir dabei helfen.
           </p>
+
+          {/* Credential submission form */}
+          <CredentialForm onSubmitted={onCredentialSubmitted} />
+
           {markAsDone}
         </div>
       )

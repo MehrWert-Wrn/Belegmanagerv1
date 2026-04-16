@@ -10,7 +10,7 @@ const articleCreateSchema = z.object({
   topic_id: z.string().uuid(),
   title: z.string().trim().min(2).max(200),
   slug: z.string().trim().min(2).max(200).optional(),
-  summary: z.string().max(500).optional().default(''),
+  summary: z.string().max(1000).optional().default(''),
   content_html: z.string().max(200_000).optional().default(''),
   status: z.enum(['draft', 'published']).optional().default('draft'),
   video_url: z.string().url().max(500).nullable().optional(),

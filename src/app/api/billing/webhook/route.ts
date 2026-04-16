@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       await admin.from('billing_payments').upsert({
         mandant_id: mandantId,
         stripe_invoice_id: invoice.id,
-        stripe_payment_intent_id: null,
+        stripe_payment_intent_id: null, // TODO BUG-007: payment_intent field not available in Stripe API 2026-03-25.dahlia
         amount_cents: invoice.amount_paid,
         currency: invoice.currency,
         status: 'paid',

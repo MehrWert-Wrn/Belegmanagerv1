@@ -121,6 +121,20 @@ export default function TransaktionenPage() {
   const [regelnDialogOpen, setRegelnDialogOpen] = useState(false)
   const [regelnPrefill, setRegelnPrefill] = useState('')
 
+  async function handleRuleCreated() {
+    try {
+      await fetch('/api/matching/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+    } catch {
+      // non-fatal
+    }
+    fetchTransaktionen()
+    fetchStats()
+  }
+
   // Eigenbeleg dialog
   const [eigenbelegDialogOpen, setEigenbelegDialogOpen] = useState(false)
   const [eigenbelegTransaktion, setEigenbelegTransaktion] = useState<TransaktionWithRelations | null>(null)
@@ -356,6 +370,7 @@ export default function TransaktionenPage() {
         open={regelnDialogOpen}
         onOpenChange={setRegelnDialogOpen}
         prefillPattern={regelnPrefill}
+        onRuleCreated={handleRuleCreated}
       />
 
       {/* Matching Status Bar */}

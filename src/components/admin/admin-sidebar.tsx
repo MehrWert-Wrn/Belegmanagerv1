@@ -10,6 +10,7 @@ import {
   LogOut,
   Shield,
   BookOpen,
+  KeyRound,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -39,6 +40,7 @@ import { Button } from '@/components/ui/button'
 
 const adminNavItems = [
   { title: 'Mandanten', href: '/admin/mandanten', icon: Users },
+  { title: 'Zugangsdaten', href: '/admin/credentials', icon: KeyRound },
   { title: 'Support-Tickets', href: '/admin/tickets', icon: TicketIcon },
   { title: 'Hilfe-Artikel verwalten', href: '/admin/help', icon: BookOpen },
 ]
