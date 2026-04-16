@@ -9,6 +9,7 @@ import { executeMatching } from '@/lib/execute-matching'
 import { NextResponse } from 'next/server'
 import {
   getUserToken,
+  updateBankConnection,
   getTransactions,
   normalizeTransaction,
 } from '@/lib/finapi'
@@ -83,6 +84,15 @@ export async function POST(
       verbindung.finapi_user_id,
       verbindung.finapi_user_password_encrypted
     )
+
+    // Step 1b: Trigger bank connection update to fetch fresh data from the bank.
+    // FinAPI WebForm creates the connection but requires a separate update to
+    // actually pull transaction data. Errors here are non-fatal (we still try to read).
+    try {
+      await updateBankConnection(userToken, verbindung.finapi_bank_connection_id)
+    } catch (updateErr) {
+      console.warn('[PROJ-20] Bank update warning (non-fatal):', updateErr instanceof Error ? updateErr.message : updateErr)
+    }
 
     // Step 2: Determine date range
     let minDate: string | undefined

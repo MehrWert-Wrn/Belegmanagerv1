@@ -425,6 +425,46 @@ export async function getAccounts(userToken: string, bankConnectionId: number): 
 }
 
 /**
+ * Trigger a bank connection update (fetches fresh transaction data from the bank).
+ * FinAPI creates the connection via WebForm but requires a separate update call
+ * to actually pull transaction data. This is a fire-and-wait operation.
+ *
+ * Returns true on success, false if update is already in progress (safe to continue).
+ */
+export async function updateBankConnection(
+  userToken: string,
+  bankConnectionId: number
+): Promise<boolean> {
+  const config = getConfig()
+
+  const res = await fetch(`${config.baseUrl}/api/v2/bankConnections/update`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${userToken}`,
+    },
+    body: JSON.stringify({
+      bankConnectionId,
+      importNewAccounts: true,
+      skipPositionsDownload: false,
+    }),
+  })
+
+  if (res.status === 422) {
+    // Update already in progress – safe to continue and read existing data
+    console.log('[PROJ-20] Bank connection update already in progress, continuing with existing data')
+    return false
+  }
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`FinAPI bank connection update failed (${res.status}): ${text}`)
+  }
+
+  return true
+}
+
+/**
  * Delete a bank connection.
  */
 export async function deleteBankConnection(userToken: string, bankConnectionId: number): Promise<void> {
