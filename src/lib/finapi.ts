@@ -268,7 +268,7 @@ export async function createBankConnectionWebForm(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${userToken}`,
     },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ maxDaysForDownload: 90 }),
   })
 
   if (!res.ok) {
