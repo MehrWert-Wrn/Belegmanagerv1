@@ -1,6 +1,6 @@
 # PROJ-3: Belegverwaltung
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-03-13
 **Last Updated:** 2026-04-17
 
@@ -995,7 +995,7 @@ In `src/app/api/onboarding/route.ts` wird nach erfolgreicher Mandant-Anlage die 
 **Git Tag:** v1.3.0-PROJ-3
 **Migrations applied (v1):** 20260318000000 – 20260318000010 (11 migrations)
 
-**v3 "Direkt bezahlt" – In Review (2026-04-17)**
+**v3 "Direkt bezahlt" – Deployed (2026-04-17)**
 **Pending migration:** `20260417000005_add_is_system_quelle.sql`
 **New files:** `src/components/belege/direkt-bezahlt-dialog.tsx`, `src/app/api/belege/[id]/direkt-bezahlt/route.ts`
 
