@@ -1,6 +1,6 @@
 # PROJ-25: EAR-Buchungstyp & Buchungsnummern-System
 
-## Status: In Progress
+## Status: Deployed
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-17
 
