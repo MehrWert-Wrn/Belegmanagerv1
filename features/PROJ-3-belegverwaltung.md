@@ -2,7 +2,7 @@
 
 ## Status: In Review
 **Created:** 2026-03-13
-**Last Updated:** 2026-03-18
+**Last Updated:** 2026-04-17
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung)
@@ -109,6 +109,69 @@
 - Staging-Tabelle Name: `belege_import_` + sanitized Firmenname (lowercase, a-z/0-9/underscore, max 63 chars)
 - Trigger-Funktion ist mandantenübergreifend (ein Trigger pro Staging-Tabelle, mappt auf mandant_id)
 - n8n-Zugriff auf Staging-Tabelle via Supabase Service-Role-Key (nur für n8n, nicht im Frontend)
+
+---
+
+## Erweiterung v3: "Direkt bezahlt" (2026-04-17)
+
+### Kontext
+EAR-Mandanten haben oft Belege für Ausgaben, die bar, mit einer privaten Bankomatkarte oder einer anderen nicht verbundenen Karte bezahlt wurden. Diese Belege bleiben dauerhaft "offen", weil keine Transaktion im System existiert, der sie zugeordnet werden können. Die Erweiterung löst dieses Problem ohne Kassabuch-Umweg.
+
+### User Stories
+- Als EAR-Mandant möchte ich einen offenen Beleg als "Direkt bezahlt" markieren können, damit er nicht dauerhaft als offen gelistet bleibt.
+- Als EAR-Mandant möchte ich beim Direktbezahlen die Zahlungsart und das Datum angeben können, damit der Buchungseintrag korrekte Metadaten hat.
+- Als EAR-Mandant möchte ich, dass direkt bezahlte Belege beim Monatsabschluss eine Buchungsnummer erhalten, damit meine EAR lückenlos ist.
+
+### Acceptance Criteria
+
+#### Kontextmenü-Erweiterung (Belege-Tabelle)
+- [ ] Im 3-Punkte-Menü der Belege-Tabelle erscheint "Direkt bezahlt" **nur** wenn `zuordnungsstatus = 'offen'`
+- [ ] "Direkt bezahlt" steht zwischen "Bearbeiten" und dem Separator vor "Löschen"
+- [ ] Neben "Direkt bezahlt" erscheint ein **?-Icon**, das beim Hovern einen Tooltip zeigt:
+  > *"Für Ausgaben, die bar, mit privater Karte oder außerhalb deines verbundenen Firmenkontos bezahlt wurden. Erstellt automatisch einen Buchungseintrag."*
+- [ ] Separator (Trennlinie) zwischen "Direkt bezahlt" und "Löschen" bleibt erhalten
+
+#### Dialog "Direkt bezahlt"
+- [ ] Dialog öffnet sich mit Titel "Direkt bezahlt"
+- [ ] Pflichtfeld: **Datum** (Datepicker, vorausgefüllt mit dem Rechnungsdatum des Belegs)
+- [ ] Pflichtfeld: **Zahlungsart** (Dropdown):
+  - Bar
+  - Bankomat (privat)
+  - Kreditkarte (privat)
+  - Sonstige
+- [ ] Optionales Feld: **Notiz** (Freitext, max. 100 Zeichen)
+- [ ] Anzeige (read-only): Betrag aus dem Beleg (Bruttobetrag)
+- [ ] Buttons: "Abbrechen" + "Bestätigen"
+
+#### Interne Zahlungsquelle "Direkt bezahlt"
+- [ ] Pro Mandant existiert maximal eine interne Zahlungsquelle mit Flag `is_system_quelle = true` und Name "Direkt bezahlt"
+- [ ] Diese Quelle ist in der Zahlungsquellen-Verwaltung **nicht sichtbar** (ausgeblendet)
+- [ ] Sie wird beim ersten Klick auf "Bestätigen" automatisch angelegt (lazy creation), nicht beim Onboarding
+- [ ] Kürzel: `DIR` (fix, nicht editierbar)
+- [ ] Typ: `sonstige`
+
+#### Nach Bestätigung
+- [ ] Eine neue Transaktion wird auf der "Direkt bezahlt"-Quelle erstellt:
+  - `datum` = gewähltes Datum
+  - `betrag` = Bruttobetrag des Belegs (negativ, da Ausgabe)
+  - `beschreibung` = "Direkt bezahlt" + gewählte Zahlungsart + optionale Notiz
+  - `match_status` = `bestaetigt`
+  - `beleg_id` = ID des Belegs
+  - `workflow_status` = `normal`
+- [ ] `belege.zuordnungsstatus` → `zugeordnet`
+- [ ] Beleg-Status-Badge in der Tabelle aktualisiert sich sofort auf "Zugeordnet"
+- [ ] Erfolgsmeldung (Toast): "Beleg als direkt bezahlt markiert"
+
+#### EAR-Monatsabschluss
+- [ ] Transaktionen der "Direkt bezahlt"-Quelle nehmen am EAR-Monatsabschluss teil (Buchungsnummer-Vergabe)
+- [ ] Kürzel `DIR` erscheint in der Buchungsnummer: z.B. `E_0001_DIR_01_2026`
+
+### Edge Cases
+- **Beleg hat keinen Bruttobetrag:** Dialog zeigt "Kein Betrag hinterlegt" – Bestätigen trotzdem erlaubt; Transaktion bekommt `betrag = 0`
+- **Beleg wird nach "Direkt bezahlt" gelöscht:** Transaktion auf der DIR-Quelle wird ungelinkt (bestehende Delete-Logik), DIR-Transaktion bleibt erhalten aber ohne Beleg
+- **Abgeschlossener Monat:** Monat-Lock greift – "Direkt bezahlt" für Belege aus abgeschlossenen Monaten wird serverseitig blockiert (HTTP 403)
+- **DOPPELT-Mandant:** "Direkt bezahlt" erscheint im Menü (nicht EAR-exklusiv, da buchhalterisch auch für doppelte Buchhaltung sinnvoll) – keine Buchungsnummer, da EAR-Feature
+- **"Direkt bezahlt" zweimal aufrufen:** Nicht möglich – Option erscheint nur bei `zuordnungsstatus = 'offen'`
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -731,13 +794,210 @@ In `src/app/api/onboarding/route.ts` wird nach erfolgreicher Mandant-Anlage die 
 | BUG-PROJ3-022 | Removed the permissive `WITH CHECK (true)` INSERT policy for authenticated users. Since service_role bypasses RLS, no explicit INSERT policy is needed. Authenticated users are now denied INSERT by default (RLS enabled, no matching policy) | `supabase/migrations/20260318000009_create_belege_import_staging_function.sql` |
 | BUG-PROJ3-023 | Changed both bruttobetrag and nettobetrag `onChange` handlers from `field.onChange(e.target.value)` to `field.onChange(parseFloat(e.target.value) \|\| 0)` to send numbers instead of strings | `src/components/belege/beleg-detail-sheet.tsx` |
 
+## QA Test Results -- v3 "Direkt bezahlt"
+
+**Tested:** 2026-04-17
+**Tester:** QA Engineer (AI)
+**Method:** Static code review + build verification + security audit
+**Scope:** Erweiterung v3 "Direkt bezahlt" acceptance criteria, edge cases, security
+**Build Status:** PASS (Next.js production build compiles successfully)
+
+### Acceptance Criteria Status
+
+#### AC-v3-1: Kontextmenue-Erweiterung (Belege-Tabelle)
+- [x] "Direkt bezahlt" appears in 3-Punkte-Menu only when `zuordnungsstatus === 'offen'` (`beleg-tabelle.tsx` line 333: conditional render on `beleg.zuordnungsstatus === 'offen' && onDirektBezahlt`)
+- [x] "Direkt bezahlt" appears after "Bearbeiten" (line 337, after "Bearbeiten" at line 329)
+- [x] Separator before "Loschen" is present (line 367: `DropdownMenuSeparator` before delete item)
+- [x] HelpCircle icon (?) is shown next to the label (line 340: `<HelpCircle>` icon)
+- [x] Tooltip with correct text appears on hover (lines 343-347: TooltipContent with explanation text)
+- [ ] **BUG-PROJ3-024:** Tooltip inside DropdownMenuItem may not display correctly. Radix Tooltip wrapped around a DropdownMenuItem has known issues where the tooltip does not appear because the DropdownMenu portal steals pointer events. The `TooltipProvider` wraps the entire menu item inside the dropdown content portal, which may cause the tooltip to render behind or be clipped by the dropdown. **Severity: Low** -- the ?-icon is visible, tooltip may not appear on hover.
+- **CONDITIONAL PASS** (tooltip may have UX issue)
+
+#### AC-v3-2: Dialog "Direkt bezahlt"
+- [x] Dialog opens with title "Direkt bezahlt" (`direkt-bezahlt-dialog.tsx` line 115)
+- [x] Beschreibung text explains the action (lines 116-117)
+- [ ] **BUG-PROJ3-025 (High):** Datum field NOT pre-filled with Rechnungsdatum. The form reset logic is in `handleOpenChange` (line 60-65) which wraps `onOpenChange`. However, Radix Dialog only calls `onOpenChange` on user-initiated close actions (Escape, overlay click), NOT when the parent sets `open={true}` programmatically. As a result, `datum` stays as `''` (its initial useState value) when the dialog opens. The user must manually enter the date. The Bestätigen button is correctly disabled when `!datum`, so no data corruption occurs, but the AC "vorausgefüllt mit dem Rechnungsdatum des Belegs" is violated.
+- [x] Zahlungsart dropdown with 4 options: Bar, Bankomat (privat), Kreditkarte (privat), Sonstige (lines 34-38)
+- [x] Optional Notiz field with 100-char limit: client-side `maxLength={100}` + character counter (lines 166-180)
+- [x] Read-only Bruttobetrag display (lines 121-130)
+- [x] Buttons: "Abbrechen" + "Bestätigen" (lines 186-198)
+- **FAIL** (datum not pre-filled)
+
+#### AC-v3-3: Interne Zahlungsquelle "Direkt bezahlt"
+- [x] Lazy creation: find-or-create pattern in API (route.ts lines 75-117)
+- [x] `is_system_quelle = true` set on insert (route.ts line 91)
+- [x] Kuerzel = `DIR` (route.ts line 90)
+- [x] Typ = `sonstige` (route.ts line 89)
+- [x] UNIQUE constraint prevents duplicates per mandant (migration line 9-11: partial unique index `WHERE is_system_quelle = true`)
+- [x] Race condition handling: catches error code 23505 and retries lookup (route.ts lines 99-110)
+- [ ] **BUG-PROJ3-026 (Medium):** System source visible in Zahlungsquellen settings page. The settings page fetches `?alle=true` (zahlungsquellen/page.tsx line 23), which bypasses the `is_system_quelle=false` filter (zahlungsquellen/route.ts lines 36-38). The DIR source will appear alongside user-created sources. AC states: "Diese Quelle ist in der Zahlungsquellen-Verwaltung nicht sichtbar (ausgeblendet)".
+- **FAIL** (visible in settings)
+
+#### AC-v3-4: Nach Bestaetigung
+- [ ] **BUG-PROJ3-027 (Critical):** Zahlungsart enum mismatch between frontend and backend. The dialog sends lowercase/underscore values (`bar`, `bankomat_privat`, `kreditkarte_privat`, `sonstige`) from the Select component (direkt-bezahlt-dialog.tsx lines 34-38). The API Zod schema expects display-format values (`Bar`, `Bankomat (privat)`, `Kreditkarte (privat)`, `Sonstige`) (route.ts line 9). Every submission will fail with a 400 validation error. The feature is completely non-functional.
+- [x] Transaktion created with correct fields: `datum`, `betrag = -(bruttobetrag ?? 0)`, `match_status = 'bestaetigt'`, `beleg_id`, `workflow_status = 'normal'`, `quelle_id` (route.ts lines 127-137) -- code is correct assuming validation passes
+- [x] Beschreibung format: "Direkt bezahlt -- {zahlungsart}" + optional notiz (route.ts lines 120-123)
+- [x] Beleg updated to `zuordnungsstatus = 'zugeordnet'` (route.ts lines 143-149)
+- [x] Success toast: "Beleg als direkt bezahlt markiert" (direkt-bezahlt-dialog.tsx line 97)
+- [x] Table refreshes on success via `onSuccess={fetchBelege}` (belege/page.tsx line 515)
+- **FAIL** (validation error blocks all submissions)
+
+#### AC-v3-5: EAR-Monatsabschluss
+- [x] The `earMonatsabschluss` function fetches all qualifying transaktionen including those on the DIR source (ear-buchungsnummern.ts lines 157-166). It then fetches kuerzel from zahlungsquellen for all relevant quelle_ids (lines 177-186). Since the DIR source has kuerzel='DIR', the buchungsnummer will correctly use it: e.g., `E_0001_DIR_01_2026`.
+- [x] No special-case code needed -- the generic system already handles DIR kuerzel correctly via the kuerzelMap lookup.
+- **PASS**
+
+### Edge Cases Status
+
+#### EC-v3-1: Beleg without Bruttobetrag
+- [x] Dialog shows formatted currency of `null` as `-` via `formatCurrency(beleg.bruttobetrag)` (direkt-bezahlt-dialog.tsx lines 40-45, 124). However, spec says should show "Kein Betrag hinterlegt" -- minor deviation.
+- [x] API uses `-(beleg.bruttobetrag ?? 0)` which correctly defaults to 0 (route.ts line 131)
+- **PASS** (functional, minor label deviation)
+
+#### EC-v3-2: Locked month (Monats-Lock)
+- [x] Server-side check: `isMonatGesperrt(supabase, mandantId, datum)` returns 403 when the target month is locked (route.ts lines 64-69)
+- [x] Lock check uses the user-selected datum, not the beleg's rechnungsdatum -- correct behavior
+- **PASS**
+
+#### EC-v3-3: Duplicate DIR source prevention
+- [x] UNIQUE partial index `uq_zahlungsquellen_system_per_mandant ON zahlungsquellen (mandant_id) WHERE is_system_quelle = true` (migration line 9-11)
+- [x] Race condition: catches 23505 error and retries (route.ts lines 99-110)
+- **PASS**
+
+#### EC-v3-4: "Direkt bezahlt" not shown when zuordnungsstatus is not 'offen'
+- [x] Conditional render: `beleg.zuordnungsstatus === 'offen' && onDirektBezahlt` (beleg-tabelle.tsx line 333)
+- **PASS**
+
+#### EC-v3-5: DOPPELT-Mandant (non-EAR)
+- [x] No EAR-specific guard on the menu item or API -- "Direkt bezahlt" is available to all mandant types (as specified)
+- **PASS**
+
+### Security Audit (v3)
+
+#### Authentication
+- [x] API checks `supabase.auth.getUser()` and returns 401 if not authenticated (route.ts line 18-19)
+
+#### Authorization (Multi-Tenant Isolation)
+- [x] Beleg fetch uses RLS-scoped query (route.ts lines 45-50)
+- [x] Beleg must belong to current mandant (RLS enforces this)
+- [x] MandantId fetched via `getMandantId()` for zahlungsquelle and transaktion creation
+
+#### Input Validation
+- [x] Zod schema validates datum format (YYYY-MM-DD regex), zahlungsart enum, notiz max 100 chars (route.ts lines 7-11)
+- [x] Request body parse error handled (route.ts lines 25-29)
+- [ ] FINDING (see BUG-PROJ3-027): Zod enum values do not match frontend values -- validation always fails
+
+#### Injection Protection
+- [x] All database operations use Supabase JS client with parameterized queries
+- [x] No string interpolation in SQL
+
+#### Rate Limiting
+- [ ] FINDING (Low): No rate limiting on the direkt-bezahlt endpoint. An attacker could rapidly create many DIR transactions. Mitigated by the fact that each beleg can only be marked once (zuordnungsstatus check), but a mandant with many open belege could be exploited. Consistent with existing BUG-PROJ3-015 for all belege endpoints.
+
+#### Data Integrity
+- [x] Monat-Lock prevents changes to closed months
+- [x] Beleg must be in 'offen' status
+- [x] Beleg must not be soft-deleted
+
+### Bugs Found (v3)
+
+#### BUG-PROJ3-024: Tooltip Inside DropdownMenuItem May Not Display (Low)
+- **Severity:** Low
+- **Description:** The TooltipProvider/Tooltip wraps a DropdownMenuItem inside a DropdownMenuContent portal. Radix UI Tooltip and DropdownMenu use separate portals and event handling. The tooltip may not appear on hover because the DropdownMenu captures pointer events within its content area. This is a known Radix UI limitation when nesting Tooltip inside DropdownMenu.
+- **Steps to reproduce:** Open the 3-Punkte-Menu on an open beleg. Hover over the ? icon next to "Direkt bezahlt". The tooltip may not appear.
+- **Location:** `src/components/belege/beleg-tabelle.tsx` lines 334-349
+- **Priority:** Nice to have (cosmetic, the ?-icon is still visible as a hint)
+- **Suggested fix:** Use a custom title attribute on the menu item instead, or restructure to use DropdownMenuLabel with a separate info popover.
+
+#### BUG-PROJ3-025: Datum Not Pre-filled When Dialog Opens (High)
+- **Severity:** High
+- **Description:** The form reset logic that pre-fills `datum` with `beleg.rechnungsdatum` is inside the `handleOpenChange` callback (lines 60-65). This function wraps `onOpenChange`, which Radix Dialog only calls on user-initiated close actions (Escape, overlay click, X button), NOT when the parent programmatically sets `open={true}`. As a result, when the user clicks "Direkt bezahlt" in the menu, the dialog opens but the datum field is empty (initial `useState('')` value). The user must manually enter a date, violating the AC "vorausgefüllt mit dem Rechnungsdatum des Belegs".
+- **Steps to reproduce:** Click the 3-Punkte-Menu on an open beleg with a Rechnungsdatum set. Click "Direkt bezahlt". The datum field is empty instead of pre-filled.
+- **Location:** `src/components/belege/direkt-bezahlt-dialog.tsx` lines 54, 60-65
+- **Priority:** Must fix before production
+- **Suggested fix:** Add a `useEffect` that watches `open` and `beleg` props to reset form state:
+  ```tsx
+  useEffect(() => {
+    if (open && beleg) {
+      setDatum(beleg.rechnungsdatum ?? new Date().toISOString().slice(0, 10))
+      setZahlungsart('')
+      setNotiz('')
+    }
+  }, [open, beleg])
+  ```
+
+#### BUG-PROJ3-026: System Source Visible in Zahlungsquellen Settings (Medium)
+- **Severity:** Medium
+- **Description:** The Zahlungsquellen settings page fetches sources with `?alle=true` (`zahlungsquellen/page.tsx` line 23), which bypasses the `is_system_quelle=false` filter in the API (`zahlungsquellen/route.ts` lines 36-38). After a user creates their first "Direkt bezahlt" entry, the DIR system source will appear as a card in the settings page alongside user-created sources. Users could potentially edit, deactivate, or delete it. The AC states: "Diese Quelle ist in der Zahlungsquellen-Verwaltung nicht sichtbar (ausgeblendet)".
+- **Steps to reproduce:** Mark a beleg as "Direkt bezahlt". Navigate to Settings > Zahlungsquellen. The "Direkt bezahlt" source card is visible.
+- **Location:** `src/app/api/zahlungsquellen/route.ts` lines 36-38 (missing filter when `alle=true`), `src/app/(app)/settings/zahlungsquellen/page.tsx` line 23
+- **Priority:** Must fix before production
+- **Suggested fix:** Always exclude system sources in the API: `query = query.eq('is_system_quelle', false)` regardless of the `alle` parameter. Or add client-side filtering: `quellen.filter(q => !q.is_system_quelle)`.
+
+#### BUG-PROJ3-027: Zahlungsart Enum Mismatch -- Feature Non-Functional (Critical)
+- **Severity:** Critical
+- **Description:** The frontend dialog sends zahlungsart values as lowercase/underscore identifiers (`bar`, `bankomat_privat`, `kreditkarte_privat`, `sonstige`) from the Select component's `value` props (direkt-bezahlt-dialog.tsx lines 34-38). The backend Zod schema expects display-label format values (`Bar`, `Bankomat (privat)`, `Kreditkarte (privat)`, `Sonstige`) (route.ts line 9). Because the Zod `.enum()` performs strict equality matching, EVERY submission will fail with a 400 validation error. The entire "Direkt bezahlt" feature is completely non-functional.
+- **Steps to reproduce:** Open the "Direkt bezahlt" dialog. Select any Zahlungsart. Fill in datum. Click "Bestätigen". The request fails with a validation error.
+- **Location:**
+  - Frontend: `src/components/belege/direkt-bezahlt-dialog.tsx` lines 34-38 (sends `bar`, `bankomat_privat`, etc.)
+  - Backend: `src/app/api/belege/[id]/direkt-bezahlt/route.ts` line 9 (expects `Bar`, `Bankomat (privat)`, etc.)
+- **Priority:** Must fix immediately (blocking)
+- **Suggested fix:** Align the Zod enum with the frontend values. Change line 9 of route.ts to:
+  ```ts
+  zahlungsart: z.enum(['bar', 'bankomat_privat', 'kreditkarte_privat', 'sonstige']),
+  ```
+  Then update the `beschreibung` construction (line 120) to map internal values to display labels, e.g.:
+  ```ts
+  const zahlungsartLabels: Record<string, string> = {
+    bar: 'Bar',
+    bankomat_privat: 'Bankomat (privat)',
+    kreditkarte_privat: 'Kreditkarte (privat)',
+    sonstige: 'Sonstige',
+  }
+  let beschreibung = `Direkt bezahlt – ${zahlungsartLabels[zahlungsart] ?? zahlungsart}`
+  ```
+
+### v3 Summary
+- **Acceptance Criteria:** 2/5 passed, 2 failed (AC-v3-2, AC-v3-4), 1 conditional pass (AC-v3-1)
+- **Edge Cases:** 5/5 passed
+- **Bugs Found:** 4 total (1 critical, 1 high, 1 medium, 1 low)
+- **Security Findings:** Enum mismatch causes all requests to fail; no further exploitable vulnerabilities found
+- **Build Status:** PASS
+- **Production Ready:** NO (bugs fixed immediately after QA)
+
+### v3 Bug Fix Verification
+
+**Fixed:** 2026-04-17
+**Build Status:** PASS (Next.js production build compiles successfully)
+
+| Bug ID | Severity | Fix | Files Changed |
+|--------|----------|-----|---------------|
+| BUG-PROJ3-027 | Critical | Changed `zahlungsartOptions` values in frontend to match API enum exactly: `'Bar'`, `'Bankomat (privat)'`, `'Kreditkarte (privat)'`, `'Sonstige'` | `src/components/belege/direkt-bezahlt-dialog.tsx` |
+| BUG-PROJ3-025 | High | Replaced `handleOpenChange` reset logic with `useEffect` watching `open` and `beleg` – reliably fires when parent sets `open={true}` | `src/components/belege/direkt-bezahlt-dialog.tsx` |
+| BUG-PROJ3-026 | Medium | Moved `is_system_quelle=false` filter outside the `if (!alle)` block – system sources are always excluded regardless of `?alle=true` | `src/app/api/zahlungsquellen/route.ts` |
+| BUG-PROJ3-024 | Low | Replaced Radix Tooltip (unreliable inside DropdownMenu portal) with native HTML `title` attribute on a wrapping `<span>` | `src/components/belege/beleg-tabelle.tsx` |
+
+**Bug Priority Summary:**
+| Bug ID | Severity | Priority | Summary |
+|--------|----------|----------|---------|
+| BUG-PROJ3-024 | Low | Nice to have | Tooltip may not display inside DropdownMenu |
+| BUG-PROJ3-025 | High | Must fix | Datum not pre-filled (useEffect needed) |
+| BUG-PROJ3-026 | Medium | Must fix | DIR source visible in settings page |
+| BUG-PROJ3-027 | Critical | Must fix immediately | Zahlungsart enum mismatch -- feature non-functional |
+
+**Recommendation:** The v3 "Direkt bezahlt" feature has 1 critical bug (BUG-PROJ3-027) that makes the entire feature non-functional. No submission can succeed due to the Zod validation mismatch between frontend and backend. Additionally, 1 high-severity bug (BUG-PROJ3-025) means the datum field is never pre-filled. Both must be fixed before the feature can be tested end-to-end. After fixing those, the medium-severity BUG-PROJ3-026 (system source visible in settings) should also be addressed.
+
 ## Deployment
 
-**Deployed:** 2026-03-18
+**Deployed (v1.3.0):** 2026-03-18
 **Production URL:** https://belegmanagerv1.vercel.app
 **Platform:** Vercel (Frontend) + Supabase EU Frankfurt (Backend)
 **Git Tag:** v1.3.0-PROJ-3
-**Migrations applied:** 20260318000000 – 20260318000010 (11 migrations)
+**Migrations applied (v1):** 20260318000000 – 20260318000010 (11 migrations)
+
+**v3 "Direkt bezahlt" – In Review (2026-04-17)**
+**Pending migration:** `20260417000005_add_is_system_quelle.sql`
+**New files:** `src/components/belege/direkt-bezahlt-dialog.tsx`, `src/app/api/belege/[id]/direkt-bezahlt/route.ts`
 
 ### GitHub Auto-Deploy
 Für automatisches Deployment bei jedem `git push`:

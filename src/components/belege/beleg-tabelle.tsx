@@ -1,6 +1,6 @@
 'use client'
 
-import { MoreHorizontal, Eye, Pencil, Trash2, FileText, Ban, RotateCcw } from 'lucide-react'
+import { MoreHorizontal, Eye, Pencil, Trash2, FileText, Ban, RotateCcw, Wallet, HelpCircle } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +33,7 @@ interface BelegTabelleProps {
   onSelect: (beleg: Beleg) => void
   onEdit: (beleg: Beleg) => void
   onDelete: (beleg: Beleg) => void
+  onDirektBezahlt?: (beleg: Beleg) => void
   onActionComplete?: () => void
 }
 
@@ -117,6 +118,7 @@ export function BelegTabelle({
   onSelect,
   onEdit,
   onDelete,
+  onDirektBezahlt,
   onActionComplete,
 }: BelegTabelleProps) {
   if (loading) {
@@ -251,6 +253,7 @@ export function BelegTabelle({
                   onSelect={onSelect}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onDirektBezahlt={onDirektBezahlt}
                   onActionComplete={onActionComplete}
                 />
               </TableCell>
@@ -269,10 +272,11 @@ interface BelegAktionenMenuProps {
   onSelect: (beleg: Beleg) => void
   onEdit: (beleg: Beleg) => void
   onDelete: (beleg: Beleg) => void
+  onDirektBezahlt?: (beleg: Beleg) => void
   onActionComplete?: () => void
 }
 
-function BelegAktionenMenu({ beleg, onSelect, onEdit, onDelete, onActionComplete }: BelegAktionenMenuProps) {
+function BelegAktionenMenu({ beleg, onSelect, onEdit, onDelete, onDirektBezahlt, onActionComplete }: BelegAktionenMenuProps) {
   const [loading, setLoading] = useState(false)
 
   async function handleSetBezahlt(bezahlt: boolean) {
@@ -320,6 +324,15 @@ function BelegAktionenMenu({ beleg, onSelect, onEdit, onDelete, onActionComplete
           <Pencil className="mr-2 h-4 w-4" />
           Bearbeiten
         </DropdownMenuItem>
+        {beleg.zuordnungsstatus === 'offen' && onDirektBezahlt && (
+          <DropdownMenuItem onClick={() => onDirektBezahlt(beleg)}>
+            <Wallet className="mr-2 h-4 w-4" />
+            Direkt bezahlt
+            <span title="Für Ausgaben, die bar, mit privater Karte oder außerhalb deines verbundenen Firmenkontos bezahlt wurden. Erstellt automatisch einen Buchungseintrag.">
+              <HelpCircle className="ml-1.5 h-3.5 w-3.5 text-muted-foreground" />
+            </span>
+          </DropdownMenuItem>
+        )}
         {hasFaelligkeit && beleg.zuordnungsstatus !== 'zugeordnet' && (
           <>
             <DropdownMenuSeparator />

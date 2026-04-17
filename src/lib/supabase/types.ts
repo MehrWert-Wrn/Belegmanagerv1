@@ -296,6 +296,7 @@ export type Database = {
           erstellt_am: string
           iban: string | null
           id: string
+          is_system_quelle: boolean
           kuerzel: string | null
           mandant_id: string
           name: string
@@ -306,6 +307,7 @@ export type Database = {
           csv_mapping?: Json | null
           iban?: string | null
           id?: string
+          is_system_quelle?: boolean
           kuerzel?: string | null
           mandant_id: string
           name: string
@@ -315,6 +317,7 @@ export type Database = {
           aktiv?: boolean
           csv_mapping?: Json | null
           iban?: string | null
+          is_system_quelle?: boolean
           kuerzel?: string | null
           name?: string
         }

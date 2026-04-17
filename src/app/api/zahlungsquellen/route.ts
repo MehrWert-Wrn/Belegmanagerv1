@@ -31,6 +31,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from('zahlungsquellen')
     .select('*')
+    .eq('is_system_quelle', false)
     .order('erstellt_am', { ascending: true })
 
   if (!alle) {

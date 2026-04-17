@@ -14,7 +14,7 @@
 |----|---------|--------|------|---------|
 | PROJ-1 | Authentifizierung | Deployed | [PROJ-1-authentifizierung.md](PROJ-1-authentifizierung.md) | 2026-03-13 |
 | PROJ-2 | Mandant-Onboarding | Deployed | [PROJ-2-mandant-onboarding.md](PROJ-2-mandant-onboarding.md) | 2026-03-13 |
-| PROJ-3 | Belegverwaltung | Deployed | [PROJ-3-belegverwaltung.md](PROJ-3-belegverwaltung.md) | 2026-03-13 |
+| PROJ-3 | Belegverwaltung | In Review | [PROJ-3-belegverwaltung.md](PROJ-3-belegverwaltung.md) | 2026-03-13 |
 | PROJ-4 | Kontoauszug-Import | Deployed | [PROJ-4-kontoauszug-import.md](PROJ-4-kontoauszug-import.md) | 2026-03-13 |
 | PROJ-5 | Matching-Engine | Deployed | [PROJ-5-matching-engine.md](PROJ-5-matching-engine.md) | 2026-03-13 |
 | PROJ-6 | Manuelle Zuordnung | In Review | [PROJ-6-manuelle-zuordnung.md](PROJ-6-manuelle-zuordnung.md) | 2026-03-13 |
@@ -40,6 +40,10 @@
 | PROJ-23 | KI-Chatbot | Planned | [PROJ-23-ki-chatbot.md](PROJ-23-ki-chatbot.md) | 2026-04-14 |
 | PROJ-24 | Sichere Zugangsdaten-Übermittlung (E-Mail-Anbindung) | In Review | [PROJ-24-zugangsdaten-uebermittlung.md](PROJ-24-zugangsdaten-uebermittlung.md) | 2026-04-16 |
 | PROJ-25 | EAR-Buchungstyp & Buchungsnummern-System | Deployed | [PROJ-25-ear-buchungsnummern.md](PROJ-25-ear-buchungsnummern.md) | 2026-04-17 |
+| PROJ-26 | Buchhaltungsmanager Feature-Gate | Planned | [PROJ-26-buchhaltungsmanager-feature-gate.md](PROJ-26-buchhaltungsmanager-feature-gate.md) | 2026-04-17 |
+| PROJ-27 | FreeFinance Provider-Setup & Kontenplan-Import | Planned | [PROJ-27-freefinance-setup-kontenplan.md](PROJ-27-freefinance-setup-kontenplan.md) | 2026-04-17 |
+| PROJ-28 | Vorkontierung | Planned | [PROJ-28-vorkontierung.md](PROJ-28-vorkontierung.md) | 2026-04-17 |
+| PROJ-29 | Buchungs-Sync FreeFinance | Planned | [PROJ-29-buchungs-sync-freefinance.md](PROJ-29-buchungs-sync-freefinance.md) | 2026-04-17 |
 
 
-## Next Available ID: PROJ-26
+## Next Available ID: PROJ-30

@@ -19,6 +19,7 @@ import { BelegUploadDialog } from '@/components/belege/beleg-upload-dialog'
 import { BelegDetailSheet } from '@/components/belege/beleg-detail-sheet'
 import { BelegLoeschenDialog } from '@/components/belege/beleg-loeschen-dialog'
 import { BelegReviewModus } from '@/components/belege/beleg-review-modus'
+import { DirektBezahltDialog } from '@/components/belege/direkt-bezahlt-dialog'
 import type { Beleg } from '@/lib/supabase/types'
 
 export default function BelegePage() {
@@ -51,6 +52,10 @@ export default function BelegePage() {
   const [deleteBeleg, setDeleteBeleg] = useState<Beleg | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+
+  // Direkt bezahlt dialog state
+  const [direktBezahltBeleg, setDirektBezahltBeleg] = useState<Beleg | null>(null)
+  const [direktBezahltOpen, setDirektBezahltOpen] = useState(false)
 
   // Review mode state (mass import)
   const [reviewBelegIds, setReviewBelegIds] = useState<string[]>([])
@@ -139,6 +144,11 @@ export default function BelegePage() {
   function handleDeleteRequest(beleg: Beleg) {
     setDeleteBeleg(beleg)
     setDeleteOpen(true)
+  }
+
+  function handleDirektBezahlt(beleg: Beleg) {
+    setDirektBezahltBeleg(beleg)
+    setDirektBezahltOpen(true)
   }
 
   function handleBulkDeleteRequest() {
@@ -455,6 +465,7 @@ export default function BelegePage() {
         onSelect={handleSelect}
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
+        onDirektBezahlt={handleDirektBezahlt}
         onActionComplete={fetchBelege}
       />
 
@@ -494,6 +505,14 @@ export default function BelegePage() {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         onDeleted={handleBulkDeleted}
+      />
+
+      {/* Direkt bezahlt dialog */}
+      <DirektBezahltDialog
+        beleg={direktBezahltBeleg}
+        open={direktBezahltOpen}
+        onOpenChange={setDirektBezahltOpen}
+        onSuccess={fetchBelege}
       />
 
       {/* Review mode for mass import */}
