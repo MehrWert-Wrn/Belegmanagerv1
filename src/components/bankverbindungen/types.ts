@@ -35,5 +35,5 @@ export interface SyncErgebnis {
   anzahl_duplikate: number
   anzahl_gesperrte_monate?: number
   gesamt: number
-  matching_quote: number
+  matching_quote?: number
 }

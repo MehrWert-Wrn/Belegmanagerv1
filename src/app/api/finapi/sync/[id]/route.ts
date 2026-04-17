@@ -359,16 +359,9 @@ export async function POST(
     })
 
     // Step 12: Run matching engine
-    let matching_quote = 0
+    // Step 12: Run matching engine (fire-and-forget to avoid serverless timeout on large imports)
     if (anzahl_importiert > 0) {
-      const stats = await executeMatching(
-        supabase,
-        mandantId,
-        verbindung.zahlungsquelle_id
-      ).catch(() => null)
-      if (stats && stats.total > 0) {
-        matching_quote = Math.round((stats.matched / stats.total) * 100)
-      }
+      executeMatching(supabase, mandantId, verbindung.zahlungsquelle_id).catch(() => null)
     }
 
     return NextResponse.json({
@@ -376,7 +369,6 @@ export async function POST(
       anzahl_duplikate,
       anzahl_gesperrte_monate,
       gesamt: finapiTransactions.length,
-      matching_quote,
     })
   } catch (err) {
     console.error('[PROJ-20] POST /api/finapi/sync/[id] error:', err)
