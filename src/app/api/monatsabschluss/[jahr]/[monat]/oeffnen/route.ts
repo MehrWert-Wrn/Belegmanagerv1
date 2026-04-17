@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, requireAdmin, getMandantId } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
+import { earMonatsaufhebung } from '@/lib/ear-buchungsnummern'
 
 type Params = { params: Promise<{ jahr: string; monat: string }> }
 
@@ -38,6 +39,27 @@ export async function POST(_request: Request, { params }: Params) {
     return NextResponse.json({ error: 'Monat ist nicht abgeschlossen' }, { status: 409 })
   }
 
+  // PROJ-25: Check if mandant is EAR and run aufhebung logic
+  const { data: mandant } = await supabase
+    .from('mandanten')
+    .select('buchfuehrungsart')
+    .eq('id', mandant_id)
+    .single()
+
+  const isEar = mandant?.buchfuehrungsart === 'EAR'
+  let earResult = null
+
+  if (isEar) {
+    earResult = await earMonatsaufhebung(supabase, mandant_id, jahr, monat)
+    if (!earResult.success) {
+      return NextResponse.json({
+        error: earResult.error,
+        ear_fehler: true,
+        storage_fehler: earResult.storage_fehler,
+      }, { status: 500 })
+    }
+  }
+
   const { error } = await supabase
     .from('monatsabschluesse')
     .update({
@@ -54,5 +76,10 @@ export async function POST(_request: Request, { params }: Params) {
   return NextResponse.json({
     success: true,
     datev_export_warnung: abschluss.datev_export_vorhanden,
+    ...(earResult ? {
+      ear_buchungsnummern_entfernt: earResult.buchungsnummern_entfernt,
+      ear_dateien_zurueckbenannt: earResult.dateien_zurueckbenannt,
+      ear_storage_fehler: earResult.storage_fehler,
+    } : {}),
   })
 }

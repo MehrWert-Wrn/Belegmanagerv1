@@ -17,6 +17,7 @@ const updateSchema = z.object({
   iban: ibanSchema,
   csv_mapping: z.record(z.string(), z.unknown()).optional(),
   aktiv: z.boolean().optional(),
+  kuerzel: z.string().min(1).max(10).regex(/^[a-zA-Z0-9_-]+$/, 'Kuerzel darf nur Buchstaben, Ziffern, Bindestrich und Unterstrich enthalten').optional(),
 })
 
 export async function PATCH(
@@ -55,13 +56,38 @@ export async function PATCH(
     }
   }
 
+  // BUG-PROJ25-002: Uniqueness check for kuerzel per mandant before update
+  if (parsed.data.kuerzel) {
+    const mandantIdForCheck = await getMandantId(supabase)
+    if (mandantIdForCheck) {
+      const { count: dupeCount } = await supabase
+        .from('zahlungsquellen')
+        .select('id', { count: 'exact', head: true })
+        .eq('mandant_id', mandantIdForCheck)
+        .eq('kuerzel', parsed.data.kuerzel)
+        .neq('id', id)
+
+      if ((dupeCount ?? 0) > 0) {
+        return NextResponse.json(
+          { error: `Kuerzel "${parsed.data.kuerzel}" wird bereits von einer anderen Zahlungsquelle verwendet.` },
+          { status: 409 }
+        )
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from('zahlungsquellen')
     .update(parsed.data)
     .eq('id', id)
     .select().single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    if (error.code === '23505') {
+      return NextResponse.json({ error: 'Dieses Kuerzel wird bereits verwendet.' }, { status: 409 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json(data)
 }
 

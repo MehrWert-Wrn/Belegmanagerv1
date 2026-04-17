@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getMandantId } from '@/lib/auth-helpers'
 import { getOrCreateKasseQuelle } from '@/lib/kassabuch'
+import { getEarPreviewData } from '@/lib/ear-buchungsnummern'
 import { NextResponse } from 'next/server'
 
 type Params = { params: Promise<{ jahr: string; monat: string }> }
@@ -37,7 +38,7 @@ export async function GET(_request: Request, { params }: Params) {
   // Transaktionen dieses Monats
   const { data: transaktionen } = await supabase
     .from('transaktionen')
-    .select('id, match_status, quelle_id')
+    .select('id, match_status, quelle_id, workflow_status')
     .eq('mandant_id', mandant_id)
     .gte('datum', vonDatum)
     .lte('datum', bisDatum)
@@ -45,21 +46,27 @@ export async function GET(_request: Request, { params }: Params) {
   // Aktive Zahlungsquellen
   const { data: quellen } = await supabase
     .from('zahlungsquellen')
-    .select('id, name, typ')
+    .select('id, name, typ, kuerzel')
     .eq('mandant_id', mandant_id)
     .eq('aktiv', true)
 
   // Vollständigkeitsprüfung
   const quellenMitTransaktionen = new Set((transaktionen ?? []).map(t => t.quelle_id))
-  const offeneTransaktionen = (transaktionen ?? []).filter(t => t.match_status === 'offen')
+  // PROJ-25: Exclude privat transactions from "offen" count
+  const offeneTransaktionen = (transaktionen ?? []).filter(
+    t => t.match_status === 'offen' && t.workflow_status !== 'privat'
+  )
 
   // BUG-PROJ8-002 fix: anzahl_offen pro Zahlungsquelle
   const quellenPruefung = (quellen ?? []).map(q => ({
     quelle_id: q.id,
     quelle_name: q.name,
     typ: q.typ,
+    kuerzel: q.kuerzel,
     hat_transaktionen: quellenMitTransaktionen.has(q.id),
-    anzahl_offen: (transaktionen ?? []).filter(t => t.quelle_id === q.id && t.match_status === 'offen').length,
+    anzahl_offen: (transaktionen ?? []).filter(
+      t => t.quelle_id === q.id && t.match_status === 'offen' && t.workflow_status !== 'privat'
+    ).length,
   }))
 
   const alleQuellenHabenImport = quellenPruefung.every(q => q.hat_transaktionen)
@@ -89,6 +96,20 @@ export async function GET(_request: Request, { params }: Params) {
   else if (!alleQuellenHabenImport) pruefung_ampel = 'rot'
   else pruefung_ampel = 'gelb'
 
+  // PROJ-25: EAR-specific preview data
+  const { data: mandant } = await supabase
+    .from('mandanten')
+    .select('buchfuehrungsart')
+    .eq('id', mandant_id)
+    .single()
+
+  const isEar = mandant?.buchfuehrungsart === 'EAR'
+  let earPreview = null
+
+  if (isEar) {
+    earPreview = await getEarPreviewData(supabase, mandant_id, jahr, monat)
+  }
+
   return NextResponse.json({
     abschluss: abschluss ?? {
       status: 'offen',
@@ -105,5 +126,11 @@ export async function GET(_request: Request, { params }: Params) {
       kassa_saldo,
       kassa_saldo_positiv,
     },
+    ...(isEar && earPreview ? {
+      ear: earPreview,
+      buchfuehrungsart: 'EAR',
+    } : {
+      buchfuehrungsart: mandant?.buchfuehrungsart || 'DOPPELT',
+    }),
   })
 }

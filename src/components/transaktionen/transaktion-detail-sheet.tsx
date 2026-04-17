@@ -24,6 +24,7 @@ interface TransaktionDetailSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   transaktion: TransaktionWithRelations | null
+  isEar?: boolean
   onWorkflowStatusChange?: (transaktionId: string, newStatus: WorkflowStatus) => void
   onAssigned?: () => void
 }
@@ -47,6 +48,7 @@ export function TransaktionDetailSheet({
   open,
   onOpenChange,
   transaktion,
+  isEar = false,
   onWorkflowStatusChange,
   onAssigned,
 }: TransaktionDetailSheetProps) {
@@ -159,6 +161,15 @@ export function TransaktionDetailSheet({
                   </dd>
                 </>
               )}
+
+              {transaktion.buchungsnummer && (
+                <>
+                  <dt className="text-muted-foreground">Buchungsnummer</dt>
+                  <dd className="font-mono text-xs font-medium text-teal-700 dark:text-teal-400">
+                    {transaktion.buchungsnummer}
+                  </dd>
+                </>
+              )}
             </dl>
           </div>
 
@@ -236,6 +247,7 @@ export function TransaktionDetailSheet({
           <WorkflowStatusSection
             transaktionId={transaktion.id}
             initialStatus={transaktion.workflow_status}
+            isEar={isEar}
             onStatusChange={(newStatus) =>
               onWorkflowStatusChange?.(transaktion.id, newStatus)
             }

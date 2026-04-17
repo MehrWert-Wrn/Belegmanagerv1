@@ -139,6 +139,17 @@ export default function TransaktionenPage() {
   const [eigenbelegDialogOpen, setEigenbelegDialogOpen] = useState(false)
   const [eigenbelegTransaktion, setEigenbelegTransaktion] = useState<TransaktionWithRelations | null>(null)
 
+  // EAR-Gate: fetch mandant buchfuehrungsart
+  const [isEar, setIsEar] = useState(false)
+  useEffect(() => {
+    fetch('/api/mandant')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.buchfuehrungsart === 'EAR') setIsEar(true)
+      })
+      .catch(() => {})
+  }, [])
+
   // BUG-PROJ5-R4-002: Stats fetched from dedicated endpoint (full dataset, not paginated slice)
   const [matchingStats, setMatchingStats] = useState({ total: 0, bestaetigt: 0, vorgeschlagen: 0, offen: 0 })
 
@@ -617,6 +628,7 @@ export default function TransaktionenPage() {
         open={detailSheetOpen}
         onOpenChange={setDetailSheetOpen}
         transaktion={selectedTransaktion}
+        isEar={isEar}
         onWorkflowStatusChange={handleWorkflowStatusChange}
         onAssigned={fetchTransaktionen}
       />

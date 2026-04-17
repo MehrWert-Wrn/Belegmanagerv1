@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMandantId, requireAdmin } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { generateKuerzel, type ZahlungsquellenTyp } from '@/lib/ear-buchungsnummern'
 
 const ibanSchema = z
   .string()
@@ -98,11 +99,23 @@ export async function POST(request: Request) {
     )
   }
 
+  // PROJ-25: Auto-generate kuerzel for new zahlungsquelle
+  const kuerzel = await generateKuerzel(supabase, mandantId, parsed.data.typ as ZahlungsquellenTyp)
+
   const { data, error } = await supabase
     .from('zahlungsquellen')
-    .insert({ ...parsed.data, mandant_id: mandantId })
+    .insert({ ...parsed.data, mandant_id: mandantId, kuerzel })
     .select().single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    // BUG-PROJ25-004: Handle race condition where two concurrent requests generate the same kuerzel
+    if (error.code === '23505') {
+      return NextResponse.json(
+        { error: 'Kuerzel-Konflikt. Bitte erneut versuchen.' },
+        { status: 409 }
+      )
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json(data, { status: 201 })
 }

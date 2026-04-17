@@ -6,7 +6,7 @@ import { z } from 'zod'
 const onboardingSchema = z.object({
   firmenname: z.string().min(1, 'Firmenname ist erforderlich').max(255),
   rechtsform: z.string().min(1, 'Rechtsform ist erforderlich').max(100),
-  buchfuehrungsart: z.enum(['DOPPELT', 'EAR']).nullable().optional(),
+  buchfuehrungsart: z.enum(['DOPPELT', 'EAR']).default('DOPPELT'),
   firmenbuchnummer: z.string().max(50).optional().nullable(),
   uid_nummer: z
     .string()
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       owner_id: user.id,
       firmenname: d.firmenname,
       rechtsform: d.rechtsform || null,
-      buchfuehrungsart: d.buchfuehrungsart || null,
+      buchfuehrungsart: d.buchfuehrungsart || 'DOPPELT',
       firmenbuchnummer: d.firmenbuchnummer || null,
       uid_nummer: d.uid_nummer || null,
       strasse: d.strasse || null,

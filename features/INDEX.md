@@ -39,5 +39,7 @@
 | PROJ-22 | Hilfe-Center | Deployed | [PROJ-22-hilfe-center.md](PROJ-22-hilfe-center.md) | 2026-04-14 |
 | PROJ-23 | KI-Chatbot | Planned | [PROJ-23-ki-chatbot.md](PROJ-23-ki-chatbot.md) | 2026-04-14 |
 | PROJ-24 | Sichere Zugangsdaten-Übermittlung (E-Mail-Anbindung) | In Review | [PROJ-24-zugangsdaten-uebermittlung.md](PROJ-24-zugangsdaten-uebermittlung.md) | 2026-04-16 |
+| PROJ-25 | EAR-Buchungstyp & Buchungsnummern-System | In Progress | [PROJ-25-ear-buchungsnummern.md](PROJ-25-ear-buchungsnummern.md) | 2026-04-17 |
 
-## Next Available ID: PROJ-25
+
+## Next Available ID: PROJ-26

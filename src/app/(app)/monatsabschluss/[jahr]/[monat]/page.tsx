@@ -68,6 +68,7 @@ export default function MonatsDetailPage() {
 
   const istAbgeschlossen = detail?.abschluss.status === 'abgeschlossen'
   const monatsname = getMonatsname(monat)
+  const isEar = detail?.buchfuehrungsart === 'EAR'
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8">
@@ -163,6 +164,8 @@ export default function MonatsDetailPage() {
             kassa_saldo_positiv: null,
           }}
           loading={loading}
+          isEar={isEar}
+          earPreview={detail?.ear ?? null}
         />
 
         {/* Abschluss-Info */}
@@ -298,6 +301,8 @@ export default function MonatsDetailPage() {
         jahr={jahr}
         monat={monat}
         anzahlOffen={detail?.pruefung.anzahl_offen ?? 0}
+        isEar={isEar}
+        earZuNummerieren={detail?.ear?.ear_zu_nummerieren ?? 0}
         onAbgeschlossen={fetchDetail}
       />
 
@@ -307,6 +312,7 @@ export default function MonatsDetailPage() {
         jahr={jahr}
         monat={monat}
         datevExportVorhanden={detail?.abschluss.datev_export_vorhanden}
+        isEar={isEar}
         onWiedergeoeffnet={fetchDetail}
       />
 

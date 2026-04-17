@@ -22,6 +22,8 @@ interface AbschlussDialogProps {
   jahr: number
   monat: number
   anzahlOffen: number
+  isEar?: boolean
+  earZuNummerieren?: number
   onAbgeschlossen: () => void
 }
 
@@ -31,6 +33,8 @@ export function AbschlussDialog({
   jahr,
   monat,
   anzahlOffen,
+  isEar = false,
+  earZuNummerieren = 0,
   onAbgeschlossen,
 }: AbschlussDialogProps) {
   const [loading, setLoading] = useState(false)
@@ -95,6 +99,18 @@ export function AbschlussDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* EAR info */}
+          {isEar && earZuNummerieren > 0 && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
+              <p className="font-medium">EAR-Buchungsnummern</p>
+              <p className="mt-0.5">
+                Beim Abschluss werden {earZuNummerieren} Transaktionen automatisch
+                nummeriert und zugeordnete Belegdateien entsprechend umbenannt.
+                Dieser Vorgang kann durch Wiederoeffnung rueckgaengig gemacht werden.
+              </p>
+            </div>
+          )}
+
           {/* Warning for open transactions */}
           {hasWarning && (
             <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">

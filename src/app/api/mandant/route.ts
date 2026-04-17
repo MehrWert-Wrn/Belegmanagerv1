@@ -9,7 +9,7 @@ export async function GET() {
 
   const { data: mandant, error } = await supabase
     .from('mandanten')
-    .select('id, firmenname, strasse, plz, ort, land, uid_nummer')
+    .select('id, firmenname, strasse, plz, ort, land, uid_nummer, buchfuehrungsart')
     .single()
 
   if (error || !mandant) {

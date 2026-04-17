@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileText, MessageCircleQuestion, CheckCircle2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileText, MessageCircleQuestion, CheckCircle2, EyeOff, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -254,6 +254,12 @@ export function TransaktionenTabelle({
                     <CheckCircle2
                       className="h-4 w-4 text-teal-500"
                       aria-label="Erledigt"
+                    />
+                  )}
+                  {t.workflow_status === 'privat' && (
+                    <EyeOff
+                      className="h-4 w-4 text-purple-500"
+                      aria-label="Privat"
                     />
                   )}
                 </TableCell>

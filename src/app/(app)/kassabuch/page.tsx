@@ -172,6 +172,7 @@ export default function KassabuchPage() {
       workflow_status: 'normal',
       belege: eintrag.belege,
       zahlungsquellen: { name: 'Kassa', typ: 'kassa' },
+      buchungsnummer: null,
       geloescht_am: null,
       match_bestaetigt_am: null,
       match_bestaetigt_von: null,

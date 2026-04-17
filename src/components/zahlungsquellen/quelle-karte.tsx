@@ -100,9 +100,16 @@ export function QuelleKarte({
             </div>
             <div>
               <p className="font-medium leading-tight">{quelle.name}</p>
-              <Badge variant="secondary" className="mt-1 text-xs font-normal">
-                {TYP_LABELS[quelle.typ]}
-              </Badge>
+              <div className="mt-1 flex items-center gap-1.5">
+                <Badge variant="secondary" className="text-xs font-normal">
+                  {TYP_LABELS[quelle.typ]}
+                </Badge>
+                {quelle.kuerzel && (
+                  <Badge variant="outline" className="text-xs font-mono">
+                    {quelle.kuerzel}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
           <DropdownMenu>

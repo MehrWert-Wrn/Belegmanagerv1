@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth, requireAdmin, getMandantId } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { earMonatsabschluss } from '@/lib/ear-buchungsnummern'
 
 const schema = z.object({
   // Bei > 10 offenen Positionen muss explizit bestätigt werden
@@ -58,6 +59,8 @@ export async function POST(request: Request, { params }: Params) {
     .eq('match_status', 'offen')
     .gte('datum', vonDatum)
     .lte('datum', bisDatum)
+    // PROJ-25: Exclude privat transactions from the "offen" count
+    .or('workflow_status.is.null,workflow_status.neq.privat')
 
   const anzahlOffen = offene?.length ?? 0
 
@@ -68,6 +71,26 @@ export async function POST(request: Request, { params }: Params) {
       anzahl_offen: anzahlOffen,
       message: `${anzahlOffen} Transaktionen sind noch offen. Bitte bestätige den Abschluss explizit.`,
     }, { status: 422 })
+  }
+
+  // PROJ-25: Check if mandant is EAR and run buchungsnummern logic
+  const { data: mandant } = await supabase
+    .from('mandanten')
+    .select('buchfuehrungsart')
+    .eq('id', mandant_id)
+    .single()
+
+  const isEar = mandant?.buchfuehrungsart === 'EAR'
+  let earResult = null
+
+  if (isEar) {
+    earResult = await earMonatsabschluss(supabase, mandant_id, jahr, monat)
+    if (!earResult.success) {
+      return NextResponse.json({
+        error: earResult.error,
+        ear_fehler: true,
+      }, { status: 500 })
+    }
   }
 
   // Monatsabschluss anlegen oder aktualisieren (UPSERT)
@@ -88,5 +111,9 @@ export async function POST(request: Request, { params }: Params) {
     success: true,
     anzahl_offen: anzahlOffen,
     abgeschlossen_am: new Date().toISOString(),
+    ...(earResult ? {
+      ear_buchungsnummern_vergeben: earResult.buchungsnummern_vergeben,
+      ear_dateien_umbenannt: earResult.dateien_umbenannt,
+    } : {}),
   })
 }

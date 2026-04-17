@@ -8,14 +8,18 @@ import {
   CreditCard,
   Wallet,
   Scale,
+  Hash,
+  EyeOff,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { Pruefung, PruefungAmpel, QuellenPruefung } from '@/lib/monatsabschluss-types'
+import type { Pruefung, PruefungAmpel, QuellenPruefung, EarPreview } from '@/lib/monatsabschluss-types'
 
 interface VollstaendigkeitsPruefungProps {
   pruefung: Pruefung
   loading?: boolean
+  isEar?: boolean
+  earPreview?: EarPreview | null
 }
 
 const AMPEL_CONFIG: Record<PruefungAmpel, { label: string; className: string; icon: typeof CheckCircle2 }> = {
@@ -47,7 +51,7 @@ function getQuelleIcon(typ: string) {
   }
 }
 
-export function VollstaendigkeitsPruefung({ pruefung, loading }: VollstaendigkeitsPruefungProps) {
+export function VollstaendigkeitsPruefung({ pruefung, loading, isEar, earPreview }: VollstaendigkeitsPruefungProps) {
   if (loading) return <VollstaendigkeitsPruefungSkeleton />
 
   const config = AMPEL_CONFIG[pruefung.ampel]
@@ -121,6 +125,36 @@ export function VollstaendigkeitsPruefung({ pruefung, loading }: Vollstaendigkei
               {!pruefung.kassa_saldo_positiv && ' \u2014 negativer Saldo'}
             </span>
           </div>
+        )}
+
+        {/* EAR Buchungsnummern-Vorschau */}
+        {isEar && earPreview && (
+          <>
+            <div className="flex items-center gap-3 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm dark:border-teal-800 dark:bg-teal-950">
+              <Hash className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
+              <span className="text-teal-700 dark:text-teal-300">
+                {earPreview.ear_zu_nummerieren} Transaktionen erhalten eine Buchungsnummer
+              </span>
+            </div>
+
+            {earPreview.ear_privat > 0 && (
+              <div className="flex items-center gap-3 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm dark:border-purple-800 dark:bg-purple-950">
+                <EyeOff className="h-4 w-4 shrink-0 text-purple-600 dark:text-purple-400" />
+                <span className="text-purple-700 dark:text-purple-300">
+                  {earPreview.ear_privat} private Transaktionen (ausgeschlossen, keine Nummer)
+                </span>
+              </div>
+            )}
+
+            {earPreview.ear_quellen_ohne_kuerzel.length > 0 && (
+              <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span className="text-amber-700 dark:text-amber-300">
+                  Zahlungsquellen ohne Kuerzel: {earPreview.ear_quellen_ohne_kuerzel.join(', ')}
+                </span>
+              </div>
+            )}
+          </>
         )}
 
         {/* Gesamtzahl */}

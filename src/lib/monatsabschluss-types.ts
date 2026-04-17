@@ -8,6 +8,7 @@ export interface QuellenPruefung {
   quelle_id: string
   quelle_name: string
   typ: string
+  kuerzel?: string | null
   hat_transaktionen: boolean
   anzahl_offen: number
 }
@@ -35,9 +36,19 @@ export interface Abschluss {
   datev_export_vorhanden?: boolean
 }
 
+export type Buchfuehrungsart = 'DOPPELT' | 'EAR'
+
+export interface EarPreview {
+  ear_zu_nummerieren: number
+  ear_privat: number
+  ear_quellen_ohne_kuerzel: string[]
+}
+
 export interface MonatsDetail {
   abschluss: Abschluss
   pruefung: Pruefung
+  buchfuehrungsart: Buchfuehrungsart
+  ear?: EarPreview
 }
 
 // German month names

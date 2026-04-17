@@ -38,6 +38,7 @@ export type Database = {
           rechnungstyp: Database['public']['Enums']['rechnungstyp']
           steuerzeilen: Array<{nettobetrag: number | null, mwst_satz: number | null, bruttobetrag: number | null}> | null
           storage_path: string | null
+          storage_path_original: string | null
           uid_lieferant: string | null
           zahlungsreferenz: string | null
           zuordnungsstatus: Database['public']['Enums']['zuordnungsstatus']
@@ -140,6 +141,7 @@ export type Database = {
       }
       mandanten: {
         Row: {
+          buchfuehrungsart: string
           erstellt_am: string
           firmenname: string
           geschaeftsjahr_beginn: number
@@ -206,6 +208,7 @@ export type Database = {
           beschreibung: string | null
           betrag: number
           bic_gegenseite: string | null
+          buchungsnummer: string | null
           buchungsreferenz: string | null
           datum: string
           erstellt_am: string
@@ -293,6 +296,7 @@ export type Database = {
           erstellt_am: string
           iban: string | null
           id: string
+          kuerzel: string | null
           mandant_id: string
           name: string
           typ: Database['public']['Enums']['zahlungsquelle_typ']
@@ -302,6 +306,7 @@ export type Database = {
           csv_mapping?: Json | null
           iban?: string | null
           id?: string
+          kuerzel?: string | null
           mandant_id: string
           name: string
           typ: Database['public']['Enums']['zahlungsquelle_typ']
@@ -310,6 +315,7 @@ export type Database = {
           aktiv?: boolean
           csv_mapping?: Json | null
           iban?: string | null
+          kuerzel?: string | null
           name?: string
         }
       }
@@ -318,7 +324,7 @@ export type Database = {
       match_status: 'offen' | 'vorgeschlagen' | 'bestaetigt' | 'kein_beleg'
       rechnungstyp: 'eingangsrechnung' | 'ausgangsrechnung' | 'gutschrift' | 'sonstiges' | 'eigenbeleg'
       import_quelle: 'manuell' | 'n8n_import'
-      workflow_status: 'normal' | 'rueckfrage' | 'erledigt'
+      workflow_status: 'normal' | 'rueckfrage' | 'erledigt' | 'privat'
       zahlungsquelle_typ: 'kontoauszug' | 'kassa' | 'kreditkarte' | 'paypal' | 'sonstige'
       zuordnungsstatus: 'offen' | 'zugeordnet'
     }
@@ -382,5 +388,6 @@ export type TransaktionWithRelations = Transaktion & {
   zahlungsquellen: {
     name: string
     typ: ZahlungsquelleTyp
+    kuerzel?: string | null
   } | null
 }

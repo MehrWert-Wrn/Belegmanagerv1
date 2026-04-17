@@ -44,6 +44,7 @@ const schema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   typ: z.enum(['kontoauszug', 'kassa', 'kreditkarte', 'paypal', 'sonstige']),
   iban: z.string().optional(),
+  kuerzel: z.string().max(10).optional(),
   aktiv: z.boolean(),
 })
 
@@ -111,6 +112,7 @@ export function QuelleDialog({
           name: quelle.name,
           typ: quelle.typ,
           iban: quelle.iban ?? '',
+          kuerzel: quelle.kuerzel ?? '',
           aktiv: quelle.aktiv,
         })
         const existing = quelle.csv_mapping as Record<string, unknown> | null
@@ -126,6 +128,7 @@ export function QuelleDialog({
           name: '',
           typ: 'kontoauszug',
           iban: '',
+          kuerzel: '',
           aktiv: true,
         })
         setCsvMapping(EMPTY_CSV_MAPPING)
@@ -163,6 +166,9 @@ export function QuelleDialog({
       }
       if (isEdit) {
         body.aktiv = data.aktiv
+        if (data.kuerzel !== undefined) {
+          body.kuerzel = data.kuerzel || undefined
+        }
       }
 
       const res = await fetch(url, {
@@ -245,6 +251,26 @@ export function QuelleDialog({
               {...register('iban')}
             />
           </div>
+
+          {isEdit && (
+            <div className="space-y-1.5">
+              <Label htmlFor="quelle-kuerzel">
+                Kuerzel
+                <span className="ml-1 text-muted-foreground text-xs font-normal">
+                  (fuer Buchungsnummern)
+                </span>
+              </Label>
+              <Input
+                id="quelle-kuerzel"
+                placeholder="z.B. B1, K1, CC1"
+                maxLength={10}
+                {...register('kuerzel')}
+              />
+              <p className="text-xs text-muted-foreground">
+                Wird automatisch vergeben. Aenderung hat keine Auswirkung auf bestehende Buchungsnummern.
+              </p>
+            </div>
+          )}
 
           {isEdit && (
             <div className="flex items-center justify-between">

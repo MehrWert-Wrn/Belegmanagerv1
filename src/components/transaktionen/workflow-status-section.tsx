@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, MessageCircleQuestion, Minus } from 'lucide-react'
+import { CheckCircle2, MessageCircleQuestion, Minus, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Select,
@@ -15,6 +15,7 @@ import type { WorkflowStatus } from '@/lib/supabase/types'
 interface WorkflowStatusSectionProps {
   transaktionId: string
   initialStatus: WorkflowStatus
+  isEar?: boolean
   onStatusChange?: (newStatus: WorkflowStatus) => void
 }
 
@@ -37,11 +38,17 @@ const STATUS_CONFIG: Record<
     icon: <CheckCircle2 className="h-4 w-4 text-teal-500" />,
     description: 'Frage geklaert, keine Aktion noetig',
   },
+  privat: {
+    label: 'Privat',
+    icon: <EyeOff className="h-4 w-4 text-purple-500" />,
+    description: 'Privatausgabe, keine Buchungsnummer',
+  },
 }
 
 export function WorkflowStatusSection({
   transaktionId,
   initialStatus,
+  isEar = false,
   onStatusChange,
 }: WorkflowStatusSectionProps) {
   const [status, setStatus] = useState<WorkflowStatus>(initialStatus)
@@ -121,6 +128,14 @@ export function WorkflowStatusSection({
               Erledigt
             </span>
           </SelectItem>
+          {isEar && (
+            <SelectItem value="privat">
+              <span className="flex items-center gap-2">
+                <EyeOff className="h-3.5 w-3.5 text-purple-500" />
+                Privat
+              </span>
+            </SelectItem>
+          )}
         </SelectContent>
       </Select>
     </div>
