@@ -3,6 +3,9 @@
  * POST /api/finapi/sync/[id] – Fetch & import transactions for a bank connection
  */
 
+// Extend Vercel function timeout to 60s to allow for bank connection polling (up to 30s)
+export const maxDuration = 60
+
 import { createClient } from '@/lib/supabase/server'
 import { getMandantId } from '@/lib/auth-helpers'
 import { executeMatching } from '@/lib/execute-matching'
@@ -126,14 +129,19 @@ export async function POST(
     }
 
     // Step 2: Determine date range
+    // Always fetch the last 90 days for the first sync, 30 days for subsequent syncs.
+    // Using a fixed lookback (instead of lastSync - 1 day) ensures we catch transactions
+    // with past bankBookingDates (banks often post with 1–3 day delays) and avoids gaps
+    // when the bank update completes after letzter_sync_at was already advanced.
+    // Duplicate detection via externe_id handles any overlap.
     let minDate: string | undefined
     if (verbindung.letzter_sync_at) {
-      // Since last sync (minus 1 day buffer for banking delays)
-      const lastSync = new Date(verbindung.letzter_sync_at)
-      lastSync.setDate(lastSync.getDate() - 1)
-      minDate = lastSync.toISOString().split('T')[0]
+      // Subsequent syncs: 30-day rolling window to catch delayed bank bookings
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      minDate = thirtyDaysAgo.toISOString().split('T')[0]
     } else {
-      // First sync: last 90 days
+      // First sync: 90-day history
       const ninetyDaysAgo = new Date()
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
       minDate = ninetyDaysAgo.toISOString().split('T')[0]
