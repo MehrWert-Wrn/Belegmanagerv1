@@ -139,7 +139,7 @@ export function BankverbindungKarte({
             {(syncResult.anzahl_gesperrte_monate ?? 0) > 0 && (
               <p className="text-amber-600">{syncResult.anzahl_gesperrte_monate} in gesperrten Monaten (uebersprungen)</p>
             )}
-            {syncResult.matching_quote > 0 && (
+            {(syncResult.matching_quote ?? 0) > 0 && (
               <p>Matching-Quote: {syncResult.matching_quote}%</p>
             )}
           </div>
