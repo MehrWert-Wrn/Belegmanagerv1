@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation'
 import { TicketsUebersicht } from '@/components/support/tickets-uebersicht'
 import { OnboardingCheckliste } from '@/components/onboarding/onboarding-checkliste'
 import { TeamBanner } from '@/components/dashboard/team-banner'
+import { CloudStorageWidget } from '@/components/dashboard/cloud-storage-widget'
+import { MonatssaldoWidget } from '@/components/dashboard/monatssaldo-widget'
+import { UeberfaelligeBelegeWidget } from '@/components/dashboard/ueberfaellige-belege-widget'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -21,7 +24,14 @@ export default async function DashboardPage() {
 
       <OnboardingCheckliste />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+      <CloudStorageWidget />
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <MonatssaldoWidget />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <UeberfaelligeBelegeWidget />
         <TicketsUebersicht />
       </div>
 

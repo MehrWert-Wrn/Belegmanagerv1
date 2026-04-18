@@ -131,7 +131,7 @@ export default function TransaktionenPage() {
     } catch {
       // non-fatal
     }
-    fetchTransaktionen()
+    fetchTransaktionen(true)
     fetchStats()
   }
 
@@ -166,8 +166,8 @@ export default function TransaktionenPage() {
     fetchStats()
   }, [fetchStats])
 
-  const fetchTransaktionen = useCallback(async () => {
-    setLoading(true)
+  const fetchTransaktionen = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     setError(null)
 
     try {
@@ -293,7 +293,7 @@ export default function TransaktionenPage() {
       }
       toast.success(`${selectedIds.length} Transaktion${selectedIds.length > 1 ? 'en' : ''} geloescht`)
       setSelectedIds([])
-      fetchTransaktionen()
+      fetchTransaktionen(true)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Fehler beim Loeschen'
       toast.error(message)
@@ -316,7 +316,7 @@ export default function TransaktionenPage() {
       ? selectedIds.filter(id => id !== assignedId)
       : selectedIds
     setSelectedIds(remaining)
-    fetchTransaktionen()
+    fetchTransaktionen(true)
     if (remaining.length > 0) {
       const next = transaktionen.find(t => remaining.includes(t.id) && t.id !== assignedId) ?? null
       if (next) {
@@ -388,7 +388,7 @@ export default function TransaktionenPage() {
       <MatchingStatusBar
         stats={matchingStats}
         loading={loading}
-        onMatchingComplete={fetchTransaktionen}
+        onMatchingComplete={() => fetchTransaktionen(true)}
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -577,7 +577,7 @@ export default function TransaktionenPage() {
                 <Button
                   variant="link"
                   className="ml-2 h-auto p-0 text-destructive underline"
-                  onClick={fetchTransaktionen}
+                  onClick={() => fetchTransaktionen()}
                 >
                   Erneut versuchen
                 </Button>
@@ -588,7 +588,7 @@ export default function TransaktionenPage() {
             <TransaktionenTabelle
               transaktionen={transaktionen}
               loading={loading}
-              onActionComplete={fetchTransaktionen}
+              onActionComplete={() => fetchTransaktionen(true)}
               onManualAssign={handleManualAssign}
               onCreateRegel={(prefill) => { setRegelnPrefill(prefill); setRegelnDialogOpen(true) }}
               onCreateEigenbeleg={handleCreateEigenbeleg}
@@ -605,7 +605,7 @@ export default function TransaktionenPage() {
                 /* handled inside component */
               }}
               onBulkZuordnen={handleBulkZuordnen}
-              onActionComplete={fetchTransaktionen}
+              onActionComplete={() => fetchTransaktionen(true)}
             />
           </div>
         )}
@@ -620,7 +620,7 @@ export default function TransaktionenPage() {
         open={zuordnungsDialogOpen}
         onOpenChange={setZuordnungsDialogOpen}
         transaktion={zuordnungsTransaktion}
-        onAssigned={selectedIds.length > 1 ? handleBulkAssigned : fetchTransaktionen}
+        onAssigned={selectedIds.length > 1 ? handleBulkAssigned : () => fetchTransaktionen(true)}
       />
 
       {/* Transaktions-Detail Sheet */}
@@ -630,7 +630,7 @@ export default function TransaktionenPage() {
         transaktion={selectedTransaktion}
         isEar={isEar}
         onWorkflowStatusChange={handleWorkflowStatusChange}
-        onAssigned={fetchTransaktionen}
+        onAssigned={() => fetchTransaktionen(true)}
       />
 
       {/* Eigenbeleg Dialog */}
@@ -641,7 +641,7 @@ export default function TransaktionenPage() {
           transaktion={eigenbelegTransaktion}
           onCreated={() => {
             setEigenbelegDialogOpen(false)
-            fetchTransaktionen()
+            fetchTransaktionen(true)
           }}
         />
       )}

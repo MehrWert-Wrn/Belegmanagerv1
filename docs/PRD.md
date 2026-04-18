@@ -46,6 +46,10 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 | P1 | KI-Chatbot | Eingebetteter Chat-Assistent rechts unten, RAG-basiert auf Hilfe-Center-Inhalten, Support-Ticket-Weiterleitung | Planned |
 | P1 | Sichere Zugangsdaten-Übermittlung | AES-256-verschlüsselte Übermittlung von E-Mail-Credentials (IMAP/M365/Gmail) direkt im Onboarding, Admin-Verwaltung mit Hard-Delete | Planned |
 | P1 | EAR-Buchungstyp & Buchungsnummern | Buchführungstyp (EAR/Doppelt) am Mandanten, automatische Buchungsnummern-Vergabe beim Monatsabschluss, Beleg-Umbenennung, Privat-Status für Transaktionen | Planned |
+| P1 | Buchhaltungsmanager Feature-Gate (PROJ-26) | Optionale Erweiterung zum Buchhaltungsmanager; Dev-Flag während Entwicklung, danach Admin-Freischaltung oder Stripe-Abo-Upgrade | Planned |
+| P1 | FreeFinance Provider-Setup & Kontenplan (PROJ-27) | FreeFinance API-Key hinterlegen, Kontenplan direkt aus FreeFinance importieren | Planned |
+| P1 | Vorkontierung (PROJ-28) | Buchungssatz (Soll/Haben, Betrag, MwSt, Text) pro Transaktion anlegen und verwalten | Planned |
+| P1 | Buchungs-Sync FreeFinance (PROJ-29) | Vorkontierungen einzeln oder als Batch via FreeFinance API buchen, Status-Tracking, Retry bei Fehlern | Planned |
 
 > Details zu jeder Feature (User Stories, Acceptance Criteria, Edge Cases, Tech Design) → `features/`
 

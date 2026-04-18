@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowUpRight, ArrowDownLeft, CheckCircle2 } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, CheckCircle2, Link2, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Sheet,
@@ -55,6 +55,7 @@ export function TransaktionDetailSheet({
   const [zuordnungsOpen, setZuordnungsOpen] = useState(false)
   const [eigenbelegOpen, setEigenbelegOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [markingPrivat, setMarkingPrivat] = useState(false)
 
   async function handleConfirm() {
     if (!transaktion?.beleg_id) return
@@ -75,6 +76,29 @@ export function TransaktionDetailSheet({
       toast.error(err instanceof Error ? err.message : 'Fehler bei der Bestätigung')
     } finally {
       setConfirming(false)
+    }
+  }
+
+  async function handleMarkPrivat() {
+    if (!transaktion) return
+    setMarkingPrivat(true)
+    try {
+      const res = await fetch(`/api/transaktionen/${transaktion.id}/workflow-status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflow_status: 'privat' }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        throw new Error(d.error ?? 'Speichern fehlgeschlagen')
+      }
+      toast.success('Als Privatausgabe markiert')
+      onWorkflowStatusChange?.(transaktion.id, 'privat')
+      onAssigned?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Fehler beim Speichern')
+    } finally {
+      setMarkingPrivat(false)
     }
   }
 
@@ -179,37 +203,17 @@ export function TransaktionDetailSheet({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Matching</h3>
-              <div className="flex items-center gap-2">
-                {transaktion.match_status === 'vorgeschlagen' && transaktion.beleg_id && (
-                  <Button
-                    size="sm"
-                    onClick={handleConfirm}
-                    disabled={confirming}
-                    className="gap-1.5"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    {confirming ? 'Wird bestätigt…' : 'Bestätigen'}
-                  </Button>
-                )}
-                {transaktion.match_status === 'offen' && isExpense && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEigenbelegOpen(true)}
-                  >
-                    Eigenbeleg erstellen
-                  </Button>
-                )}
-                {(transaktion.match_status === 'vorgeschlagen' || transaktion.match_status === 'bestaetigt') && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setZuordnungsOpen(true)}
-                  >
-                    Beleg ändern
-                  </Button>
-                )}
-              </div>
+              {transaktion.match_status === 'vorgeschlagen' && transaktion.beleg_id && (
+                <Button
+                  size="sm"
+                  onClick={handleConfirm}
+                  disabled={confirming}
+                  className="gap-1.5"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {confirming ? 'Wird bestätigt…' : 'Bestätigen'}
+                </Button>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <AmpelBadge
@@ -239,6 +243,50 @@ export function TransaktionDetailSheet({
                 </dd>
               </dl>
             )}
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-2">
+              {transaktion.match_status === 'offen' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setZuordnungsOpen(true)}
+                  className="gap-1.5"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  Manuell zuordnen
+                </Button>
+              )}
+              {(transaktion.match_status === 'vorgeschlagen' || transaktion.match_status === 'bestaetigt') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setZuordnungsOpen(true)}
+                >
+                  Beleg ändern
+                </Button>
+              )}
+              {transaktion.match_status === 'offen' && isExpense && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEigenbelegOpen(true)}
+                >
+                  Eigenbeleg erstellen
+                </Button>
+              )}
+              {isEar && transaktion.match_status === 'offen' && isExpense && transaktion.workflow_status !== 'privat' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleMarkPrivat}
+                  disabled={markingPrivat}
+                  className="gap-1.5"
+                >
+                  <EyeOff className="h-3.5 w-3.5 text-purple-500" />
+                  {markingPrivat ? 'Wird markiert…' : 'Als Privatausgabe'}
+                </Button>
+              )}
+            </div>
           </div>
 
           <Separator />

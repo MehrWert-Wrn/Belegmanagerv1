@@ -7,7 +7,7 @@ import { sanitizeArticleHtml, estimateReadTimeMinutes } from '@/lib/help/sanitiz
 import { adminGetArticleById } from '@/lib/help/queries'
 
 const articleUpdateSchema = z.object({
-  topic_id: z.string().uuid().optional(),
+  topic_id: z.string().min(1).optional(),
   title: z.string().trim().min(2).max(200).optional(),
   slug: z.string().trim().min(2).max(200).optional(),
   summary: z.string().max(1000).optional(),

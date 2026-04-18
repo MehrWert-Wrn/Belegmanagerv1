@@ -61,8 +61,8 @@ export default function BelegePage() {
   const [reviewBelegIds, setReviewBelegIds] = useState<string[]>([])
   const [reviewOpen, setReviewOpen] = useState(false)
 
-  const fetchBelege = useCallback(async () => {
-    setLoading(true)
+  const fetchBelege = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     setError(null)
 
     try {
@@ -158,7 +158,7 @@ export default function BelegePage() {
 
   function handleBulkDeleted() {
     setSelectedIds(new Set())
-    fetchBelege()
+    fetchBelege(true)
   }
 
   const hasMatchedBelegeInSelection = belege.some(
@@ -448,7 +448,7 @@ export default function BelegePage() {
           <Button
             variant="link"
             className="ml-2 h-auto p-0 text-destructive underline"
-            onClick={fetchBelege}
+            onClick={() => fetchBelege()}
           >
             Erneut versuchen
           </Button>
@@ -466,18 +466,18 @@ export default function BelegePage() {
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
         onDirektBezahlt={handleDirektBezahlt}
-        onActionComplete={fetchBelege}
+        onActionComplete={() => fetchBelege(true)}
       />
 
       {/* Dialogs */}
       <BelegUploadDialog
         open={uploadOpen}
         onOpenChange={setUploadOpen}
-        onSuccess={fetchBelege}
+        onSuccess={() => fetchBelege(true)}
         onMassImportComplete={(result) => {
           setReviewBelegIds(result.belegIds)
           setReviewOpen(true)
-          fetchBelege()
+          fetchBelege(true)
         }}
       />
 
@@ -485,7 +485,7 @@ export default function BelegePage() {
         beleg={selectedBeleg}
         open={detailOpen}
         onOpenChange={setDetailOpen}
-        onUpdated={fetchBelege}
+        onUpdated={() => fetchBelege(true)}
       />
 
       {/* Single delete dialog */}
@@ -493,7 +493,7 @@ export default function BelegePage() {
         beleg={deleteBeleg}
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        onDeleted={fetchBelege}
+        onDeleted={() => fetchBelege(true)}
       />
 
       {/* Bulk delete dialog */}
@@ -512,7 +512,7 @@ export default function BelegePage() {
         beleg={direktBezahltBeleg}
         open={direktBezahltOpen}
         onOpenChange={setDirektBezahltOpen}
-        onSuccess={fetchBelege}
+        onSuccess={() => fetchBelege(true)}
       />
 
       {/* Review mode for mass import */}
@@ -520,7 +520,7 @@ export default function BelegePage() {
         belegIds={reviewBelegIds}
         open={reviewOpen}
         onOpenChange={setReviewOpen}
-        onComplete={fetchBelege}
+        onComplete={() => fetchBelege(true)}
       />
     </div>
   )

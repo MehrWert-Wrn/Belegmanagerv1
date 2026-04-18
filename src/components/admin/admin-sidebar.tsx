@@ -66,21 +66,24 @@ export function AdminSidebar({ userEmail, children }: AdminSidebarProps) {
 
   return (
     <SidebarProvider>
-      <Sidebar>
+      <Sidebar collapsible="icon">
         <SidebarHeader className="p-4">
-          <Link href="/admin/mandanten" className="flex items-center gap-3">
-            <Image
-              src="/logo-icon.svg"
-              alt="Belegmanager Logo"
-              width={32}
-              height={32}
-              className="shrink-0"
-            />
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold text-[#08525E]">Admin Panel</span>
-              <span className="text-[10px] text-[#1D8A9E]">Belegmanager</span>
-            </div>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/admin/mandanten" className="flex items-center gap-3 flex-1 min-w-0">
+              <Image
+                src="/logo-icon.svg"
+                alt="Belegmanager Logo"
+                width={32}
+                height={32}
+                className="shrink-0"
+              />
+              <div className="flex flex-col leading-tight group-data-[state=collapsed]:hidden">
+                <span className="text-sm font-semibold text-[#08525E]">Admin Panel</span>
+                <span className="text-[10px] text-[#1D8A9E]">Belegmanager</span>
+              </div>
+            </Link>
+            <SidebarTrigger className="hidden md:flex shrink-0 -mr-1" />
+          </div>
         </SidebarHeader>
 
         <SidebarSeparator />
@@ -145,7 +148,7 @@ export function AdminSidebar({ userEmail, children }: AdminSidebarProps) {
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                <span className="truncate text-sm">{userEmail}</span>
+                <span className="truncate text-sm group-data-[state=collapsed]:hidden">{userEmail}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">

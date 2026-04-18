@@ -7,7 +7,7 @@ import { sanitizeArticleHtml, estimateReadTimeMinutes } from '@/lib/help/sanitiz
 import { adminGetAllArticles } from '@/lib/help/queries'
 
 const articleCreateSchema = z.object({
-  topic_id: z.string().uuid(),
+  topic_id: z.string().min(1),
   title: z.string().trim().min(2).max(200),
   slug: z.string().trim().min(2).max(200).optional(),
   summary: z.string().max(1000).optional().default(''),

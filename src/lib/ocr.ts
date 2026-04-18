@@ -44,26 +44,35 @@ export const OCR_MAX_FILE_SIZE = 5 * 1024 * 1024
 /** OCR timeout in milliseconds */
 const OCR_TIMEOUT_MS = 30_000
 
-const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen. Analysiere das Dokument und extrahiere:
+const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen und Kassenbons. Analysiere das Dokument und extrahiere:
 
 - lieferant: Name des Rechnungsstellers
-- rechnungsnummer: Rechnungsnummer (z.B. RE-2024-001)
+- rechnungsnummer: Rechnungsnummer (z.B. RE-2024-001, Beleg-Nr., Bon-Nr.)
 - rechnungsdatum: Rechnungsdatum im Format YYYY-MM-DD
-- bruttobetrag: Gesamtbruttobetrag (inkl. MwSt) als Zahl — die GESAMTSUMME der Rechnung
+- bruttobetrag: Gesamtbruttobetrag (inkl. MwSt) als Zahl — die GESAMTSUMME inkl. aller Positionen und Trinkgeld
 - nettobetrag: Gesamtnettobetrag (ohne MwSt) als Zahl — die GESAMTSUMME netto
 - mwst_satz: Hauptsteuersatz in Prozent (der häufigste oder höchste Steuersatz)
-- steuerzeilen: WICHTIG — suche auf der Rechnung nach einer MwSt-Aufschlüsselung / Steuerübersicht-Tabelle (oft am Ende der Rechnung). Diese Tabelle listet jeden Steuersatz separat auf. Extrahiere JEDE Zeile dieser Tabelle als eigenen Eintrag:
+- steuerzeilen: KRITISCH — suche nach der MwSt-Aufschlüsselungstabelle. Diese erscheint am Ende der Rechnung in verschiedenen Formaten:
+  FORMAT A (Standard-Rechnung): Spalten "Netto / MwSt% / MwSt-Betrag / Brutto"
+  FORMAT B (Österr. Kassenbon/POS): Spalten "Satz / Netto / MwSt / Summe" — dabei bedeutet "EUR 10" = Steuersatz 10%, "EUR 20" = Steuersatz 20% usw.
+  FORMAT C (Supermarkt AT): Zeilen wie "A 10% xxx.xx" oder "B 20% xxx.xx"
+  Extrahiere JEDE Steuersatz-Zeile separat:
   - Format pro Zeile: {"nettobetrag": Zahl, "mwst_satz": Zahl (z.B. 0, 10, 13, 20), "bruttobetrag": Zahl}
   - Bei nur einem Steuersatz: genau ein Eintrag
-  - Bei mehreren Steuersätzen (z.B. 0%, 10%, 20%): je ein Eintrag PRO Steuersatz-Zeile
-  - NICHT die Summenzeile / Gesamtsumme — nur die einzelnen Steuergruppen-Zeilen
+  - Bei mehreren Steuersätzen: je ein Eintrag PRO Steuersatz-Zeile
+  - Trinkgeld / Tip ohne MwSt: als separate Zeile mit mwst_satz=0 erfassen
+  - NICHT die Summenzeile / Gesamtsumme aufnehmen — nur die Steuergruppen-Zeilen
   - Österreichische Steuersätze: 0%, 10%, 13%, 20%
 - confidence: Gesamtzuversicht (0.0 bis 1.0)
 
 Antworte NUR mit einem JSON-Objekt. Null für unbekannte Felder.
 Beträge: Punkt als Dezimaltrennzeichen (z.B. 1234.56).
 
-Beispiel mit 3 Steuersätzen (typisch für Lebensmitteleinzelhandel AT wie SPAR, Billa, Hofer):
+Beispiel österr. Restaurant-Kassenbon (FORMAT B) mit 10%, 20% und Trinkgeld:
+Bon zeigt: "Satz Netto MwSt Summe / EUR 10  31,54  3,16  34,70 / EUR 20  14,50  2,90  17,40 / Summe: 52,10 / + Tip: 1,90 / Visa PayWave: 54,00"
+→ {"lieferant":"Kulisse","rechnungsnummer":"001144","rechnungsdatum":"2026-01-16","bruttobetrag":54.00,"nettobetrag":47.94,"mwst_satz":10,"steuerzeilen":[{"nettobetrag":31.54,"mwst_satz":10,"bruttobetrag":34.70},{"nettobetrag":14.50,"mwst_satz":20,"bruttobetrag":17.40},{"nettobetrag":1.90,"mwst_satz":0,"bruttobetrag":1.90}],"confidence":0.93}
+
+Beispiel mit 3 Steuersätzen (Lebensmitteleinzelhandel AT wie SPAR, Billa, Hofer):
 {"lieferant":"SPAR","rechnungsnummer":"4729103","rechnungsdatum":"2026-03-15","bruttobetrag":912.06,"nettobetrag":796.87,"mwst_satz":20,"steuerzeilen":[{"nettobetrag":38.50,"mwst_satz":0,"bruttobetrag":38.50},{"nettobetrag":364.82,"mwst_satz":10,"bruttobetrag":401.30},{"nettobetrag":393.55,"mwst_satz":20,"bruttobetrag":472.26}],"confidence":0.91}
 
 Beispiel mit 2 Steuersätzen:
