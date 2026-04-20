@@ -50,6 +50,14 @@ export async function GET(
   return NextResponse.json(data)
 }
 
+function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[/\\:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 200)
+}
+
 // PATCH /api/belege/[id] – Metadaten aktualisieren
 export async function PATCH(
   request: Request,
@@ -84,9 +92,42 @@ export async function PATCH(
     }
   }
 
+  // Fetch current beleg to check if file rename is needed
+  const { data: currentBeleg } = await supabase
+    .from('belege')
+    .select('storage_path, dateityp, rechnungsname')
+    .eq('id', id)
+    .single()
+
+  const dbUpdate: Record<string, unknown> = { ...parsed.data }
+
+  // Rename file in storage when rechnungsname changes and a file exists
+  if (
+    parsed.data.rechnungsname &&
+    currentBeleg?.storage_path &&
+    parsed.data.rechnungsname !== currentBeleg.rechnungsname
+  ) {
+    const ext = currentBeleg.dateityp ?? currentBeleg.storage_path.split('.').pop() ?? 'pdf'
+    const safeName = sanitizeFilename(parsed.data.rechnungsname)
+    const folder = currentBeleg.storage_path.split('/')[0]
+    const newStoragePath = `${folder}/${safeName}.${ext}`
+
+    if (newStoragePath !== currentBeleg.storage_path) {
+      const { error: copyError } = await supabase.storage
+        .from('belege')
+        .copy(currentBeleg.storage_path, newStoragePath)
+
+      if (!copyError) {
+        await supabase.storage.from('belege').remove([currentBeleg.storage_path])
+        dbUpdate.storage_path = newStoragePath
+        dbUpdate.original_filename = `${safeName}.${ext}`
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from('belege')
-    .update(parsed.data)
+    .update(dbUpdate)
     .eq('id', id)
     .select()
     .single()

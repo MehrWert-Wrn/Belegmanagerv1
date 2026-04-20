@@ -50,6 +50,7 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 | P1 | FreeFinance Provider-Setup & Kontenplan (PROJ-27) | FreeFinance API-Key hinterlegen, Kontenplan direkt aus FreeFinance importieren | Planned |
 | P1 | Vorkontierung (PROJ-28) | Buchungssatz (Soll/Haben, Betrag, MwSt, Text) pro Transaktion anlegen und verwalten | Planned |
 | P1 | Buchungs-Sync FreeFinance (PROJ-29) | Vorkontierungen einzeln oder als Batch via FreeFinance API buchen, Status-Tracking, Retry bei Fehlern | Planned |
+| P1 | E-Mail-Belegeingang (PROJ-30) | Shared Testphase-Postfach testphase@belegmanager.at; Mandant-Identifikation via Absender-E-Mail, OCR-Verarbeitung, automatische Beleg-Anlage | Planned |
 
 > Details zu jeder Feature (User Stories, Acceptance Criteria, Edge Cases, Tech Design) → `features/`
 

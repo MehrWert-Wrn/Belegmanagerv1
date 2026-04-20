@@ -32,6 +32,7 @@ export type Database = {
           mwst_satz: number | null
           nettobetrag: number | null
           original_filename: string | null
+          quelle: 'manual' | 'email'
           rechnungsdatum: string | null
           rechnungsname: string | null
           rechnungsnummer: string | null
@@ -63,6 +64,7 @@ export type Database = {
           mwst_satz?: number | null
           nettobetrag?: number | null
           original_filename?: string | null
+          quelle?: 'manual' | 'email'
           rechnungsdatum?: string | null
           rechnungsname?: string | null
           rechnungsnummer?: string | null

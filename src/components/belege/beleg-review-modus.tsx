@@ -89,6 +89,16 @@ function roundTwo(val: number): number {
   return Math.round(val * 100) / 100
 }
 
+function buildAutoRechnungsname(beleg: Beleg): string {
+  const parts: string[] = []
+  if (beleg.rechnungsdatum) {
+    parts.push(new Date(beleg.rechnungsdatum).toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }))
+  }
+  if (beleg.lieferant) parts.push(beleg.lieferant)
+  if (beleg.rechnungsnummer) parts.push(beleg.rechnungsnummer)
+  return parts.join(' - ')
+}
+
 interface BelegReviewModusProps {
   belegIds: string[]
   open: boolean
@@ -238,7 +248,7 @@ export function BelegReviewModus({
     }
 
     form.reset({
-      rechnungsname: currentBeleg.rechnungsname ?? '',
+      rechnungsname: currentBeleg.rechnungsname || buildAutoRechnungsname(currentBeleg),
       rechnungsnummer: currentBeleg.rechnungsnummer ?? '',
       rechnungstyp: currentBeleg.rechnungstyp ?? 'eingangsrechnung',
       lieferant: currentBeleg.lieferant ?? '',
@@ -376,7 +386,7 @@ export function BelegReviewModus({
         const res = await fetch(`/api/belege/${beleg.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rechnungsname: beleg.original_filename }),
+          body: JSON.stringify({ rechnungsname: buildAutoRechnungsname(beleg) || beleg.original_filename }),
         })
         if (res.ok) {
           savedCount++

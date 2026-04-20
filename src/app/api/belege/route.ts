@@ -24,6 +24,7 @@ const belegSchema = z.object({
   bestellnummer: z.string().optional(),
   beschreibung: z.string().max(100, 'Beschreibung darf maximal 100 Zeichen lang sein').optional(),
   import_quelle: z.enum(['manuell', 'n8n_import']).optional(),
+  quelle: z.enum(['manual', 'email']).optional(),
   bruttobetrag: z.number().nullable().optional(),
   nettobetrag: z.number().nullable().optional(),
   mwst_satz: z.number().nullable().optional(),

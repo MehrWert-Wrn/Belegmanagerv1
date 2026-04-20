@@ -1,6 +1,6 @@
 'use client'
 
-import { MoreHorizontal, Eye, Pencil, Trash2, FileText, Ban, RotateCcw, Wallet, HelpCircle } from 'lucide-react'
+import { MoreHorizontal, Eye, Pencil, Trash2, FileText, Ban, RotateCcw, Wallet, HelpCircle, Mail } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -192,7 +192,17 @@ export function BelegTabelle({
                 />
               </TableCell>
               <TableCell className="font-medium">
-                {beleg.rechnungsname || beleg.original_filename || 'Unbekannt'}
+                <span className="flex items-center gap-1.5">
+                  {beleg.quelle === 'email' && (
+                    <span title="Via E-Mail importiert">
+                      <Mail
+                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                        aria-label="Via E-Mail importiert"
+                      />
+                    </span>
+                  )}
+                  {beleg.rechnungsname || beleg.original_filename || 'Unbekannt'}
+                </span>
               </TableCell>
               <TableCell className="hidden md:table-cell">
                 {formatDate(beleg.rechnungsdatum)}

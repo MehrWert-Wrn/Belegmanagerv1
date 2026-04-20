@@ -44,6 +44,7 @@
 | PROJ-27 | FreeFinance Provider-Setup & Kontenplan-Import | Planned | [PROJ-27-freefinance-setup-kontenplan.md](PROJ-27-freefinance-setup-kontenplan.md) | 2026-04-17 |
 | PROJ-28 | Vorkontierung | Planned | [PROJ-28-vorkontierung.md](PROJ-28-vorkontierung.md) | 2026-04-17 |
 | PROJ-29 | Buchungs-Sync FreeFinance | Planned | [PROJ-29-buchungs-sync-freefinance.md](PROJ-29-buchungs-sync-freefinance.md) | 2026-04-17 |
+| PROJ-30 | E-Mail-Belegeingang (testphase@belegmanager.at) | In Review | [PROJ-30-email-belegeingang.md](PROJ-30-email-belegeingang.md) | 2026-04-20 |
 
 
-## Next Available ID: PROJ-30
+## Next Available ID: PROJ-31

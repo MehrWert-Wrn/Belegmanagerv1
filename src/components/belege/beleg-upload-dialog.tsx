@@ -354,6 +354,18 @@ export function BelegUploadDialog({
       }
     }
 
+    // Auto-generate rechnungsname: "DD.MM.YYYY - Lieferant - Rechnungsnummer"
+    const nameParts: string[] = []
+    if (result.rechnungsdatum) {
+      nameParts.push(new Date(result.rechnungsdatum).toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }))
+    }
+    if (result.lieferant) nameParts.push(result.lieferant)
+    if (result.rechnungsnummer) nameParts.push(result.rechnungsnummer)
+    if (nameParts.length > 0) {
+      form.setValue('rechnungsname', nameParts.join(' - '))
+      newOcrFields.add('rechnungsname')
+    }
+
     setOcrFields(newOcrFields)
   }
 
