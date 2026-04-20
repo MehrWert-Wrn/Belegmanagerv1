@@ -1,6 +1,6 @@
 # PROJ-30: E-Mail-Belegeingang (testphase@belegmanager.at)
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-04-20
 **Last Updated:** 2026-04-20
 
@@ -438,4 +438,23 @@ Alle Medium-Bugs aus Round 1 sind gefixt. Verbleibende Low-Bugs:
 - **Recommendation:** **Deploy-ready**. BUG-30-005 (Rate-Limit) vor Go-Live mit zahlenden Mandanten adressieren; BUG-30-007/008/009 als Folge-Tickets planen.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-20
+**Commit:** ca3db9b
+**Build:** ✅ `npm run build` erfolgreich
+**Migration:** ✅ `email_belegeingang` auf Supabase Cloud angewendet
+
+### Offene manuelle Schritte (Postmark-Setup)
+Diese Schritte müssen einmalig außerhalb des Codes durchgeführt werden:
+
+1. **Postmark Account** → Server erstellen → Inbound-Domain `inbound.belegmanager.at` registrieren
+2. **DNS** beim Provider: MX-Record `belegmanager.at → inbound.postmarkapp.com` (Priorität 10)
+3. **Webhook-URL** in Postmark Dashboard: `https://app.belegmanager.at/api/email-inbound`
+4. **Vercel Env Vars** setzen:
+   - `POSTMARK_INBOUND_TOKEN` → aus Postmark Dashboard (Inbound Settings)
+   - `POSTMARK_SERVER_TOKEN` → aus Postmark Dashboard (API Tokens)
+   - `POSTMARK_BOUNCE_SENDER` → `noreply@belegmanager.at` (muss als Sender in Postmark verifiziert sein)
+5. **DKIM/SPF** für `belegmanager.at` in Postmark verifizieren (für Bounce-Mail-Zustellbarkeit)
+
+### Deferred Bugs (vor zahlenden Mandanten-Go-Live)
+- BUG-30-005: Rate-Limiting auf `/api/email-inbound` (Spam-Schutz)
