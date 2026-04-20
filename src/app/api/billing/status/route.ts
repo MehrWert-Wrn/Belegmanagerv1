@@ -23,7 +23,7 @@ export async function GET() {
   // Check admin override
   const { data: sub } = await admin
     .from('billing_subscriptions')
-    .select('admin_override_type, admin_override_until')
+    .select('admin_override_type, admin_override_until, stripe_price_id')
     .eq('mandant_id', mandant.id)
     .maybeSingle()
 
@@ -48,6 +48,7 @@ export async function GET() {
     adminOverrideActive,
     adminOverrideType: sub?.admin_override_type ?? null,
     adminOverrideUntil: sub?.admin_override_until ?? null,
+    stripePriceId: sub?.stripe_price_id ?? null,
     payments: payments ?? [],
   })
 }

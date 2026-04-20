@@ -21,9 +21,16 @@ export const stripe = new Proxy({} as Stripe, {
   },
 })
 
-export function getStripePriceId(): string {
-  if (!process.env.STRIPE_PRICE_ID) {
-    throw new Error('STRIPE_PRICE_ID ist nicht gesetzt')
+export function getStripePriceIdMonthly(): string {
+  if (!process.env.STRIPE_PRICE_ID_MONTHLY) {
+    throw new Error('STRIPE_PRICE_ID_MONTHLY ist nicht gesetzt')
   }
-  return process.env.STRIPE_PRICE_ID
+  return process.env.STRIPE_PRICE_ID_MONTHLY
+}
+
+export function getStripePriceIdYearly(): string {
+  if (!process.env.STRIPE_PRICE_ID_YEARLY) {
+    throw new Error('STRIPE_PRICE_ID_YEARLY ist nicht gesetzt')
+  }
+  return process.env.STRIPE_PRICE_ID_YEARLY
 }

@@ -1,7 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { stripe, getStripePriceId } from '@/lib/stripe'
+import { stripe, getStripePriceIdMonthly, getStripePriceIdYearly } from '@/lib/stripe'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
+
+const CheckoutBodySchema = z.object({
+  plan: z.enum(['monthly', 'yearly']).default('monthly'),
+})
 
 const rateLimit = new Map<string, number[]>()
 function isRateLimited(userId: string, maxPerMinute = 5): boolean {
@@ -13,11 +18,15 @@ function isRateLimited(userId: string, maxPerMinute = 5): boolean {
 }
 
 // POST /api/billing/checkout – Stripe Checkout Session erstellen
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (isRateLimited(user.id)) return NextResponse.json({ error: 'Zu viele Anfragen' }, { status: 429 })
+
+  const body = await request.json().catch(() => ({}))
+  const parsed = CheckoutBodySchema.safeParse(body)
+  const plan = parsed.success ? parsed.data.plan : 'monthly'
 
   const admin = createAdminClient()
   const { data: mandant } = await admin
@@ -64,7 +73,7 @@ export async function POST() {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
-      line_items: [{ price: getStripePriceId(), quantity: 1 }],
+      line_items: [{ price: plan === 'yearly' ? getStripePriceIdYearly() : getStripePriceIdMonthly(), quantity: 1 }],
       success_url: `${siteUrl}/settings/abonnement?success=1`,
       cancel_url: `${siteUrl}/settings/abonnement?cancelled=1`,
       allow_promotion_codes: true,
