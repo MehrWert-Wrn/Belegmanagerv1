@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { getMandantId, requireAdmin } from '@/lib/auth-helpers'
+import { requireAdmin } from '@/lib/auth-helpers'
+import { getEffectiveSupabase } from '@/lib/admin-context'
 import { isMonatGesperrt } from '@/lib/monat-lock'
 import { executeMatching } from '@/lib/execute-matching'
 import { NextResponse } from 'next/server'
@@ -43,9 +43,9 @@ const bulkDeleteSchema = z.object({
 
 // GET /api/belege – Liste aller Belege (mit optionalen Filtern)
 export async function GET(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   const { searchParams } = new URL(request.url)
   const lieferant = searchParams.get('lieferant')
@@ -65,6 +65,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from('belege')
     .select('*')
+    .eq('mandant_id', mandantId)
     .is('geloescht_am', null)
     .order('rechnungsdatum', { ascending: false, nullsFirst: false })
     .order('erstellt_am', { ascending: false })
@@ -103,9 +104,9 @@ export async function GET(request: Request) {
 
 // POST /api/belege – Beleg-Metadaten nach Upload speichern
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   const body = await request.json()
   const parsed = belegSchema.safeParse(body)
@@ -113,7 +114,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const mandantId = await getMandantId(supabase)
   if (!mandantId) return NextResponse.json({ error: 'Kein Mandant gefunden' }, { status: 404 })
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -138,9 +138,9 @@ export async function POST(request: Request) {
 
 // DELETE /api/belege – Bulk soft-delete multiple Belege + unlink matched transactions
 export async function DELETE(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   const admin = await requireAdmin(supabase)
   if (admin.error) return admin.error
@@ -153,8 +153,6 @@ export async function DELETE(request: Request) {
 
   const { ids } = parsed.data
 
-  // BUG-PROJ3-020: Explicitly scope to mandant_id (defense-in-depth, not just RLS)
-  const mandantId = await getMandantId(supabase)
   if (!mandantId) return NextResponse.json({ error: 'Kein Mandant gefunden' }, { status: 404 })
 
   // Fetch all belege being deleted to check lock status

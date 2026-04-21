@@ -33,6 +33,7 @@ interface ExportVorschau {
   anzahl_transaktionen: number
   anzahl_mit_beleg: number
   anzahl_ohne_beleg: number
+  anzahl_csv_zeilen: number
   letzte_exporte: {
     exportiert_am: string
     export_typ: string
@@ -128,7 +129,7 @@ export function ExportDialog({
       const blob = await response.blob()
       const contentDisposition = response.headers.get('Content-Disposition')
       const filenameMatch = contentDisposition?.match(/filename="(.+)"/)
-      const filename = filenameMatch?.[1] ?? `DATEV_Export_${jahr}_${String(monat).padStart(2, '0')}.${exportTyp}`
+      const filename = filenameMatch?.[1] ?? `buchungsuebergabe_${jahr}_${String(monat).padStart(2, '0')}.${exportTyp}`
 
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -142,7 +143,7 @@ export function ExportDialog({
       setExportProgress(100)
       setPhase('exportiert')
 
-      toast.success(`DATEV-Export fuer ${monatsname} ${jahr} heruntergeladen.`)
+      toast.success(`Buchhaltungsübergabe fuer ${monatsname} ${jahr} heruntergeladen.`)
       onExportiert?.()
 
       // Refresh preview to show updated export history
@@ -171,10 +172,10 @@ export function ExportDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            DATEV-Export
+            Buchhaltungsübergabe
           </DialogTitle>
           <DialogDescription>
-            {monatsname} {jahr} im DATEV-kompatiblen Format exportieren.
+            {monatsname} {jahr} als Paket für die Buchhaltung exportieren (CSV + Belege).
           </DialogDescription>
         </DialogHeader>
 
@@ -214,8 +215,8 @@ export function ExportDialog({
                 <h4 className="text-sm font-medium mb-3">Export-Vorschau</h4>
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <p className="text-2xl font-bold">{vorschau.anzahl_transaktionen}</p>
-                    <p className="text-xs text-muted-foreground">Transaktionen</p>
+                    <p className="text-2xl font-bold">{vorschau.anzahl_csv_zeilen}</p>
+                    <p className="text-xs text-muted-foreground">CSV-Zeilen</p>
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
@@ -230,6 +231,11 @@ export function ExportDialog({
                     <p className="text-xs text-muted-foreground">ohne Beleg</p>
                   </div>
                 </div>
+                {vorschau.anzahl_csv_zeilen > vorschau.anzahl_transaktionen && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Enthält {vorschau.anzahl_csv_zeilen - vorschau.anzahl_transaktionen} zusätzliche Zeilen durch Belege mit mehreren MwSt-Sätzen.
+                  </p>
+                )}
               </div>
 
               {/* Warning: no transactions */}
@@ -239,7 +245,7 @@ export function ExportDialog({
                   <div className="text-sm text-amber-700 dark:text-amber-300">
                     <p className="font-medium">Keine Transaktionen vorhanden</p>
                     <p className="mt-0.5">
-                      Die CSV-Datei enthaelt nur den DATEV-Header ohne Buchungszeilen.
+                      Die CSV-Datei enthaelt nur die Kopfzeile ohne Buchungszeilen.
                     </p>
                   </div>
                 </div>
@@ -280,7 +286,7 @@ export function ExportDialog({
                         <span className="font-medium text-sm">Nur CSV</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        DATEV Buchungsstapel als CSV-Datei (UTF-8)
+                        Buchhaltungs-CSV (UTF-8, Semikolon, kompatibel mit BMD, RZL, Sage)
                       </p>
                     </div>
                   </Label>
@@ -300,7 +306,7 @@ export function ExportDialog({
                         <span className="font-medium text-sm">ZIP-Paket</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        CSV + alle zugeordneten Belege (PDFs)
+                        CSV + Belege (PDFs) + LIESMICH.txt für den Steuerberater
                       </p>
                     </div>
                   </Label>
@@ -396,7 +402,7 @@ export function ExportDialog({
           {vorschau && !vorschauLoading && (
             <Button
               onClick={handleExport}
-              disabled={exporting || vorschauLoading || !hatTransaktionen}
+              disabled={exporting || vorschauLoading}
             >
               {exporting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

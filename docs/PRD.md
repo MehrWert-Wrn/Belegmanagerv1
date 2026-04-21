@@ -20,7 +20,7 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 
 **Sekundär: Buchhalter / Steuerberater-Assistenz**
 - Prüfen und freigeben des Monatsabschlusses
-- Erwarten DATEV-kompatiblen Export ohne manuelle Nacharbeit
+- Erwarten strukturierten Buchhaltungsübergabe-Export (CSV + Belege als ZIP) ohne manuelle Nacharbeit
 
 ---
 
@@ -33,7 +33,7 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 | P0 (MVP) | Kassabuch | Separate Zahlungsquelle mit identischer Matching-Logik | Planned |
 | P0 (MVP) | Belegverwaltung | Upload, Vorschau, Metadaten, Zuordnung zu Transaktionen | Planned |
 | P0 (MVP) | Monatsabschluss-Workflow | Vollständigkeitsprüfung aller aktiven Quellen, Freigabe, Sperrung | Planned |
-| P0 (MVP) | DATEV-Export | CSV-Export im DATEV-kompatiblen Format für Steuerberater | Planned |
+| P0 (MVP) | Buchhaltungsübergabe-Export | ZIP-Paket mit allgemeiner CSV (BMD/RZL/Sage-kompatibel) + Belege-PDFs für Steuerberater | Planned |
 | P1 | Zahlungsquellen-Verwaltung (v2) | Mandant konfiguriert beliebige Zusatzquellen (Kreditkarte, PayPal, Tankkarte) | Planned |
 | P1 | Kommentare & Workflow | Interne Kommentare pro Transaktion, Status-Flags, Rückfragen | Planned |
 | P1 | Multi-Tenant User-Rollen | Admin / Buchhalter-Rollen, Einladung per E-Mail | Planned |
@@ -62,7 +62,7 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 - Kontoauszug-Matching + Kassabuch
 - Belegverwaltung (Upload & Zuordnung)
 - Monatsabschluss-Workflow
-- DATEV-Export
+- Buchhaltungsübergabe-Export (ZIP: CSV + Belege)
 - Single-Tenant-Login (Self-Signup, 1 Mandant)
 
 **Bewusst NICHT im MVP:**
@@ -80,7 +80,7 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 
 - Matching-Quote ≥ 80% automatisch (ohne manuelle Eingriffe)
 - Monatsabschluss in < 30 Minuten (statt bisher 2–4 Stunden)
-- Steuerberater kann DATEV-Export ohne Nacharbeit importieren
+- Steuerberater kann Buchhaltungsübergabe-ZIP ohne manuelle Nacharbeit in gängige AT-Systeme (BMD, RZL, Sage) importieren
 - Onboarding neuer Mandant in < 10 Minuten
 
 ---

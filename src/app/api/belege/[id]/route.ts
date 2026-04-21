@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { requireAdmin, getMandantId } from '@/lib/auth-helpers'
+import { getEffectiveSupabase } from '@/lib/admin-context'
+import { requireAdmin } from '@/lib/auth-helpers'
 import { isMonatGesperrt } from '@/lib/monat-lock'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -33,9 +33,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   const { id } = await params
 
@@ -43,6 +43,7 @@ export async function GET(
     .from('belege')
     .select('*')
     .eq('id', id)
+    .eq('mandant_id', mandantId)
     .is('geloescht_am', null)
     .single()
 
@@ -63,9 +64,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId: mandant_id } = ctx
 
   const { id } = await params
   const body = await request.json()
@@ -74,14 +75,13 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  // Monats-Lock-Check: Wenn Beleg einer Transaktion zugeordnet ist,
-  // darf er in abgeschlossenen Monaten nicht bearbeitet werden.
-  const mandant_id = await getMandantId(supabase)
+  // Monats-Lock-Check
   if (mandant_id) {
     const { data: linkedTx } = await supabase
       .from('transaktionen')
       .select('datum')
       .eq('beleg_id', id)
+      .eq('mandant_id', mandant_id)
       .maybeSingle()
 
     if (linkedTx) {
@@ -97,6 +97,7 @@ export async function PATCH(
     .from('belege')
     .select('storage_path, dateityp, rechnungsname')
     .eq('id', id)
+    .eq('mandant_id', mandant_id)
     .single()
 
   const dbUpdate: Record<string, unknown> = { ...parsed.data }
@@ -129,6 +130,7 @@ export async function PATCH(
     .from('belege')
     .update(dbUpdate)
     .eq('id', id)
+    .eq('mandant_id', mandant_id)
     .select()
     .single()
 
@@ -141,9 +143,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId: mandant_id } = ctx
 
   const admin = await requireAdmin(supabase)
   if (admin.error) return admin.error
@@ -154,28 +156,25 @@ export async function DELETE(
     .from('belege')
     .select('zuordnungsstatus')
     .eq('id', id)
+    .eq('mandant_id', mandant_id)
     .single()
 
   if (fetchError || !beleg) {
     return NextResponse.json({ error: 'Beleg nicht gefunden' }, { status: 404 })
   }
 
-  // Monats-Lock-Check: Wenn Beleg einer Transaktion zugeordnet ist,
-  // darf er in abgeschlossenen Monaten nicht gelöscht werden (würde match_status zurücksetzen).
   if (beleg.zuordnungsstatus === 'zugeordnet') {
-    const mandant_id = await getMandantId(supabase)
-    if (mandant_id) {
-      const { data: linkedTx } = await supabase
-        .from('transaktionen')
-        .select('datum')
-        .eq('beleg_id', id)
-        .maybeSingle()
+    const { data: linkedTx } = await supabase
+      .from('transaktionen')
+      .select('datum')
+      .eq('beleg_id', id)
+      .eq('mandant_id', mandant_id)
+      .maybeSingle()
 
-      if (linkedTx) {
-        const gesperrt = await isMonatGesperrt(supabase, mandant_id, linkedTx.datum)
-        if (gesperrt) {
-          return NextResponse.json({ error: 'Monat ist abgeschlossen' }, { status: 403 })
-        }
+    if (linkedTx) {
+      const gesperrt = await isMonatGesperrt(supabase, mandant_id, linkedTx.datum)
+      if (gesperrt) {
+        return NextResponse.json({ error: 'Monat ist abgeschlossen' }, { status: 403 })
       }
     }
   }
@@ -184,6 +183,7 @@ export async function DELETE(
     .from('belege')
     .update({ geloescht_am: new Date().toISOString() })
     .eq('id', id)
+    .eq('mandant_id', mandant_id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -200,6 +200,7 @@ export async function DELETE(
         match_bestaetigt_von: null,
       })
       .eq('beleg_id', id)
+      .eq('mandant_id', mandant_id)
   }
 
   return NextResponse.json({

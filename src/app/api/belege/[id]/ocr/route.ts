@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/auth-helpers'
+import { getEffectiveSupabase } from '@/lib/admin-context'
 import { performOcr } from '@/lib/ocr'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { NextResponse } from 'next/server'
@@ -26,14 +25,13 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient()
-  const { user, error: authError } = await requireAuth(supabase)
-  if (authError) return authError
-  if (!user) return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
+  const { db: supabase, mandantId, userId } = ctx
 
   // Rate limiting
   const { allowed, retryAfterMs } = checkRateLimit(
-    `ocr:${user.id}`,
+    `ocr:${userId}`,
     RATE_LIMIT_MAX,
     RATE_LIMIT_WINDOW_MS
   )
@@ -54,6 +52,7 @@ export async function POST(
     .from('belege')
     .select('storage_path, dateityp')
     .eq('id', id)
+    .eq('mandant_id', mandantId)
     .is('geloescht_am', null)
     .single()
 

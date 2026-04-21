@@ -6,6 +6,13 @@
       "env": {
         "STRIPE_SECRET_KEY": "sk_live_REPLACE_WITH_YOUR_KEY"
       }
+    },
+    "brevo": {
+      "command": "npx",
+      "args": ["-y", "@houtini/brevo-mcp"],
+      "env": {
+        "BREVO_API_KEY": "eyJhcGlfa2V5IjoieGtleXNpYi05NTVhZmJkMTQ5YTQ1OTU4MjdmYTNmOTFkYzQ4ZDJkODhlZGU2MjFiYzQ5MDBjYzNkYTQwZjM5YmMzZmUxYmJjLXBkalN1SE43V2V2YW8zcUkifQ=="
+      }
     }
   }
 }

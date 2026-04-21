@@ -1,25 +1,17 @@
-import { createClient } from '@/lib/supabase/server'
+import { getEffectiveSupabase } from '@/lib/admin-context'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
-import { requireAuth, requireAdmin, getMandantId } from '@/lib/auth-helpers'
+import { requireAdmin } from '@/lib/auth-helpers'
 
 // GET /api/benutzer - List all mandant_users for current mandant
 export async function GET() {
-  const supabase = await createClient()
-
-  // Auth check
-  const auth = await requireAuth(supabase)
-  if (auth.error) return auth.error
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   // Admin check
   const admin = await requireAdmin(supabase)
   if (admin.error) return admin.error
-
-  // Get mandant_id
-  const mandantId = await getMandantId(supabase)
-  if (!mandantId) {
-    return NextResponse.json({ error: 'Kein Mandant gefunden' }, { status: 404 })
-  }
 
   // Fetch mandant_users for this mandant
   const { data: users, error } = await supabase

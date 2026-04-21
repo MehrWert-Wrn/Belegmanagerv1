@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const IMPERSONATION_COOKIE = 'bm_admin_ctx'
 
@@ -102,6 +103,43 @@ export async function getEffectiveContext(): Promise<EffectiveContext | null> {
   }
 
   return null
+}
+
+export interface EffectiveSupabase {
+  db: SupabaseClient
+  mandantId: string
+  isImpersonating: boolean
+  userId: string
+}
+
+/**
+ * Returns the right Supabase client + mandant_id for the current request.
+ * When impersonating: admin client (bypasses RLS) + impersonated mandant_id.
+ * When normal: regular client (RLS applies) + own mandant_id.
+ *
+ * Always add `.eq('mandant_id', mandantId)` to all queries — this ensures
+ * correct scoping both with and without RLS.
+ */
+export async function getEffectiveSupabase(): Promise<EffectiveSupabase | null> {
+  const ctx = await getEffectiveContext()
+  if (!ctx) return null
+
+  if (ctx.isImpersonating) {
+    return {
+      db: createAdminClient() as unknown as SupabaseClient,
+      mandantId: ctx.mandantId,
+      isImpersonating: true,
+      userId: ctx.userId,
+    }
+  }
+
+  const db = await createClient()
+  return {
+    db,
+    mandantId: ctx.mandantId,
+    isImpersonating: false,
+    userId: ctx.userId,
+  }
 }
 
 /**

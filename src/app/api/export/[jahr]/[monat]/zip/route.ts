@@ -1,6 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { getMandantId } from '@/lib/auth-helpers'
-import { generateDATEVCSV } from '@/lib/datev'
+import {
+  generateBuchungsCSV,
+  generateLiesmich,
+  csvDateiname,
+  zipDateiname,
+  countCsvZeilen,
+  type BuchungsexportTransaktion,
+} from '@/lib/buchungsexport'
 import { NextResponse } from 'next/server'
 import JSZip from 'jszip'
 import { z } from 'zod'
@@ -12,7 +19,7 @@ const paramsSchema = z.object({
 
 type Params = { params: Promise<{ jahr: string; monat: string }> }
 
-// POST /api/export/[jahr]/[monat]/zip – CSV + Beleg-PDFs als ZIP
+// POST /api/export/[jahr]/[monat]/zip – CSV + Beleg-PDFs + LIESMICH als ZIP
 export async function POST(_request: Request, { params }: Params) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -28,7 +35,7 @@ export async function POST(_request: Request, { params }: Params) {
 
   const { data: mandant } = await supabase
     .from('mandanten')
-    .select('id, firmenname, uid_nummer, geschaeftsjahr_beginn, beraternummer, mandantennummer')
+    .select('id, firmenname')
     .eq('id', mandantId)
     .single()
   if (!mandant) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
@@ -43,7 +50,10 @@ export async function POST(_request: Request, { params }: Params) {
     .maybeSingle()
 
   if (abschluss?.status !== 'abgeschlossen') {
-    return NextResponse.json({ error: 'Export nur für abgeschlossene Monate' }, { status: 403 })
+    return NextResponse.json(
+      { error: 'Export nur für abgeschlossene Monate' },
+      { status: 403 }
+    )
   }
 
   const vonDatum = `${jahr}-${String(monat).padStart(2, '0')}-01`
@@ -52,10 +62,25 @@ export async function POST(_request: Request, { params }: Params) {
   const { data: transaktionen, error } = await supabase
     .from('transaktionen')
     .select(`
-      betrag, datum, beschreibung, buchungsreferenz,
-      match_status, workflow_status,
+      buchungsnummer,
+      betrag,
+      datum,
+      beschreibung,
+      match_status,
+      workflow_status,
       beleg_id,
-      belege ( id, rechnungsnummer, lieferant, rechnungsdatum, storage_path, original_filename )
+      zahlungsquellen ( typ ),
+      belege (
+        id,
+        rechnungstyp,
+        rechnungsdatum,
+        nettobetrag,
+        mwst_satz,
+        steuerzeilen,
+        rechnungsnummer,
+        original_filename,
+        storage_path
+      )
     `)
     .eq('mandant_id', mandant.id)
     .gte('datum', vonDatum)
@@ -64,41 +89,38 @@ export async function POST(_request: Request, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const exportDaten = (transaktionen ?? []).map(t => ({
-    betrag: t.betrag,
+  const exportDaten: BuchungsexportTransaktion[] = (transaktionen ?? []).map(t => ({
+    buchungsnummer: t.buchungsnummer,
+    betrag: Number(t.betrag),
     datum: t.datum,
     beschreibung: t.beschreibung,
-    buchungsreferenz: t.buchungsreferenz,
     match_status: t.match_status,
     workflow_status: t.workflow_status,
-    beleg: Array.isArray(t.belege) ? t.belege[0] ?? null : t.belege,
+    zahlungsquelle_typ: Array.isArray(t.zahlungsquellen)
+      ? (t.zahlungsquellen[0]?.typ ?? null)
+      : ((t.zahlungsquellen as { typ?: string | null } | null)?.typ ?? null),
+    beleg: Array.isArray(t.belege) ? (t.belege[0] ?? null) : (t.belege ?? null),
   }))
 
-  const csv = generateDATEVCSV(exportDaten, mandant, jahr, monat)
+  const csv = generateBuchungsCSV(exportDaten, jahr, monat)
 
-  // ZIP aufbauen
-  const zip = new JSZip()
-  const firmaSlug = mandant.firmenname.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)
-  const monatStr2 = String(monat).padStart(2, '0')
-
-  zip.file(`DATEV_Export_${jahr}_${monatStr2}_${firmaSlug}.csv`, csv)
-
-  // Belege herunterladen und ins ZIP packen
-  const belegeFolder = zip.folder('Belege')!
-  const fehlendeBelege: string[] = []
-
+  // Eindeutige Belege ermitteln (de-dupliziert nach id)
   const uniqueBelege = exportDaten
     .filter(t => t.beleg?.storage_path)
     .map(t => t.beleg!)
-    .filter((b, i, arr) => arr.findIndex(x => x.id === b.id) === i)
+    .filter((b, i, arr) => {
+      const id = (b as unknown as { id?: string | null }).id ?? null
+      if (!id) return i === arr.findIndex(x => (x as unknown as { id?: string }).id === undefined)
+      return arr.findIndex(x => (x as unknown as { id?: string }).id === id) === i
+    })
 
-  // BUG-PROJ9-005: Guard against timeouts on large exports (Vercel 10s limit)
-  // Async ZIP generation is planned for a future sprint; for now reject large requests.
+  // Guard: Bei >50 Belegen ablehnen, um Vercel-Timeouts zu vermeiden
+  // (Async ZIP-Generierung als zukuenftige Erweiterung geplant)
   const ZIP_BELEG_LIMIT = 50
   if (uniqueBelege.length > ZIP_BELEG_LIMIT) {
     return NextResponse.json(
       {
-        error: `ZIP-Export ist auf ${ZIP_BELEG_LIMIT} Belege begrenzt. Bitte verwende den CSV-Export fuer diesen Monat.`,
+        error: `ZIP-Export ist auf ${ZIP_BELEG_LIMIT} Belege begrenzt. Bitte verwende den CSV-Export für diesen Monat.`,
         anzahl_belege: uniqueBelege.length,
         limit: ZIP_BELEG_LIMIT,
       },
@@ -106,61 +128,94 @@ export async function POST(_request: Request, { params }: Params) {
     )
   }
 
+  // ZIP aufbauen
+  const zip = new JSZip()
+  const csvName = csvDateiname(jahr, monat, mandant.firmenname)
+
+  zip.file(csvName, csv)
+
+  const belegeFolder = zip.folder('belege')!
+  const fehlendeBelege: string[] = []
+  let anzahlBelegePdfs = 0
+
   await Promise.all(
     uniqueBelege.map(async (beleg) => {
-      const { data, error } = await supabase.storage
+      const storagePath = beleg.storage_path!
+      const { data, error: dlError } = await supabase.storage
         .from('belege')
-        .download(beleg.storage_path!)
+        .download(storagePath)
 
-      if (error || !data) {
-        fehlendeBelege.push(beleg.original_filename ?? beleg.id)
+      const rawName = beleg.original_filename ?? storagePath.split('/').pop() ?? 'beleg.pdf'
+
+      if (dlError || !data) {
+        fehlendeBelege.push(rawName)
         return
       }
 
       const arrayBuffer = await data.arrayBuffer()
       // Sanitize filename to prevent Zip Slip (CWE-22)
-      const rawName = beleg.original_filename ?? `${beleg.id}.pdf`
       const safeFilename = rawName
-        .replace(/[/\\]/g, '_')     // strip path separators
-        .replace(/\.\./g, '_')       // strip ..
-        .replace(/[^\w\s.\-()]/g, '_') // strip special chars
-        .trim() || `${beleg.id}.pdf`
+        .replace(/[/\\]/g, '_')           // Pfadseparatoren entfernen
+        .replace(/\.\./g, '_')             // Parent-dir-Sequenzen entfernen
+        .replace(/[^\w\s.\-()]/g, '_')     // Sonderzeichen entfernen
+        .trim() || 'beleg.pdf'
       belegeFolder.file(safeFilename, arrayBuffer)
+      anzahlBelegePdfs += 1
     })
   )
 
   if (fehlendeBelege.length > 0) {
-    zip.file('FEHLENDE_BELEGE.txt',
-      `Folgende Belege konnten nicht gefunden werden:\n${fehlendeBelege.join('\n')}`)
+    zip.file(
+      'FEHLENDE_BELEGE.txt',
+      `Folgende Belege konnten nicht aus dem Storage geladen werden:\r\n\r\n${fehlendeBelege.join('\r\n')}\r\n`
+    )
   }
+
+  // LIESMICH.txt
+  const anzahl_ohne_beleg = exportDaten.filter(t => !t.beleg).length
+  const anzahl_mit_beleg = exportDaten.length - anzahl_ohne_beleg
+  const anzahl_csv_zeilen = countCsvZeilen(exportDaten)
+  const liesmich = generateLiesmich({
+    firmenname: mandant.firmenname,
+    jahr,
+    monat,
+    exportiertAmIso: new Date().toISOString(),
+    exportiertVon: user.email ?? 'unbekannt',
+    anzahlBelegePdfs,
+    anzahlZeilenGesamt: anzahl_csv_zeilen,
+    anzahlMitBeleg: anzahl_mit_beleg,
+    anzahlOhneBeleg: anzahl_ohne_beleg,
+    csvDateiname: csvName,
+  })
+  zip.file('LIESMICH.txt', liesmich)
 
   const zipBuffer = await zip.generateAsync({ type: 'arraybuffer' })
 
-  // Export protokollieren
-  const anzahl_ohne_beleg = exportDaten.filter(t => !t.beleg).length
-  await supabase.from('export_protokolle').insert({
-    mandant_id: mandant.id,
-    jahr,
-    monat,
-    exportiert_von: user.id,
-    export_typ: 'zip',
-    anzahl_transaktionen: exportDaten.length,
-    anzahl_ohne_beleg,
-  })
+  // Export protokollieren (beide Updates parallel, Fehler isoliert damit Download nicht blockiert)
+  await Promise.allSettled([
+    supabase.from('export_protokolle').insert({
+      mandant_id: mandant.id,
+      jahr,
+      monat,
+      exportiert_von: user.id,
+      export_typ: 'zip',
+      anzahl_transaktionen: exportDaten.length,
+      anzahl_ohne_beleg,
+    }),
+    supabase
+      .from('monatsabschluesse')
+      .update({ export_vorhanden: true })
+      .eq('mandant_id', mandant.id)
+      .eq('jahr', jahr)
+      .eq('monat', monat),
+  ])
 
-  await supabase
-    .from('monatsabschluesse')
-    .update({ datev_export_vorhanden: true })
-    .eq('mandant_id', mandant.id)
-    .eq('jahr', jahr)
-    .eq('monat', monat)
-
-  const zipFilename = `DATEV_Export_${jahr}_${monatStr2}_${firmaSlug}.zip`
+  const zipName = zipDateiname(jahr, monat, mandant.firmenname)
 
   return new Response(zipBuffer, {
     headers: {
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${zipFilename}"`,
+      'Content-Disposition': `attachment; filename="${zipName}"`,
     },
   })
 }

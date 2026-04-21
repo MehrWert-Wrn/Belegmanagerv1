@@ -56,6 +56,7 @@ const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen und
   FORMAT A (Standard-Rechnung): Spalten "Netto / MwSt% / MwSt-Betrag / Brutto"
   FORMAT B (Österr. Kassenbon/POS): Spalten "Satz / Netto / MwSt / Summe" — dabei bedeutet "EUR 10" = Steuersatz 10%, "EUR 20" = Steuersatz 20% usw.
   FORMAT C (Supermarkt AT): Zeilen wie "A 10% xxx.xx" oder "B 20% xxx.xx"
+  FORMAT D (Österr. Kassenbon/POS kompakt): Nur USt-Betrag ausgewiesen, z.B. "davon 10% USt.: 2,05" und "davon 20% USt.: 4,20" — dabei: Netto = USt-Betrag ÷ (Satz/100), Brutto = Netto + USt-Betrag. Beispiel: "davon 10% USt.: 2,05" → nettobetrag=20.50, mwst_satz=10, bruttobetrag=22.55
   Extrahiere JEDE Steuersatz-Zeile separat:
   - Format pro Zeile: {"nettobetrag": Zahl, "mwst_satz": Zahl (z.B. 0, 10, 13, 20), "bruttobetrag": Zahl}
   - Bei nur einem Steuersatz: genau ein Eintrag
@@ -76,7 +77,12 @@ Beispiel mit 3 Steuersätzen (Lebensmitteleinzelhandel AT wie SPAR, Billa, Hofer
 {"lieferant":"SPAR","rechnungsnummer":"4729103","rechnungsdatum":"2026-03-15","bruttobetrag":912.06,"nettobetrag":796.87,"mwst_satz":20,"steuerzeilen":[{"nettobetrag":38.50,"mwst_satz":0,"bruttobetrag":38.50},{"nettobetrag":364.82,"mwst_satz":10,"bruttobetrag":401.30},{"nettobetrag":393.55,"mwst_satz":20,"bruttobetrag":472.26}],"confidence":0.91}
 
 Beispiel mit 2 Steuersätzen:
-{"lieferant":"AKM","rechnungsnummer":"17329012","rechnungsdatum":"2026-01-01","bruttobetrag":451.70,"nettobetrag":379.43,"mwst_satz":20,"steuerzeilen":[{"nettobetrag":18.07,"mwst_satz":0,"bruttobetrag":18.07},{"nettobetrag":361.36,"mwst_satz":20,"bruttobetrag":433.63}],"confidence":0.92}`
+{"lieferant":"AKM","rechnungsnummer":"17329012","rechnungsdatum":"2026-01-01","bruttobetrag":451.70,"nettobetrag":379.43,"mwst_satz":20,"steuerzeilen":[{"nettobetrag":18.07,"mwst_satz":0,"bruttobetrag":18.07},{"nettobetrag":361.36,"mwst_satz":20,"bruttobetrag":433.63}],"confidence":0.92}
+
+Beispiel FORMAT D (kompakter österr. Kassenbon — nur USt-Beträge ausgewiesen):
+Bon zeigt: "Gesamt: 47,80 / davon 10% USt.: 2,05 / davon 20% USt.: 4,20"
+→ Berechnung: 10%-Zeile: Netto=2.05/0.10=20.50, Brutto=22.55 | 20%-Zeile: Netto=4.20/0.20=21.00, Brutto=25.20
+{"lieferant":"Novecento","rechnungsnummer":"RG2026/6666","rechnungsdatum":"2026-04-08","bruttobetrag":47.80,"nettobetrag":41.50,"mwst_satz":20,"steuerzeilen":[{"nettobetrag":20.50,"mwst_satz":10,"bruttobetrag":22.55},{"nettobetrag":21.00,"mwst_satz":20,"bruttobetrag":25.20}],"confidence":0.95}`
 
 /**
  * Perform OCR on a document using Claude Haiku Vision.

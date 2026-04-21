@@ -36,7 +36,7 @@ export function TrialBanner({ billing }: TrialBannerProps) {
         className="w-full rounded-md bg-teal-50 border border-teal-200 px-3 py-2 text-left text-xs text-teal-700 hover:bg-teal-100 transition-colors"
       >
         <div className="font-semibold">Jetzt abonnieren</div>
-        <div className="mt-0.5 text-teal-600">€49,90 / Monat – Belegmanager Pro</div>
+        <div className="mt-0.5 text-teal-600"><span className="line-through text-teal-400">€49,90 / Monat</span> – ab €33,90 / Monat</div>
       </button>
     )
   }

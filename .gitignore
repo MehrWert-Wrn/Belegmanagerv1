@@ -38,3 +38,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# DSGVO – unterschriebene AVV-PDFs (vertraulich, nicht in Git)
+docs/dsgvo/avv/

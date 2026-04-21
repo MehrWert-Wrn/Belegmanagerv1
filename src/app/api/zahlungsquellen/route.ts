@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { getMandantId, requireAdmin } from '@/lib/auth-helpers'
+import { getEffectiveSupabase } from '@/lib/admin-context'
+import { requireAdmin } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateKuerzel, type ZahlungsquellenTyp } from '@/lib/ear-buchungsnummern'
@@ -21,9 +21,9 @@ const schema = z.object({
 })
 
 export async function GET(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   const { searchParams } = new URL(request.url)
   const alle = searchParams.get('alle') === 'true'
@@ -31,6 +31,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from('zahlungsquellen')
     .select('*')
+    .eq('mandant_id', mandantId)
     .eq('is_system_quelle', false)
     .order('erstellt_am', { ascending: true })
 
@@ -57,9 +58,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   const admin = await requireAdmin(supabase)
   if (admin.error) return admin.error
@@ -68,7 +69,6 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
-  const mandantId = await getMandantId(supabase)
   if (!mandantId) return NextResponse.json({ error: 'Kein Mandant' }, { status: 404 })
 
   // Rate limit: max 5 new sources per mandant per minute

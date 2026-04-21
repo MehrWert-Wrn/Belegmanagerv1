@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getEffectiveSupabase } from '@/lib/admin-context'
 import { requireAdmin } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -28,9 +28,9 @@ const firmaSchema = z.object({
 })
 
 export async function PATCH(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   const admin = await requireAdmin(supabase)
   if (admin.error) return admin.error
@@ -58,7 +58,7 @@ export async function PATCH(request: Request) {
       beraternummer: d.beraternummer || null,
       mandantennummer: d.mandantennummer || null,
     })
-    .eq('owner_id', user.id)
+    .eq('id', mandantId)
 
   if (error) {
     return NextResponse.json({ error: 'Fehler beim Speichern' }, { status: 500 })

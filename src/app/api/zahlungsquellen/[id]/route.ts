@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { requireAdmin, getMandantId } from '@/lib/auth-helpers'
+import { getEffectiveSupabase } from '@/lib/admin-context'
+import { requireAdmin } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -24,9 +24,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   const admin = await requireAdmin(supabase)
   if (admin.error) return admin.error
@@ -38,41 +38,35 @@ export async function PATCH(
 
   // If activating, enforce the 10-source limit
   if (parsed.data.aktiv === true) {
-    const mandantId = await getMandantId(supabase)
-    if (mandantId) {
-      const { count } = await supabase
-        .from('zahlungsquellen')
-        .select('id', { count: 'exact', head: true })
-        .eq('mandant_id', mandantId)
-        .eq('aktiv', true)
-        .neq('id', id)
+    const { count } = await supabase
+      .from('zahlungsquellen')
+      .select('id', { count: 'exact', head: true })
+      .eq('mandant_id', mandantId)
+      .eq('aktiv', true)
+      .neq('id', id)
 
-      if ((count ?? 0) >= 10) {
-        return NextResponse.json(
-          { error: 'Maximale Anzahl aktiver Zahlungsquellen (10) erreicht.' },
-          { status: 400 }
-        )
-      }
+    if ((count ?? 0) >= 10) {
+      return NextResponse.json(
+        { error: 'Maximale Anzahl aktiver Zahlungsquellen (10) erreicht.' },
+        { status: 400 }
+      )
     }
   }
 
-  // BUG-PROJ25-002: Uniqueness check for kuerzel per mandant before update
+  // Uniqueness check for kuerzel per mandant before update
   if (parsed.data.kuerzel) {
-    const mandantIdForCheck = await getMandantId(supabase)
-    if (mandantIdForCheck) {
-      const { count: dupeCount } = await supabase
-        .from('zahlungsquellen')
-        .select('id', { count: 'exact', head: true })
-        .eq('mandant_id', mandantIdForCheck)
-        .eq('kuerzel', parsed.data.kuerzel)
-        .neq('id', id)
+    const { count: dupeCount } = await supabase
+      .from('zahlungsquellen')
+      .select('id', { count: 'exact', head: true })
+      .eq('mandant_id', mandantId)
+      .eq('kuerzel', parsed.data.kuerzel)
+      .neq('id', id)
 
-      if ((dupeCount ?? 0) > 0) {
-        return NextResponse.json(
-          { error: `Kuerzel "${parsed.data.kuerzel}" wird bereits von einer anderen Zahlungsquelle verwendet.` },
-          { status: 409 }
-        )
-      }
+    if ((dupeCount ?? 0) > 0) {
+      return NextResponse.json(
+        { error: `Kuerzel "${parsed.data.kuerzel}" wird bereits von einer anderen Zahlungsquelle verwendet.` },
+        { status: 409 }
+      )
     }
   }
 
@@ -80,6 +74,7 @@ export async function PATCH(
     .from('zahlungsquellen')
     .update(parsed.data)
     .eq('id', id)
+    .eq('mandant_id', mandantId)
     .select().single()
 
   if (error) {
@@ -95,9 +90,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   const admin = await requireAdmin(supabase)
   if (admin.error) return admin.error
@@ -109,6 +104,7 @@ export async function DELETE(
     .from('transaktionen')
     .select('id', { count: 'exact', head: true })
     .eq('quelle_id', id)
+    .eq('mandant_id', mandantId)
 
   if ((count ?? 0) > 0) {
     return NextResponse.json(
@@ -121,6 +117,7 @@ export async function DELETE(
     .from('zahlungsquellen')
     .delete()
     .eq('id', id)
+    .eq('mandant_id', mandantId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })

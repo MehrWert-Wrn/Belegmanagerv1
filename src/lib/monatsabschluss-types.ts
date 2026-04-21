@@ -33,7 +33,7 @@ export interface Abschluss {
   abgeschlossen_von?: string | null
   wiedergeoeffnet_am?: string | null
   wiedergeoeffnet_von?: string | null
-  datev_export_vorhanden?: boolean
+  export_vorhanden?: boolean
 }
 
 export type Buchfuehrungsart = 'DOPPELT' | 'EAR'

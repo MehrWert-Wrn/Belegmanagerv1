@@ -805,12 +805,12 @@ export function BelegDetailSheet({
                       onClick={handleReOcr}
                       disabled={ocrRunning || saving}
                       className="mr-auto"
-                      title="Nicht ausgefüllte Felder per OCR automatisch befüllen"
+                      title="Felder automatisch aus dem Beleg auslesen"
                     >
                       {ocrRunning
                         ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         : <ScanText className="mr-2 h-4 w-4" />}
-                      OCR
+                      Automatisch auslesen
                     </Button>
                   )}
                   <Button

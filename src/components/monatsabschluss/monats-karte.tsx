@@ -23,7 +23,7 @@ interface MonatsKarteProps {
   ampel: PruefungAmpel
   anzahlTransaktionen: number
   anzahlOffen: number
-  datevExportVorhanden?: boolean
+  exportVorhanden?: boolean
   onAbschliessen: (jahr: number, monat: number) => void
   onWiedereroeffnen: (jahr: number, monat: number) => void
   onExport?: (jahr: number, monat: number) => void
@@ -60,7 +60,7 @@ export function MonatsKarte({
   ampel,
   anzahlTransaktionen,
   anzahlOffen,
-  datevExportVorhanden,
+  exportVorhanden: _exportVorhanden,
   onAbschliessen,
   onWiedereroeffnen,
   onExport,
@@ -142,7 +142,7 @@ export function MonatsKarte({
                   onClick={() => onExport?.(jahr, monat)}
                 >
                   <Download className="mr-1.5 h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">DATEV-Export</span>
+                  <span className="hidden sm:inline">Buchhaltungsübergabe</span>
                   <span className="sm:hidden">Export</span>
                 </Button>
                 <Button

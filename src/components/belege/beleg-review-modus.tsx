@@ -19,6 +19,9 @@ import {
   RotateCcw,
   FastForward,
   AlertTriangle,
+  ScanText,
+  Copy,
+  XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -125,6 +128,8 @@ export function BelegReviewModus({
   const [reviewedCount, setReviewedCount] = useState(0)
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
   const [pdfZoom, setPdfZoom] = useState(1)
+  const [ocrRunning, setOcrRunning] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // OCR highlight tracking
   const [ocrFields, setOcrFields] = useState<Set<string>>(new Set())
@@ -500,6 +505,83 @@ export function BelegReviewModus({
     }
   }
 
+  async function handleReOcr() {
+    if (!currentBeleg) return
+    setOcrRunning(true)
+    try {
+      const response = await fetch(`/api/belege/${currentBeleg.id}/ocr`, { method: 'POST' })
+      if (!response.ok) {
+        const err = await response.json()
+        toast.error(`OCR fehlgeschlagen: ${err.error || 'Unbekannter Fehler'}`)
+        return
+      }
+      const ocr = await response.json()
+
+      function isEmpty(v: unknown) { return v == null || v === '' }
+
+      let filled = 0
+      if (isEmpty(form.getValues('lieferant')) && ocr.lieferant) { form.setValue('lieferant', ocr.lieferant); filled++ }
+      if (isEmpty(form.getValues('rechnungsnummer')) && ocr.rechnungsnummer) { form.setValue('rechnungsnummer', ocr.rechnungsnummer); filled++ }
+      if (isEmpty(form.getValues('rechnungsdatum')) && ocr.rechnungsdatum) { form.setValue('rechnungsdatum', ocr.rechnungsdatum); filled++ }
+      if (isEmpty(form.getValues('uid_lieferant')) && ocr.uid_lieferant) { form.setValue('uid_lieferant', ocr.uid_lieferant); filled++ }
+      if (isEmpty(form.getValues('lieferant_iban')) && ocr.lieferant_iban) { form.setValue('lieferant_iban', ocr.lieferant_iban); filled++ }
+
+      const currentSteuerzeilen = form.getValues('steuerzeilen')
+      const allEmpty = currentSteuerzeilen.every(
+        z => (z.bruttobetrag == null || z.bruttobetrag === '') && (z.nettobetrag == null || z.nettobetrag === '')
+      )
+      if (allEmpty) {
+        const ocrRows = ocr.steuerzeilen ?? (
+          ocr.bruttobetrag != null || ocr.nettobetrag != null
+            ? [{ nettobetrag: ocr.nettobetrag, mwst_satz: ocr.mwst_satz, bruttobetrag: ocr.bruttobetrag }]
+            : null
+        )
+        if (ocrRows && ocrRows.length > 0) {
+          form.setValue('steuerzeilen', ocrRows)
+          filled++
+        }
+      }
+
+      if (filled > 0) {
+        toast.success(`${filled} Feld${filled === 1 ? '' : 'er'} automatisch ausgefüllt`)
+      } else {
+        toast.info('Keine neuen Felder erkannt.')
+      }
+    } catch {
+      toast.error('OCR konnte nicht ausgeführt werden.')
+    } finally {
+      setOcrRunning(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!currentBeleg) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/belege/${currentBeleg.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(`Löschen fehlgeschlagen: ${err.error || 'Unbekannter Fehler'}`)
+        return
+      }
+      toast.success('Beleg gelöscht.')
+      setBelege(prev => prev.filter(b => b.id !== currentBeleg.id))
+      setBulkSkipReasons(prev => prev.filter(r => r.id !== currentBeleg.id))
+      const newTotal = belege.length - 1
+      if (newTotal === 0) {
+        onComplete()
+        onOpenChange(false)
+      } else {
+        setCurrentIndex(prev => Math.min(prev, newTotal - 1))
+      }
+    } catch {
+      toast.error('Ein unerwarteter Fehler ist aufgetreten.')
+    } finally {
+      setSaving(false)
+      setShowDeleteConfirm(false)
+    }
+  }
+
   const isPdf = currentBeleg?.dateityp === 'pdf'
   const isImage = currentBeleg?.dateityp === 'jpg' || currentBeleg?.dateityp === 'jpeg' || currentBeleg?.dateityp === 'png'
 
@@ -660,6 +742,44 @@ export function BelegReviewModus({
               {bulkSkipReasons.length > 0 && (() => {
                 const reason = bulkSkipReasons.find(r => r.id === currentBeleg?.id)
                 if (!reason) return null
+                const isDuplicate = reason.reason.toLowerCase().includes('dublett')
+                if (isDuplicate) {
+                  return (
+                    <div className="mb-4 rounded-md border border-orange-200 bg-orange-50 px-3 py-3 text-sm text-orange-800">
+                      <div className="flex items-start gap-2">
+                        <Copy className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div className="flex-1">
+                          <p className="font-medium">Mögliches Duplikat erkannt</p>
+                          <p className="mt-0.5 text-xs text-orange-700">Ein Beleg mit gleicher Rechnungsnummer und gleichem Lieferant existiert bereits. Bitte prüfen und entscheiden.</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 border-orange-300 bg-white text-xs text-orange-800 hover:bg-orange-100"
+                          disabled={saving}
+                          onClick={() => setShowDeleteConfirm(true)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Verwerfen
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 border-orange-300 bg-white text-xs text-orange-800 hover:bg-orange-100"
+                          disabled={saving}
+                          onClick={() => setBulkSkipReasons(prev => prev.filter(r => r.id !== currentBeleg?.id))}
+                        >
+                          <ChevronRight className="h-3.5 w-3.5" />
+                          Trotzdem behalten
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                }
                 return (
                   <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -667,11 +787,34 @@ export function BelegReviewModus({
                   </div>
                 )
               })()}
+              {/* Failed OCR banner – when no meaningful data was extracted */}
+              {!ocrFields.size && !currentBeleg?.rechnungsname && !currentBeleg?.bruttobetrag && !currentBeleg?.lieferant && (
+                <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800">
+                  <div className="flex items-start gap-2">
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="flex-1">
+                      <p className="font-medium">Automatisches Auslesen fehlgeschlagen</p>
+                      <p className="mt-0.5 text-xs text-red-700">Es konnten keine Daten erkannt werden. Bitte nochmals auslesen oder die Felder manuell ausfüllen.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 h-7 gap-1 border-red-300 bg-white text-xs text-red-800 hover:bg-red-100"
+                    disabled={ocrRunning}
+                    onClick={handleReOcr}
+                  >
+                    {ocrRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanText className="h-3.5 w-3.5" />}
+                    Nochmals auslesen
+                  </Button>
+                </div>
+              )}
               {/* OCR hint */}
               {ocrFields.size > 0 && (
                 <div className="mb-4 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
                   <ScanSearch className="h-4 w-4 shrink-0" />
-                  OCR hat {ocrFields.size} Feld{ocrFields.size !== 1 ? 'er' : ''} erkannt (blau markiert).
+                  Automatisch ausgelesen: {ocrFields.size} Feld{ocrFields.size !== 1 ? 'er' : ''} erkannt (blau markiert).
                 </div>
               )}
 
@@ -977,17 +1120,43 @@ export function BelegReviewModus({
 
                   {/* Actions */}
                   <SheetFooter className="gap-2 pt-4">
+                    <div className="mr-auto flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        disabled={saving || ocrRunning}
+                        className="gap-1 text-destructive hover:text-destructive"
+                        title="Beleg unwiderruflich löschen"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Löschen
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleReOcr}
+                        disabled={saving || ocrRunning}
+                        className="gap-1"
+                        title="Felder automatisch aus dem Beleg auslesen"
+                      >
+                        {ocrRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanText className="h-4 w-4" />}
+                        Automatisch auslesen
+                      </Button>
+                    </div>
                     <Button
                       type="button"
                       variant="outline"
                       onClick={handleSkip}
-                      disabled={saving}
+                      disabled={saving || ocrRunning}
                       className="gap-1"
                     >
                       <SkipForward className="h-4 w-4" />
-                      Ueberspringen
+                      Überspringen
                     </Button>
-                    <Button type="submit" disabled={saving} className="gap-1">
+                    <Button type="submit" disabled={saving || ocrRunning} className="gap-1">
                       {saving ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
@@ -1003,6 +1172,26 @@ export function BelegReviewModus({
         ) : null}
       </SheetContent>
     </Sheet>
+
+    <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Beleg löschen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Der Beleg <strong>{currentBeleg?.original_filename}</strong> wird unwiderruflich gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleDelete}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Endgültig löschen
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
     <AlertDialog open={showSkipAllConfirm} onOpenChange={setShowSkipAllConfirm}>
       <AlertDialogContent>

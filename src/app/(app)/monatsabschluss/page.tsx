@@ -25,7 +25,7 @@ interface MonatsUebersichtItem {
   ampel: PruefungAmpel
   anzahlTransaktionen: number
   anzahlOffen: number
-  datevExportVorhanden: boolean
+  exportVorhanden: boolean
 }
 
 export default function MonatsabschlussPage() {
@@ -45,7 +45,7 @@ export default function MonatsabschlussPage() {
   const [wiedereroeffnenOpen, setWiedereroeffnenOpen] = useState(false)
   const [wiedereroeffnenJahr, setWiedereroeffnenJahr] = useState(0)
   const [wiedereroeffnenMonat, setWiedereroeffnenMonat] = useState(0)
-  const [wiedereroeffnenDatevExport, setWiedereroeffnenDatevExport] = useState(false)
+  const [wiedereroeffnenExportVorhanden, setWiedereroeffnenExportVorhanden] = useState(false)
 
   // Export dialog
   const [exportOpen, setExportOpen] = useState(false)
@@ -71,7 +71,7 @@ export default function MonatsabschlussPage() {
               ampel: data.pruefung.ampel,
               anzahlTransaktionen: data.pruefung.anzahl_transaktionen,
               anzahlOffen: data.pruefung.anzahl_offen,
-              datevExportVorhanden: data.abschluss.datev_export_vorhanden ?? false,
+              exportVorhanden: data.abschluss.export_vorhanden ?? false,
             } satisfies MonatsUebersichtItem
           })
       })
@@ -109,7 +109,7 @@ export default function MonatsabschlussPage() {
     const item = monate.find((m) => m.jahr === jahr && m.monat === monat)
     setWiedereroeffnenJahr(jahr)
     setWiedereroeffnenMonat(monat)
-    setWiedereroeffnenDatevExport(item?.datevExportVorhanden ?? false)
+    setWiedereroeffnenExportVorhanden(item?.exportVorhanden ?? false)
     setWiedereroeffnenOpen(true)
   }
 
@@ -222,7 +222,7 @@ export default function MonatsabschlussPage() {
                 ampel={m.ampel}
                 anzahlTransaktionen={m.anzahlTransaktionen}
                 anzahlOffen={m.anzahlOffen}
-                datevExportVorhanden={m.datevExportVorhanden}
+                exportVorhanden={m.exportVorhanden}
                 onAbschliessen={handleAbschliessen}
                 onWiedereroeffnen={handleWiedereroeffnen}
                 onExport={handleExport}
@@ -245,7 +245,7 @@ export default function MonatsabschlussPage() {
         onOpenChange={setWiedereroeffnenOpen}
         jahr={wiedereroeffnenJahr}
         monat={wiedereroeffnenMonat}
-        datevExportVorhanden={wiedereroeffnenDatevExport}
+        exportVorhanden={wiedereroeffnenExportVorhanden}
         onWiedergeoeffnet={fetchMonatsUebersicht}
       />
 

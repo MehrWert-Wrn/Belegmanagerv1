@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getEffectiveSupabase } from '@/lib/admin-context'
 import { NextResponse } from 'next/server'
 
 // GET /api/belege/[id]/signed-url – Temporäre URL für Vorschau (60 Min.)
@@ -6,9 +6,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveSupabase()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { db: supabase, mandantId } = ctx
 
   const { id } = await params
 
@@ -16,6 +16,7 @@ export async function GET(
     .from('belege')
     .select('storage_path')
     .eq('id', id)
+    .eq('mandant_id', mandantId)
     .single()
 
   if (fetchError || !beleg) {

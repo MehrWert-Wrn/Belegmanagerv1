@@ -218,9 +218,9 @@ export default function MonatsDetailPage() {
                     value={new Date(detail.abschluss.wiedergeoeffnet_am).toLocaleString('de-AT')}
                   />
                 )}
-                {detail.abschluss.datev_export_vorhanden && (
+                {detail.abschluss.export_vorhanden && (
                   <InfoRow
-                    label="DATEV-Export"
+                    label="Buchhaltungsuebergabe"
                     value={
                       <Badge variant="outline" className="text-xs border-teal-200 bg-teal-50 text-teal-700">
                         Export vorhanden
@@ -311,7 +311,7 @@ export default function MonatsDetailPage() {
         onOpenChange={setWiedereroeffnenOpen}
         jahr={jahr}
         monat={monat}
-        datevExportVorhanden={detail?.abschluss.datev_export_vorhanden}
+        exportVorhanden={detail?.abschluss.export_vorhanden}
         isEar={isEar}
         onWiedergeoeffnet={fetchDetail}
       />

@@ -29,7 +29,7 @@ export async function POST(_request: Request, { params }: Params) {
   // Prüfen ob Monat überhaupt abgeschlossen ist
   const { data: abschluss } = await supabase
     .from('monatsabschluesse')
-    .select('status, datev_export_vorhanden')
+    .select('status, export_vorhanden')
     .eq('mandant_id', mandant_id)
     .eq('jahr', jahr)
     .eq('monat', monat)
@@ -75,7 +75,7 @@ export async function POST(_request: Request, { params }: Params) {
 
   return NextResponse.json({
     success: true,
-    datev_export_warnung: abschluss.datev_export_vorhanden,
+    export_warnung: abschluss.export_vorhanden,
     ...(earResult ? {
       ear_buchungsnummern_entfernt: earResult.buchungsnummern_entfernt,
       ear_dateien_zurueckbenannt: earResult.dateien_zurueckbenannt,
