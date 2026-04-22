@@ -104,14 +104,14 @@ export async function POST(_request: Request, { params }: Params) {
 
   const csv = generateBuchungsCSV(exportDaten, jahr, monat)
 
-  // Eindeutige Belege ermitteln (de-dupliziert nach id)
+  // Eindeutige Belege ermitteln (de-dupliziert nach id), buchungsnummer mitführen
   const uniqueBelege = exportDaten
     .filter(t => t.beleg?.storage_path)
-    .map(t => t.beleg!)
-    .filter((b, i, arr) => {
-      const id = (b as unknown as { id?: string | null }).id ?? null
-      if (!id) return i === arr.findIndex(x => (x as unknown as { id?: string }).id === undefined)
-      return arr.findIndex(x => (x as unknown as { id?: string }).id === id) === i
+    .map(t => ({ beleg: t.beleg!, buchungsnummer: t.buchungsnummer ?? null }))
+    .filter((item, i, arr) => {
+      const id = (item.beleg as unknown as { id?: string | null }).id ?? null
+      if (!id) return true
+      return arr.findIndex(x => (x.beleg as unknown as { id?: string }).id === id) === i
     })
 
   // Guard: Bei >50 Belegen ablehnen, um Vercel-Timeouts zu vermeiden
@@ -139,22 +139,24 @@ export async function POST(_request: Request, { params }: Params) {
   let anzahlBelegePdfs = 0
 
   await Promise.all(
-    uniqueBelege.map(async (beleg) => {
+    uniqueBelege.map(async ({ beleg, buchungsnummer }) => {
       const storagePath = beleg.storage_path!
       const { data, error: dlError } = await supabase.storage
         .from('belege')
         .download(storagePath)
 
       const rawName = beleg.original_filename ?? storagePath.split('/').pop() ?? 'beleg.pdf'
+      // Präfix mit Buchungsnummer für eindeutige Zuordnung CSV ↔ ZIP
+      const prefixedName = buchungsnummer ? `${buchungsnummer}_${rawName}` : rawName
 
       if (dlError || !data) {
-        fehlendeBelege.push(rawName)
+        fehlendeBelege.push(prefixedName)
         return
       }
 
       const arrayBuffer = await data.arrayBuffer()
       // Sanitize filename to prevent Zip Slip (CWE-22)
-      const safeFilename = rawName
+      const safeFilename = prefixedName
         .replace(/[/\\]/g, '_')           // Pfadseparatoren entfernen
         .replace(/\.\./g, '_')             // Parent-dir-Sequenzen entfernen
         .replace(/[^\w\s.\-()]/g, '_')     // Sonderzeichen entfernen

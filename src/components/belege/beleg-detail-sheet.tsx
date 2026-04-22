@@ -39,6 +39,18 @@ import type { Beleg } from '@/lib/supabase/types'
 
 const MAX_TAX_LINES = 5
 
+function buildAutoRechnungsname(beleg: { rechnungsdatum?: string | null; lieferant?: string | null; rechnungsnummer?: string | null }): string {
+  const parts: string[] = []
+  if (beleg.rechnungsdatum) {
+    parts.push(new Date(beleg.rechnungsdatum).toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }))
+  }
+  if (beleg.lieferant) parts.push(beleg.lieferant)
+  if (beleg.rechnungsnummer) parts.push(beleg.rechnungsnummer)
+  return parts.join(' - ')
+}
+
+const isUnbekannt = (v: string | null | undefined) => (v ?? '').toLowerCase() === 'unbekannt'
+
 const steuerzeileSchema = z.object({
   nettobetrag: z.union([z.number(), z.literal('')]).nullable().optional(),
   mwst_satz: z.union([z.number(), z.string()]).nullable().optional(),
@@ -166,7 +178,7 @@ export function BelegDetailSheet({
   useEffect(() => {
     if (beleg) {
       form.reset({
-        rechnungsname: beleg.rechnungsname ?? '',
+        rechnungsname: isUnbekannt(beleg.rechnungsname) ? buildAutoRechnungsname(beleg) : (beleg.rechnungsname ?? ''),
         rechnungsnummer: beleg.rechnungsnummer ?? '',
         rechnungstyp: beleg.rechnungstyp ?? 'eingangsrechnung',
         lieferant: beleg.lieferant ?? '',
@@ -281,6 +293,20 @@ export function BelegDetailSheet({
         }
       }
 
+      // Auto-build rechnungsname if currently empty or "Unbekannt"
+      const currentName = form.getValues('rechnungsname')
+      if (isEmpty(currentName) || isUnbekannt(currentName)) {
+        const autoName = buildAutoRechnungsname({
+          rechnungsdatum: form.getValues('rechnungsdatum'),
+          lieferant: form.getValues('lieferant'),
+          rechnungsnummer: form.getValues('rechnungsnummer'),
+        })
+        if (autoName) {
+          form.setValue('rechnungsname', autoName)
+          filled++
+        }
+      }
+
       if (filled > 0) {
         toast.success(`${filled} Feld${filled === 1 ? '' : 'er'} durch OCR ausgefüllt`)
       } else {
@@ -361,8 +387,10 @@ export function BelegDetailSheet({
     }
   }
 
-  const isPdf = beleg?.dateityp === 'pdf'
-  const isImage = beleg?.dateityp === 'jpg' || beleg?.dateityp === 'jpeg' || beleg?.dateityp === 'png'
+  const fileExt = beleg?.original_filename?.split('.').pop()?.toLowerCase() ?? ''
+  const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif']
+  const isImage = imageExts.includes(beleg?.dateityp ?? '') || imageExts.includes(fileExt)
+  const isPdf = !isImage && (beleg?.dateityp === 'pdf' || fileExt === 'pdf')
   const hasDocument = !!beleg?.storage_path
 
   return (

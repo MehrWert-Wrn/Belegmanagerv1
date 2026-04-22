@@ -189,8 +189,13 @@ function buildRowsForTx(
   const belegdatIso = tx.beleg?.rechnungsdatum ?? tx.datum
   const belegdat = formatDatum(belegdatIso)
   const extbelegnr = clean(tx.beleg?.rechnungsnummer ?? '', 36)
+
+  // Dateiname: {buchungsnummer}_{original_filename} – spiegelt die ZIP-Benennung wider
+  const rawFilename = tx.beleg?.original_filename
+    ?? storagePathToFilename(tx.beleg?.storage_path, null)
+    ?? ''
   const dokument = clean(
-    tx.beleg?.original_filename ?? storagePathToFilename(tx.beleg?.storage_path, null),
+    rawFilename ? `${belegnrBase}_${rawFilename}` : '',
     120
   )
   const text = deriveText(tx)
@@ -329,7 +334,7 @@ export function generateLiesmich(params: {
   })
 
   return [
-    `BUCHHALTUNGSÜBERGABE – ${params.firmenname}`,
+    `\uFEFFBUCHHALTUNGSÜBERGABE – ${params.firmenname}`,
     `Monat: ${mm}/${params.jahr}`,
     `Exportiert am: ${datumFormatted} von ${params.exportiertVon}`,
     `System: Belegmanager`,

@@ -116,6 +116,24 @@ export async function POST(request: Request) {
 
   if (!mandantId) return NextResponse.json({ error: 'Kein Mandant gefunden' }, { status: 404 })
 
+  // Duplikatcheck via file_hash (SHA-256), wenn mitgeliefert
+  if (parsed.data.file_hash) {
+    const { data: existing } = await supabase
+      .from('belege')
+      .select('id, original_filename, rechnungsdatum, lieferant, bruttobetrag')
+      .eq('mandant_id', mandantId)
+      .eq('file_hash', parsed.data.file_hash)
+      .is('geloescht_am', null)
+      .maybeSingle()
+
+    if (existing) {
+      return NextResponse.json(
+        { error: 'Duplikat: Dieser Beleg wurde bereits hochgeladen.', existing_id: existing.id, existing_beleg: existing },
+        { status: 409 }
+      )
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { file_size: _, ...belegData } = parsed.data
 
