@@ -1,6 +1,6 @@
 # PROJ-15: OCR-Erkennung & Massenimport von Belegen
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-03-26
 **Last Updated:** 2026-03-26
 
@@ -399,4 +399,21 @@ Code-only review; no live browser test was executed. Notable concerns:
 - **Recommendation:** Fix all Critical and High before deployment. The most urgent: missing API key in `.env.local`, mass-import cost abuse vector, silent failure on files >5 MB, spec/code mismatch on max files (20 vs 50), and missing `eigenbeleg` enum value in upload schema.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-22
+**Production URL:** https://belegmanagerv1.vercel.app
+**Git Tag:** v1.15.0-PROJ-15
+**Commit:** 90ffba0
+
+### Fixes applied before deployment (QA Round 1)
+- BUG-016: `.env.local` concatenated line fixed
+- BUG-004: MAX_MASS_IMPORT 50 → 20
+- BUG-001/019: Explicit toast for files >5 MB skipping OCR
+- BUG-017: `eigenbeleg` added to Zod schema + SelectItem (upload-dialog + review-modus)
+- BUG-022: 429 rate-limit responses now show specific user toast
+- BUG-012: Rate-limit key changed to per-mandant (`ocr:min:mandantId`)
+- BUG-014: Daily OCR quota added (200 calls/day/mandant)
+- BUG-015: ANTHROPIC_API_KEY added to `.env.local` and Vercel env vars
+
+### Required Vercel Environment Variable
+`ANTHROPIC_API_KEY` must be set in Vercel Dashboard (Settings → Environment Variables)
