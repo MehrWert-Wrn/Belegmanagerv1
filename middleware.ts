@@ -47,8 +47,16 @@ function buildCsp(nonce: string): string {
   ].join('; ')
 }
 
+// Webhook routes authenticated by provider signatures (not user sessions)
+const WEBHOOK_ROUTES = new Set(['/api/email-inbound', '/api/billing/webhook'])
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Webhook routes bypass session auth entirely
+  if (WEBHOOK_ROUTES.has(pathname)) {
+    return NextResponse.next()
+  }
 
   // Rate-limit sensitive API endpoints
   if (pathname.startsWith('/api/belege') || pathname.startsWith('/api/transaktionen') || pathname.startsWith('/api/matching') || pathname.startsWith('/api/monatsabschluss') || pathname.startsWith('/api/export')) {
