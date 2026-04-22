@@ -505,9 +505,7 @@ function buildRechnungsname(
     parts.push(ocr.rechnungsdatum)
   }
   if (ocr.lieferant) parts.push(ocr.lieferant)
-  if (ocr.bruttobetrag !== null && ocr.bruttobetrag !== undefined) {
-    parts.push(ocr.bruttobetrag.toFixed(2))
-  }
+  if (ocr.rechnungsnummer) parts.push(ocr.rechnungsnummer)
   if (parts.length === 0) return null
   return parts.join('_')
 }
