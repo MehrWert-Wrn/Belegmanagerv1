@@ -1,6 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import crypto from 'node:crypto'
 
 // ---------------------------------------------------------------------------
 // Route Configuration
@@ -141,8 +140,10 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Generate CSP nonce for this request
-  const nonce = crypto.randomBytes(16).toString('base64')
+  // Generate CSP nonce for this request (Web Crypto API – works in Edge runtime)
+  const nonceBytes = new Uint8Array(16)
+  globalThis.crypto.getRandomValues(nonceBytes)
+  const nonce = btoa(String.fromCharCode(...nonceBytes))
   const csp = buildCsp(nonce)
 
   // Create a response to mutate headers
