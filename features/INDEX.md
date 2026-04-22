@@ -32,7 +32,7 @@
 <!-- Add features above this line -->
 
 | PROJ-17 | Eigenbeleg-Erstellung | In Review | [PROJ-17-eigenbeleg.md](PROJ-17-eigenbeleg.md) | 2026-04-02 |
-| PROJ-18 | Mobile App – Belegerfassung (iOS & Android) | Planned | [PROJ-18-mobile-app-belegerfassung.md](PROJ-18-mobile-app-belegerfassung.md) | 2026-04-07 |
+| PROJ-18 | Mobile App – Belegerfassung (iOS & Android) | In Progress | [PROJ-18-mobile-app-belegerfassung.md](PROJ-18-mobile-app-belegerfassung.md) | 2026-04-07 |
 | PROJ-19 | Admin Panel | Deployed | [PROJ-19-admin-panel.md](PROJ-19-admin-panel.md) | 2026-04-09 |
 | PROJ-20 | FinAPI-Integration – Automatischer Kontoauszug-Import | Deployed | [PROJ-20-finapi-integration.md](PROJ-20-finapi-integration.md) | 2026-04-14 |
 | PROJ-21 | Onboarding-Checkliste am Dashboard | Deployed | [PROJ-21-onboarding-checkliste.md](PROJ-21-onboarding-checkliste.md) | 2026-04-14 |

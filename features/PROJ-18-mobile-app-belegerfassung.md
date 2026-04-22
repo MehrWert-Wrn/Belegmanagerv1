@@ -1,6 +1,6 @@
 # PROJ-18: Mobile App – Belegerfassung (iOS & Android)
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-04-07
 **Last Updated:** 2026-04-07
 
@@ -107,7 +107,182 @@ Die Mobile App ist ein **separates Projekt** (`BelegmanagerMobile/`) auf Basis v
 ---
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Projektstruktur
+Separates Projekt `BelegmanagerMobile/` (Expo Managed Workflow). Teilt dasselbe Supabase-Backend mit der Web-App — kein neues Backend nötig.
+
+---
+
+### Screen-Struktur
+
+```
+App
++-- Auth Stack (nicht eingeloggt)
+|   +-- Login Screen (E-Mail + Passwort)
+|   +-- Biometrie-Freischaltung (nach erstem Login)
+|
++-- Main Stack (eingeloggt)
+    +-- Beleghistorie Screen (Startscreen, außer "Kamera beim Start" aktiv)
+    |   +-- Leer-Zustand: "Fügen Sie Ihr erstes Dokument hinzu" + "+" (zentriert)
+    |   +-- Beleg-Liste (wenn Belege vorhanden)
+    |   |   +-- Beleg-Karte: Lieferant · Datum · Betrag · Belegart
+    |   |   +-- Status-Badge: "Wird verarbeitet..." / "OCR fertig" / "Duplikat"
+    |   +-- FAB "+" (rechts unten) → Aktionsmenü:
+    |       +-- Kamera öffnen
+    |       +-- Foto aus Galerie auswählen
+    |       +-- PDF aus Dateien auswählen
+    |
+    +-- Kamera / Scan Screen
+    |   +-- Echtzeit-Kantenerkennung + Scan Overlay
+    |   +-- Aufnahme-Button
+    |
+    +-- Seiten-Preview Screen
+    |   +-- Seiten-Thumbnails (Reihenfolge änderbar, Seiten löschbar)
+    |   +-- "Seite hinzufügen" / "Weiter"
+    |
+    +-- Upload & OCR Screen
+    |   +-- Fortschrittsanzeige (Upload läuft)
+    |   +-- "OCR liest Dokument..." (nach Upload, Polling alle 2s, max. 30s)
+    |   +-- Timeout nach 30s → weiter mit leeren Feldern
+    |
+    +-- Metadaten Screen
+    |   +-- Lieferant (vorausgefüllt durch OCR, editierbar)
+    |   +-- Rechnungsdatum (vorausgefüllt durch OCR, editierbar)
+    |   +-- Betrag (vorausgefüllt durch OCR, editierbar)
+    |   +-- Belegart-Auswahl ER/AR/KASSE/WEITERE [Pflicht, immer manuell]
+    |   +-- Anmerkung (Freitext)
+    |   +-- Schlagwörter / Tags
+    |   +-- ⚠ Duplikat-Warnung (wenn erkannt: Lieferant + Datum des Originals)
+    |   +-- "Speichern" / "Trotzdem speichern" (bei Duplikat)
+    |
+    +-- Erfolgs-Screen
+    |   +-- Bestätigung + "Neuen Beleg erfassen"
+    |
+    +-- Einstellungen Screen (via Icon in der Navigation)
+        +-- Sektion: Sicherheit
+        |   +-- "Face ID verwenden"  [Toggle]
+        |   +-- "PIN verwenden"  [Toggle]
+        |       → Bei Aktivierung: PIN einmalig setzen (4–6 Stellen, Bestätigung)
+        |       → Face ID und PIN können gleichzeitig aktiv sein
+        +-- Sektion: Allgemein
+        |   +-- "Kamera beim Start öffnen"  [Toggle]
+        |       → ein: App startet direkt auf Kamera-Screen
+        |       → aus: App startet auf Beleghistorie (Standard)
+        +-- Sektion: Kontakt
+            +-- "Support kontaktieren" → mailto:support@belegmanager.at
+            +-- "Webseite" → belegmanager.at im Browser
+            +-- App-Version (statischer Text)
+```
+
+---
+
+### Datenfluss (9 Schritte)
+
+```
+1.  Login → Supabase Auth JWT
+2.  Biometrie / PIN → JWT verschlüsselt im Secure Enclave / Android Keystore
+3.  Dokument aufnehmen oder importieren (Kamera / Galerie / PDF)
+4.  Mehrere Seiten → client-seitig zu 1 PDF (max. 2048px, JPEG 85%)
+5.  SHA-256 Hash berechnen → GET /api/belege/check-hash
+    → Duplikat gefunden? → Warnung für Metadaten-Screen vorbereiten
+6.  PDF → Upload in Supabase Storage: belege/mandant_id/MOBIL_<uuid>.pdf
+7.  Beleg-Datensatz anlegen (quelle: 'MOBIL', ocr_status: 'pending')
+8.  OCR triggern → POST /api/belege/{id}/ocr → Polling alle 2s, max. 30s
+    → Ergebnis: Lieferant, Datum, Betrag → Metadaten-Screen vorausfüllen
+    → Timeout: Metadaten-Screen öffnet mit leeren Feldern
+9.  User bestätigt Metadaten → Beleg-Record final aktualisiert
+    → Beleghistorie zeigt Beleg mit echtem Lieferantennamen
+```
+
+---
+
+### Start-Logik (Kamera-Toggle)
+
+```
+App-Start nach Login / Biometrie:
+  "Kamera beim Start" = an  → direkt zu Kamera Screen
+  "Kamera beim Start" = aus → direkt zu Beleghistorie (Standard)
+```
+
+---
+
+### PIN + Face ID Zusammenspiel
+
+| Face ID | PIN | Verhalten beim App-Start |
+|---|---|---|
+| an | – | Face ID → bei Fehler: Passwort-Fallback |
+| – | an | PIN-Eingabe |
+| an | an | Face ID zuerst → bei Fehler: PIN-Eingabe |
+| aus | aus | Direkt eingeloggt (kein Sperrscreen) |
+
+---
+
+### Duplikat-Erkennung
+
+```
+Zeitpunkt: Nach PDF-Erstellung, VOR Upload
+Methode:   SHA-256 Hash → GET /api/belege/check-hash (existiert bereits)
+
+Ergebnis A – kein Duplikat:     → Upload läuft normal
+Ergebnis B – Duplikat gefunden: → ⚠ Banner auf Metadaten-Screen
+                                 → "Abbrechen" oder "Trotzdem speichern"
+                                 → Bei Speichern: Tag 'duplikat' wird gesetzt
+```
+
+---
+
+### Beleghistorie
+
+- Zeigt alle Belege des Mandanten, neueste zuerst
+- Anzeigename: Lieferant + Rechnungsdatum (aus OCR) — bei laufender OCR: "Wird verarbeitet..."
+- Duplikat-Badge auf entsprechend markierten Belegen
+- Pull-to-Refresh
+- Datenquelle: Supabase-Query direkt auf `belege`-Tabelle (RLS sichert Mandanten-Isolation)
+
+---
+
+### Backend-Änderungen
+
+Keine neuen API-Routen. Mobile nutzt ausschließlich bestehende Infrastruktur:
+
+| Endpoint | Zweck |
+|---|---|
+| Supabase Auth direkt | Login, Session, Refresh |
+| Supabase Storage direkt | Upload |
+| Supabase DB direkt | `belege`-Tabelle lesen/schreiben |
+| `GET /api/belege/check-hash` | Duplikat-Erkennung (existiert) |
+| `POST /api/belege/{id}/ocr` | OCR auslösen (existiert) |
+
+Einzige mögliche DB-Migration: `'MOBIL'` als neuen Wert im `quelle`-Feld ergänzen.
+
+---
+
+### Einstellungen – Datenspeicherung
+
+| Einstellung | Speicherort |
+|---|---|
+| Face ID an/aus | `expo-secure-store` (verschlüsselt) |
+| PIN (Wert) | `expo-secure-store` (verschlüsselt, nie Klartext) |
+| PIN an/aus | `expo-secure-store` |
+| Kamera beim Start | `AsyncStorage` (nicht sicherheitskritisch) |
+
+---
+
+### Abhängigkeiten (neue Bibliotheken)
+
+| Paket | Zweck |
+|---|---|
+| `@supabase/supabase-js` | Auth + Storage + DB |
+| `expo-camera` | Kamera |
+| `react-native-document-scanner-plugin` | Kantenerkennung + Perspektivkorrektur |
+| `react-native-pdf-lib` | Client-seitige PDF-Erstellung |
+| `expo-local-authentication` | Face ID / Fingerprint |
+| `expo-secure-store` | Verschlüsselter JWT- und PIN-Speicher |
+| `expo-file-system` | Offline-Queue (lokale Datei-Speicherung) |
+| `@react-native-async-storage/async-storage` | Offline-Queue Metadaten + App-Einstellungen |
+| `expo-image-picker` | Foto-Import aus Galerie |
+| `expo-document-picker` | PDF-Import aus Dateien |
+| `react-native-reanimated` | FAB-Animation, Aktionsmenü |
 
 ## QA Test Results
 _To be added by /qa_
