@@ -855,6 +855,7 @@ export function BelegReviewModus({
                               <SelectItem value="eingangsrechnung">Eingangsrechnung</SelectItem>
                               <SelectItem value="ausgangsrechnung">Ausgangsrechnung</SelectItem>
                               <SelectItem value="gutschrift">Gutschrift</SelectItem>
+                              <SelectItem value="eigenbeleg">Eigenbeleg</SelectItem>
                               <SelectItem value="sonstiges">Sonstiges</SelectItem>
                             </SelectContent>
                           </Select>

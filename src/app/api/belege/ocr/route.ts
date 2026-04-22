@@ -12,9 +12,13 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/png',
 ])
 
-/** Rate limit: 10 requests per minute per user */
-const RATE_LIMIT_MAX = 10
+/** Rate limit: 10 requests per minute per mandant */
+const RATE_LIMIT_PER_MIN = 10
 const RATE_LIMIT_WINDOW_MS = 60 * 1000
+
+/** Daily quota: 200 OCR calls per mandant */
+const RATE_LIMIT_PER_DAY = 200
+const RATE_LIMIT_DAY_MS = 24 * 60 * 60 * 1000
 
 /**
  * POST /api/belege/ocr
@@ -31,13 +35,17 @@ export async function POST(request: Request) {
   if (authError) return authError
   if (!user) return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
 
-  // 2. Rate limiting
-  const { allowed, retryAfterMs } = checkRateLimit(
-    `ocr:${user.id}`,
-    RATE_LIMIT_MAX,
+  // 2. Resolve mandant_id for per-mandant rate limiting
+  const { data: mandant } = await supabase.from('mandanten').select('id').single()
+  const mandantId = mandant?.id ?? user.id
+
+  // 3. Rate limiting – per-minute and daily per-mandant
+  const { allowed: allowedMinute, retryAfterMs } = checkRateLimit(
+    `ocr:min:${mandantId}`,
+    RATE_LIMIT_PER_MIN,
     RATE_LIMIT_WINDOW_MS
   )
-  if (!allowed) {
+  if (!allowedMinute) {
     return NextResponse.json(
       { error: 'Zu viele Anfragen. Bitte warten Sie einen Moment.' },
       {
@@ -46,6 +54,17 @@ export async function POST(request: Request) {
           'Retry-After': String(Math.ceil((retryAfterMs ?? 60000) / 1000)),
         },
       }
+    )
+  }
+  const { allowed: allowedDay } = checkRateLimit(
+    `ocr:day:${mandantId}`,
+    RATE_LIMIT_PER_DAY,
+    RATE_LIMIT_DAY_MS
+  )
+  if (!allowedDay) {
+    return NextResponse.json(
+      { error: 'Tägliches OCR-Limit erreicht. Bitte morgen erneut versuchen.' },
+      { status: 429, headers: { 'Retry-After': '3600' } }
     )
   }
 

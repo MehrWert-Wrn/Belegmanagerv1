@@ -69,7 +69,7 @@ import type { OcrResult } from '@/lib/ocr'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const OCR_MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB for OCR
-const MAX_MASS_IMPORT = 50
+const MAX_MASS_IMPORT = 20
 const ACCEPTED_TYPES = {
   'application/pdf': ['.pdf'],
   'image/jpeg': ['.jpg', '.jpeg'],
@@ -103,7 +103,7 @@ const steuerzeileSchema = z.object({
 const metadataSchema = z.object({
   rechnungsname: z.string().optional(),
   rechnungsnummer: z.string().optional(),
-  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges']),
+  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges', 'eigenbeleg']),
   lieferant: z.string().optional(),
   uid_lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
@@ -280,7 +280,8 @@ export function BelegUploadDialog({
   // --- OCR ---
   async function runOcr(targetFile: File): Promise<OcrResult | null> {
     if (targetFile.size > OCR_MAX_FILE_SIZE) {
-      return null // File too large for OCR, skip silently
+      toast.info('Datei zu groß für OCR (max. 5 MB) – bitte manuell ausfüllen.')
+      return null
     }
 
     const formData = new FormData()
@@ -293,6 +294,11 @@ export function BelegUploadDialog({
       })
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After')
+          const seconds = retryAfter ? parseInt(retryAfter, 10) : 60
+          toast.warning(`Zu viele OCR-Anfragen – bitte ${seconds} Sekunden warten.`)
+        }
         return null
       }
 
@@ -1031,6 +1037,7 @@ export function BelegUploadDialog({
                               <SelectItem value="eingangsrechnung">Eingangsrechnung</SelectItem>
                               <SelectItem value="ausgangsrechnung">Ausgangsrechnung</SelectItem>
                               <SelectItem value="gutschrift">Gutschrift</SelectItem>
+                              <SelectItem value="eigenbeleg">Eigenbeleg</SelectItem>
                               <SelectItem value="sonstiges">Sonstiges</SelectItem>
                             </SelectContent>
                           </Select>
