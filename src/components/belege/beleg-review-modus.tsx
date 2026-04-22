@@ -237,7 +237,9 @@ export function BelegReviewModus({
       : [{ nettobetrag: currentBeleg.nettobetrag, mwst_satz: currentBeleg.mwst_satz, bruttobetrag: currentBeleg.bruttobetrag }]
 
     // Mark all steuerzeilen fields as OCR-highlighted if unreviewed
-    if (!currentBeleg.rechnungsname) {
+    const rechnungsnameUnset = !currentBeleg.rechnungsname || currentBeleg.rechnungsname.toLowerCase() === 'unbekannt'
+
+    if (rechnungsnameUnset) {
       initSteuerzeilen.forEach((_: unknown, i: number) => {
         newOcrFields.add(`steuerzeilen.${i}.nettobetrag`)
         newOcrFields.add(`steuerzeilen.${i}.bruttobetrag`)
@@ -246,14 +248,14 @@ export function BelegReviewModus({
     }
 
     // Only show OCR highlights if rechnungsname is not set (unreviewed)
-    if (!currentBeleg.rechnungsname) {
+    if (rechnungsnameUnset) {
       setOcrFields(newOcrFields)
     } else {
       setOcrFields(new Set())
     }
 
     form.reset({
-      rechnungsname: currentBeleg.rechnungsname || buildAutoRechnungsname(currentBeleg),
+      rechnungsname: rechnungsnameUnset ? buildAutoRechnungsname(currentBeleg) : (currentBeleg.rechnungsname ?? undefined),
       rechnungsnummer: currentBeleg.rechnungsnummer ?? '',
       rechnungstyp: currentBeleg.rechnungstyp ?? 'eingangsrechnung',
       lieferant: currentBeleg.lieferant ?? '',
@@ -357,8 +359,8 @@ export function BelegReviewModus({
     const seen = new Map<string, string>()
 
     for (const beleg of belege) {
-      // Already reviewed (has rechnungsname set) – no action needed
-      if (beleg.rechnungsname) continue
+      // Already reviewed (has rechnungsname set and is not "Unbekannt") – no action needed
+      if (beleg.rechnungsname && beleg.rechnungsname.toLowerCase() !== 'unbekannt') continue
 
       // Check required fields
       if (!beleg.rechnungsdatum) {
