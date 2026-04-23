@@ -65,7 +65,7 @@ function aggregateMonthly(rows: BelegRow[]): MonatsSaldo[] {
     if (row.rechnungstyp === 'ausgangsrechnung') {
       entry.einnahmen += betrag
       entry.saldo += betrag
-    } else if (row.rechnungstyp === 'eingangsrechnung' || row.rechnungstyp === 'eigenbeleg') {
+    } else if (row.rechnungstyp === 'eingangsrechnung' || row.rechnungstyp === 'eigenbeleg' || row.rechnungstyp === 'eigenverbrauch') {
       entry.ausgaben += betrag
       entry.saldo -= betrag
     }

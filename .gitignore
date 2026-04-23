@@ -31,6 +31,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase temp files (cli cache, not source)
+supabase/.temp/
+
 # claude code personal settings
 .claude/settings.local.json
 .mcp.json

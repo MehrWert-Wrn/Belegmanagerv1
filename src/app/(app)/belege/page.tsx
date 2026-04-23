@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Plus, Search, X, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -23,6 +24,7 @@ import { DirektBezahltDialog } from '@/components/belege/direkt-bezahlt-dialog'
 import type { Beleg } from '@/lib/supabase/types'
 
 export default function BelegePage() {
+  const searchParams = useSearchParams()
   const [belege, setBelege] = useState<Beleg[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -30,13 +32,13 @@ export default function BelegePage() {
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  // Filters
+  // Filters – pre-populate from URL params (e.g. coming from dashboard Belegordner)
   const [rechnungsnameFilter, setRechnungsnameFilter] = useState('')
   const [lieferantFilter, setLieferantFilter] = useState('')
-  const [rechnungstypFilter, setRechnungstypFilter] = useState('alle')
+  const [rechnungstypFilter, setRechnungstypFilter] = useState(() => searchParams.get('rechnungstyp') ?? 'alle')
   const [statusFilter, setStatusFilter] = useState('alle')
-  const [datumVon, setDatumVon] = useState('')
-  const [datumBis, setDatumBis] = useState('')
+  const [datumVon, setDatumVon] = useState(() => searchParams.get('datum_von') ?? '')
+  const [datumBis, setDatumBis] = useState(() => searchParams.get('datum_bis') ?? '')
   const [betragNettoVon, setBetragNettoVon] = useState('')
   const [betragNettoBis, setBetragNettoBis] = useState('')
   const [betragBruttoVon, setBetragBruttoVon] = useState('')

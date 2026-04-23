@@ -501,11 +501,11 @@ function buildRechnungsname(
   if (!ocr) return null
   const parts: string[] = []
   if (ocr.rechnungsdatum) {
-    // Spec says "JJJJ-MM-TT_Lieferant_Betrag.pdf" – keep ISO for storage safety.
-    parts.push(ocr.rechnungsdatum)
+    const [y, m, d] = ocr.rechnungsdatum.split('-')
+    parts.push(`${d}.${m}.${y}`)
   }
   if (ocr.lieferant) parts.push(ocr.lieferant)
   if (ocr.rechnungsnummer) parts.push(ocr.rechnungsnummer)
   if (parts.length === 0) return null
-  return parts.join('_')
+  return parts.join(' - ')
 }

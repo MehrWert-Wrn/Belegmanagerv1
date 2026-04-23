@@ -107,7 +107,7 @@ function deriveSymbol(tx: BuchungsexportTransaktion): 'ER' | 'AR' | 'KA' | 'BK' 
   // 1. Priorität: rechnungstyp aus Beleg
   const typ = tx.beleg?.rechnungstyp
   if (typ === 'ausgangsrechnung') return 'AR'
-  if (typ === 'eingangsrechnung' || typ === 'gutschrift' || typ === 'eigenbeleg') return 'ER'
+  if (typ === 'eingangsrechnung' || typ === 'gutschrift' || typ === 'eigenbeleg' || typ === 'eigenverbrauch') return 'ER'
 
   // 2. Priorität: Zahlungsquellen-Typ (fallback fuer ungematchte TX oder typ=sonstiges)
   if (tx.zahlungsquelle_typ === 'kassa') return 'KA'

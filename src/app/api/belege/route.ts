@@ -17,7 +17,7 @@ const belegSchema = z.object({
   lieferant_iban: z.string().optional(),
   rechnungsnummer: z.string().optional(),
   rechnungsname: z.string().optional(),
-  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges']).optional(),
+  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges', 'eigenbeleg', 'eigenverbrauch']).optional(),
   uid_lieferant: z.string().optional(),
   mandatsreferenz: z.string().optional(),
   zahlungsreferenz: z.string().optional(),

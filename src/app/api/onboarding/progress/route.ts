@@ -11,9 +11,18 @@ import { getMandantId, requireAuth } from '@/lib/auth-helpers'
 // -----------------------------------------------------------------------------
 
 const STEP_KEYS = [
+  // Pre-divider: Testphase-Tour (Schritte 1–8)
   'email_address_done',
+  'belege_hochladen_done',
+  'mobile_app_done',
+  'email_test_done',
+  'transactions_done',
+  'matching_done',
+  'kassabuch_done',
+  'monatsabschluss_done',
+  'appointment_done',
+  // Post-divider: Aktives bezahltes Konto
   'email_connection_done',
-  'company_data_done',
   'whatsapp_done',
   'portal_connections_done',
 ] as const
@@ -30,7 +39,7 @@ const patchSchema = z.union([
 ])
 
 const SELECT_COLUMNS =
-  'email_address_done, email_connection_done, company_data_done, whatsapp_done, portal_connections_done, dismissed_at'
+  'email_address_done, belege_hochladen_done, mobile_app_done, email_test_done, transactions_done, matching_done, kassabuch_done, monatsabschluss_done, appointment_done, email_connection_done, whatsapp_done, portal_connections_done, dismissed_at'
 
 // -----------------------------------------------------------------------------
 // GET
@@ -122,7 +131,7 @@ export async function PATCH(request: Request) {
   let updatePayload: Record<string, unknown> = {}
 
   if ('action' in parsed.data) {
-    // Dismiss -> nur erlaubt wenn alle 5 Schritte erledigt
+    // Dismiss -> nur erlaubt wenn alle Schritte erledigt
     const allDone = STEP_KEYS.every((k) => existing[k as StepKey] === true)
     if (!allDone) {
       return NextResponse.json(

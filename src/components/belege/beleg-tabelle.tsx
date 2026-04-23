@@ -75,6 +75,10 @@ const rechnungstypConfig: Record<Rechnungstyp, { label: string; className: strin
     label: 'Eigenbeleg',
     className: 'bg-teal-100 text-teal-800 hover:bg-teal-100',
   },
+  eigenverbrauch: {
+    label: 'Eigenverbrauch',
+    className: 'bg-amber-100 text-amber-800 hover:bg-amber-100',
+  },
 }
 
 function RechnungstypBadge({ typ }: { typ: Rechnungstyp | undefined }) {
