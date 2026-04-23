@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { FolderOpen, Folder, ChevronRight, Download, X, Loader2 } from 'lucide-react'
+import { FolderOpen, Folder, ChevronRight, Download, X, Loader2, ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
 type TypBreakdown = {
@@ -86,21 +86,40 @@ async function downloadZip(monat: string, rechnungstyp?: string): Promise<void> 
 
 export function BelegeOrdnerWidget() {
   const router = useRouter()
+  const currentYear = new Date().getFullYear()
+
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear)
+  const [availableYears, setAvailableYears] = useState<number[]>([currentYear])
   const [monate, setMonate] = useState<MonatsOrdner[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedMonat, setSelectedMonat] = useState<string | null>(null)
-  // Track which download is in progress: monat key or "monat:rechnungstyp"
   const [downloading, setDownloading] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetch('/api/dashboard/belege-ordner')
+  const fetchData = useCallback((year: number) => {
+    setLoading(true)
+    setSelectedMonat(null)
+    fetch(`/api/dashboard/belege-ordner?year=${year}`)
       .then((r) => r.json())
-      .then((d) => setMonate(d.monate ?? []))
+      .then((d) => {
+        setMonate(d.monate ?? [])
+        if (d.availableYears?.length > 0) setAvailableYears(d.availableYears)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    fetchData(currentYear)
+  }, [fetchData, currentYear])
+
+  function handleYearChange(year: number) {
+    setSelectedYear(year)
+    fetchData(year)
+  }
+
   const selected = monate.find((m) => m.monat === selectedMonat) ?? null
+  const gesamtBelege = monate.reduce((s, m) => s + m.anzahl, 0)
+  const gesamtOffen = monate.reduce((s, m) => s + m.offene, 0)
 
   function handleMonatClick(monat: string) {
     setSelectedMonat((prev) => (prev === monat ? null : monat))
@@ -128,30 +147,68 @@ export function BelegeOrdnerWidget() {
     }
   }
 
-  const gesamtBelege = monate.reduce((s, m) => s + m.anzahl, 0)
-  const gesamtOffen = monate.reduce((s, m) => s + m.offene, 0)
-
   return (
     <Card className="col-span-full">
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="text-base font-semibold">Belegordner</CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">Belege nach Monat gruppiert (letzte 12 Monate)</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Belege nach Monat und Rechnungstyp</p>
           </div>
-          {!loading && monate.length > 0 && (
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">Gesamt</p>
-                <p className="text-base font-bold text-foreground">{gesamtBelege} Belege</p>
+
+          <div className="flex items-center gap-3">
+            {/* Year selector */}
+            <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-1">
+              <button
+                className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-30"
+                disabled={selectedYear <= Math.min(...availableYears)}
+                onClick={() => handleYearChange(selectedYear - 1)}
+                aria-label="Vorheriges Jahr"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+
+              <div className="flex items-center gap-0.5">
+                {availableYears.map((y) => (
+                  <button
+                    key={y}
+                    onClick={() => handleYearChange(y)}
+                    className={`rounded px-2.5 py-0.5 text-sm font-medium transition-all ${
+                      y === selectedYear
+                        ? 'bg-teal-600 text-white shadow-sm'
+                        : 'text-muted-foreground hover:bg-background hover:text-foreground'
+                    }`}
+                  >
+                    {y}
+                  </button>
+                ))}
               </div>
-              {gesamtOffen > 0 && (
-                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 text-xs">
-                  {gesamtOffen} offen
-                </Badge>
-              )}
+
+              <button
+                className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-30"
+                disabled={selectedYear >= Math.max(...availableYears)}
+                onClick={() => handleYearChange(selectedYear + 1)}
+                aria-label="Nächstes Jahr"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
             </div>
-          )}
+
+            {/* Summary */}
+            {!loading && gesamtBelege > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Gesamt {selectedYear}</p>
+                  <p className="text-sm font-bold text-foreground">{gesamtBelege} Belege</p>
+                </div>
+                {gesamtOffen > 0 && (
+                  <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 text-xs">
+                    {gesamtOffen} offen
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </CardHeader>
 
@@ -166,7 +223,7 @@ export function BelegeOrdnerWidget() {
         ) : monate.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
             <FolderOpen className="h-10 w-10 mb-3 opacity-30" />
-            <p className="text-sm">Noch keine Belege vorhanden.</p>
+            <p className="text-sm">Keine Belege für {selectedYear} vorhanden.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
@@ -221,7 +278,6 @@ export function BelegeOrdnerWidget() {
         {/* Expanded month panel */}
         {selected && (
           <div className="rounded-xl border border-teal-200 bg-teal-50/40 p-4 space-y-4">
-            {/* Panel header */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <FolderOpen className="h-5 w-5 text-teal-700 shrink-0" />
@@ -270,7 +326,6 @@ export function BelegeOrdnerWidget() {
               </div>
             </div>
 
-            {/* Rechnungstyp sub-folders */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {selected.typen.map((typ) => {
                 const color = TYP_COLOR[typ.rechnungstyp] ?? TYP_COLOR.eingangsrechnung
@@ -282,7 +337,6 @@ export function BelegeOrdnerWidget() {
                     key={typ.rechnungstyp}
                     className="group relative flex flex-col gap-2 rounded-lg border bg-white p-3 transition-all hover:border-teal-300 hover:shadow-sm"
                   >
-                    {/* Sub-folder header */}
                     <button
                       className="flex items-start gap-2 text-left focus-visible:outline-none"
                       onClick={() => navigateToBelege(selected.monat, typ.rechnungstyp)}
@@ -301,7 +355,6 @@ export function BelegeOrdnerWidget() {
                       </div>
                     </button>
 
-                    {/* Download button */}
                     <button
                       className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors border ${color.badge} hover:opacity-80 disabled:opacity-50`}
                       disabled={isDownloading}

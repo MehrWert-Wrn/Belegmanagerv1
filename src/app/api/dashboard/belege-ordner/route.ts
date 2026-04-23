@@ -2,31 +2,61 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveContext } from '@/lib/admin-context'
 
-export async function GET() {
+export async function GET(request: Request) {
   const ctx = await getEffectiveContext()
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { searchParams } = new URL(request.url)
+  const yearParam = searchParams.get('year')
+  const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear()
+
+  if (isNaN(year) || year < 2000 || year > 2100) {
+    return NextResponse.json({ error: 'Ungültiges Jahr' }, { status: 400 })
+  }
+
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  const vonDatum = `${year}-01-01`
+  const bisDatum = `${year}-12-31`
+
+  // Query 1: belege mit rechnungsdatum im Jahr
+  let q1 = supabase
     .from('belege')
     .select('rechnungsdatum, bruttobetrag, zuordnungsstatus, rechnungstyp, erstellt_am')
     .eq('mandant_id', ctx.mandantId)
     .is('geloescht_am', null)
-    .gte('erstellt_am', getStartDate())
-    .order('erstellt_am', { ascending: false })
+    .not('rechnungsdatum', 'is', null)
+    .gte('rechnungsdatum', vonDatum)
+    .lte('rechnungsdatum', bisDatum)
 
-  if (error) return NextResponse.json({ error: 'Fehler beim Laden' }, { status: 500 })
+  // Query 2: belege ohne rechnungsdatum, erstellt im Jahr (Fallback)
+  let q2 = supabase
+    .from('belege')
+    .select('rechnungsdatum, bruttobetrag, zuordnungsstatus, rechnungstyp, erstellt_am')
+    .eq('mandant_id', ctx.mandantId)
+    .is('geloescht_am', null)
+    .is('rechnungsdatum', null)
+    .gte('erstellt_am', `${vonDatum}T00:00:00`)
+    .lte('erstellt_am', `${bisDatum}T23:59:59`)
 
-  return NextResponse.json({ monate: aggregateByMonth(data ?? []) })
-}
+  // Query 3: alle Belege-Daten für verfügbare Jahre (nur Datumsspalten, leichtgewichtig)
+  const q3 = supabase
+    .from('belege')
+    .select('rechnungsdatum, erstellt_am')
+    .eq('mandant_id', ctx.mandantId)
+    .is('geloescht_am', null)
 
-function getStartDate(): string {
-  const d = new Date()
-  d.setMonth(d.getMonth() - 11)
-  d.setDate(1)
-  d.setHours(0, 0, 0, 0)
-  return d.toISOString()
+  const [r1, r2, r3] = await Promise.all([q1, q2, q3])
+
+  if (r1.error || r2.error || r3.error) {
+    return NextResponse.json({ error: 'Fehler beim Laden' }, { status: 500 })
+  }
+
+  const rows = [...(r1.data ?? []), ...(r2.data ?? [])]
+  const monate = aggregateByMonth(rows)
+  const availableYears = extractYears(r3.data ?? [])
+
+  return NextResponse.json({ monate, availableYears, year })
 }
 
 type BelegRow = {
@@ -84,10 +114,19 @@ function aggregateByMonth(rows: BelegRow[]): MonatsOrdner[] {
     }
   }
 
-  // Sort types within each month by count desc
   for (const entry of map.values()) {
     entry.typen.sort((a, b) => b.anzahl - a.anzahl)
   }
 
   return Array.from(map.values()).sort((a, b) => b.monat.localeCompare(a.monat))
+}
+
+function extractYears(rows: { rechnungsdatum: string | null; erstellt_am: string }[]): number[] {
+  const years = new Set<number>()
+  for (const row of rows) {
+    const datumStr = row.rechnungsdatum ?? row.erstellt_am
+    const y = parseInt(datumStr.slice(0, 4), 10)
+    if (!isNaN(y)) years.add(y)
+  }
+  return Array.from(years).sort((a, b) => b - a)
 }
