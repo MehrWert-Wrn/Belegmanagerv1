@@ -2,7 +2,9 @@
 
 ## Status: Deployed
 **Created:** 2026-03-13
-**Last Updated:** 2026-03-18
+**Last Updated:** 2026-04-23
+**Deployed:** 2026-04-23
+**Tag:** v1.7.1-PROJ-7-erweiterung
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung)
