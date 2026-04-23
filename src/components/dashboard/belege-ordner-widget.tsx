@@ -367,6 +367,14 @@ export function BelegeOrdnerWidget() {
                       )}
                       Herunterladen
                     </button>
+
+                    <button
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-teal-700 transition-colors"
+                      onClick={() => navigateToBelege(selected.monat, typ.rechnungstyp)}
+                    >
+                      <ChevronRight className="h-3 w-3 shrink-0" />
+                      Belege anzeigen
+                    </button>
                   </div>
                 )
               })}
