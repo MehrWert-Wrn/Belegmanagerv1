@@ -1,7 +1,19 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Plus, Settings2, Search, X } from 'lucide-react'
+import {
+  Plus,
+  Settings2,
+  Search,
+  X,
+  ChevronDown,
+  Download,
+  Scale,
+  History,
+  BookmarkPlus,
+  Tag,
+  Archive,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -13,6 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { SaldoAnzeige } from '@/components/kassabuch/saldo-anzeige'
 import {
   KassabuchTabelle,
@@ -22,7 +42,14 @@ import { KassaEintragDialog } from '@/components/kassabuch/kassa-eintrag-dialog'
 import { AnfangssaldoDialog } from '@/components/kassabuch/anfangssaldo-dialog'
 import { KassaLoeschenDialog } from '@/components/kassabuch/kassa-loeschen-dialog'
 import { ZuordnungsDialog } from '@/components/transaktionen/zuordnungs-dialog'
+import { KassabuchExportDialog } from '@/components/kassabuch/kassabuch-export-dialog'
+import { KassenpruefungDialog } from '@/components/kassabuch/kassenpruefung-dialog'
+import { KassenpruefungHistorie } from '@/components/kassabuch/kassenpruefung-historie'
+import { KassaVorlagenListe } from '@/components/kassabuch/kassa-vorlagen-liste'
+import { KassaKategorienVerwaltung } from '@/components/kassabuch/kassa-kategorien-verwaltung'
+import { KassabuchArchivListe } from '@/components/kassabuch/kassabuch-archiv-liste'
 import type { TransaktionWithRelations } from '@/lib/supabase/types'
+import type { KassaVorlage } from '@/components/kassabuch/kassa-vorlagen-dialog'
 
 export default function KassabuchPage() {
   // Data
@@ -42,12 +69,24 @@ export default function KassabuchPage() {
   // Filters
   const [searchFilter, setSearchFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('alle')
+  const [kategorieFilter, setKategorieFilter] = useState('alle')
   const [datumVon, setDatumVon] = useState('')
   const [datumBis, setDatumBis] = useState('')
 
-  // Dialogs
+  // Kategorien für Filter-Dropdown
+  const [filterKategorien, setFilterKategorien] = useState<{ id: string; name: string; farbe: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/kassabuch/kategorien')
+      .then(r => r.json())
+      .then(d => setFilterKategorien(d.kategorien ?? []))
+      .catch(() => {})
+  }, [])
+
+  // Existing dialogs
   const [eintragDialogOpen, setEintragDialogOpen] = useState(false)
   const [editEintrag, setEditEintrag] = useState<KassaEintrag | null>(null)
+  const [vorlageForNewEntry, setVorlageForNewEntry] = useState<KassaVorlage | null>(null)
   const [anfangssaldoDialogOpen, setAnfangssaldoDialogOpen] = useState(false)
   const [deleteEintrag, setDeleteEintrag] = useState<KassaEintrag | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -56,6 +95,14 @@ export default function KassabuchPage() {
   const [zuordnungsDialogOpen, setZuordnungsDialogOpen] = useState(false)
   const [zuordnungsTransaktion, setZuordnungsTransaktion] =
     useState<TransaktionWithRelations | null>(null)
+
+  // New dialogs (Kassabuch-Erweiterung 2026-04-23)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [pruefungDialogOpen, setPruefungDialogOpen] = useState(false)
+  const [pruefungHistorieOpen, setPruefungHistorieOpen] = useState(false)
+  const [vorlagenListeOpen, setVorlagenListeOpen] = useState(false)
+  const [kategorienOpen, setKategorienOpen] = useState(false)
+  const [archivListeOpen, setArchivListeOpen] = useState(false)
 
   const fetchEintraege = useCallback(async () => {
     setLoading(true)
@@ -130,22 +177,37 @@ export default function KassabuchPage() {
       result = result.filter((e) => e.match_status === statusFilter)
     }
 
+    // BUG-PROJ7-25: Kategorie-Filter
+    if (kategorieFilter === '_none') {
+      result = result.filter((e) => !e.kategorie_id)
+    } else if (kategorieFilter !== 'alle') {
+      result = result.filter((e) => e.kategorie_id === kategorieFilter)
+    }
+
     return result
-  }, [eintraege, searchFilter, statusFilter])
+  }, [eintraege, searchFilter, statusFilter, kategorieFilter])
 
   function handleNewEintrag() {
     setEditEintrag(null)
+    setVorlageForNewEntry(null)
     setEintragDialogOpen(true)
   }
 
   function handleEdit(eintrag: KassaEintrag) {
     setEditEintrag(eintrag)
+    setVorlageForNewEntry(null)
     setEintragDialogOpen(true)
   }
 
   function handleDeleteRequest(eintrag: KassaEintrag) {
     setDeleteEintrag(eintrag)
     setDeleteDialogOpen(true)
+  }
+
+  function handleApplyVorlage(vorlage: KassaVorlage) {
+    setEditEintrag(null)
+    setVorlageForNewEntry(vorlage)
+    setEintragDialogOpen(true)
   }
 
   function handleManualAssign(eintragId: string) {
@@ -185,6 +247,7 @@ export default function KassabuchPage() {
   function clearFilters() {
     setSearchFilter('')
     setStatusFilter('alle')
+    setKategorieFilter('alle')
     setDatumVon('')
     setDatumBis('')
   }
@@ -192,6 +255,7 @@ export default function KassabuchPage() {
   const hasFilters =
     searchFilter !== '' ||
     statusFilter !== 'alle' ||
+    kategorieFilter !== 'alle' ||
     datumVon !== '' ||
     datumBis !== ''
 
@@ -205,7 +269,7 @@ export default function KassabuchPage() {
             Verwalten Sie Ihre Bargeldbewegungen und den Kassastand.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => setAnfangssaldoDialogOpen(true)}
@@ -213,6 +277,50 @@ export default function KassabuchPage() {
             <Settings2 className="mr-2 h-4 w-4" />
             Anfangssaldo
           </Button>
+
+          {/* Aktionen-Dropdown (Kassabuch-Erweiterung) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                Aktionen
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Export</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => setExportDialogOpen(true)}>
+                <Download className="mr-2 h-4 w-4" />
+                Monat exportieren
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setArchivListeOpen(true)}>
+                <Archive className="mr-2 h-4 w-4" />
+                Archiv
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Kassenprüfung</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => setPruefungDialogOpen(true)}>
+                <Scale className="mr-2 h-4 w-4" />
+                Kassenprüfung
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setPruefungHistorieOpen(true)}>
+                <History className="mr-2 h-4 w-4" />
+                Prüfungshistorie
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Verwaltung</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => setVorlagenListeOpen(true)}>
+                <BookmarkPlus className="mr-2 h-4 w-4" />
+                Vorlagen verwalten
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setKategorienOpen(true)}>
+                <Tag className="mr-2 h-4 w-4" />
+                Kategorien verwalten
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button onClick={handleNewEintrag}>
             <Plus className="mr-2 h-4 w-4" />
             Neuer Eintrag
@@ -322,6 +430,34 @@ export default function KassabuchPage() {
           </Select>
         </div>
 
+        {filterKategorien.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Kategorie
+            </label>
+            <Select value={kategorieFilter} onValueChange={setKategorieFilter}>
+              <SelectTrigger className="w-full sm:w-44" aria-label="Kategorie filtern">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alle">Alle Kategorien</SelectItem>
+                <SelectItem value="_none">Ohne Kategorie</SelectItem>
+                {filterKategorien.map(k => (
+                  <SelectItem key={k.id} value={k.id}>
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="inline-block h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: k.farbe }}
+                      />
+                      {k.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {hasFilters && (
           <Button
             variant="ghost"
@@ -359,12 +495,16 @@ export default function KassabuchPage() {
         onActionComplete={refreshAll}
       />
 
-      {/* Dialogs */}
+      {/* Existing dialogs */}
       <KassaEintragDialog
         open={eintragDialogOpen}
         onOpenChange={setEintragDialogOpen}
         eintrag={editEintrag}
-        onSuccess={refreshAll}
+        initialVorlage={vorlageForNewEntry}
+        onSuccess={() => {
+          setVorlageForNewEntry(null)
+          refreshAll()
+        }}
       />
 
       <AnfangssaldoDialog
@@ -382,12 +522,44 @@ export default function KassabuchPage() {
         onDeleted={refreshAll}
       />
 
-      {/* Zuordnungs-Dialog (reused from PROJ-6) */}
       <ZuordnungsDialog
         open={zuordnungsDialogOpen}
         onOpenChange={setZuordnungsDialogOpen}
         transaktion={zuordnungsTransaktion}
         onAssigned={refreshAll}
+      />
+
+      {/* New dialogs (Kassabuch-Erweiterung 2026-04-23) */}
+      <KassabuchExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+      />
+
+      <KassenpruefungDialog
+        open={pruefungDialogOpen}
+        onOpenChange={setPruefungDialogOpen}
+        onSuccess={refreshAll}
+      />
+
+      <KassenpruefungHistorie
+        open={pruefungHistorieOpen}
+        onOpenChange={setPruefungHistorieOpen}
+      />
+
+      <KassaVorlagenListe
+        open={vorlagenListeOpen}
+        onOpenChange={setVorlagenListeOpen}
+        onApplyVorlage={handleApplyVorlage}
+      />
+
+      <KassaKategorienVerwaltung
+        open={kategorienOpen}
+        onOpenChange={setKategorienOpen}
+      />
+
+      <KassabuchArchivListe
+        open={archivListeOpen}
+        onOpenChange={setArchivListeOpen}
       />
     </div>
   )

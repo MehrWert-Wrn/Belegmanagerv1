@@ -9,12 +9,13 @@ type Params = { params: Promise<{ id: string }> }
 
 const updateSchema = z.object({
   datum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  betrag: z.number().refine(v => v !== 0).optional(),
+  betrag: z.number().finite().optional(),
   beschreibung: z.string().optional(),
   beleg_id: z.string().uuid().optional(),
   mwst_satz: z.number().nullable().optional(),
   mwst_betrag: z.number().nullable().optional(),
   kassa_buchungstyp: z.enum(['EINNAHME', 'AUSGABE', 'EINLAGE', 'ENTNAHME']).optional(),
+  kategorie_id: z.string().uuid().nullable().optional(),
 })
 
 const stornoSchema = z.object({

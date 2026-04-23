@@ -30,6 +30,13 @@ import {
 } from '@/components/ui/collapsible'
 import { createClient } from '@/lib/supabase/client'
 import type { KassaEintrag } from '@/components/kassabuch/kassabuch-tabelle'
+import type { KassaVorlage } from '@/components/kassabuch/kassa-vorlagen-dialog'
+
+interface KassaKategorie {
+  id: string
+  name: string
+  farbe: string
+}
 
 const MAX_BELEG_SIZE = 5 * 1024 * 1024 // 5 MB
 const ACCEPTED_FILE_TYPES = '.pdf,.jpg,.jpeg,.png'
@@ -37,8 +44,9 @@ const ACCEPTED_FILE_TYPES = '.pdf,.jpg,.jpeg,.png'
 interface KassaEintragDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  eintrag: KassaEintrag | null // null = neuer Eintrag
+  eintrag: KassaEintrag | null
   onSuccess: () => void
+  initialVorlage?: KassaVorlage | null
 }
 
 type MwstSatzOption = 'none' | '20' | '13' | '10' | '0'
@@ -59,6 +67,7 @@ export function KassaEintragDialog({
   onOpenChange,
   eintrag,
   onSuccess,
+  initialVorlage,
 }: KassaEintragDialogProps) {
   const isEdit = eintrag !== null
 
@@ -68,6 +77,9 @@ export function KassaEintragDialog({
   const [mwstSatz, setMwstSatz] = useState<MwstSatzOption>('none')
   const [beschreibung, setBeschreibung] = useState('')
   const [lieferant, setLieferant] = useState('')
+  const [kategorieId, setKategorieId] = useState<string>('none')
+  const [kategorien, setKategorien] = useState<KassaKategorie[]>([])
+  const [activeVorlageId, setActiveVorlageId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   // Beleg anhängen state
@@ -99,6 +111,16 @@ export function KassaEintragDialog({
     return bruttoParsed - nettobetrag
   }, [bruttoParsed, nettobetrag])
 
+  // Kategorien laden wenn Dialog öffnet
+  useEffect(() => {
+    if (open) {
+      fetch('/api/kassabuch/kategorien')
+        .then(r => r.json())
+        .then(d => setKategorien(d.kategorien ?? []))
+        .catch(() => {})
+    }
+  }, [open])
+
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
@@ -106,27 +128,19 @@ export function KassaEintragDialog({
         setDatum(eintrag.datum)
         const absAmount = Math.abs(eintrag.betrag)
         setBetrag(absAmount.toFixed(2))
-        // Buchungstyp aus gespeichertem Feld wiederherstellen
         if (eintrag.kassa_buchungstyp && eintrag.kassa_buchungstyp !== 'STORNO') {
           setBuchungstyp(eintrag.kassa_buchungstyp as KassaBuchungstyp)
         } else {
           setBuchungstyp(eintrag.betrag < 0 ? 'AUSGABE' : 'EINNAHME')
         }
 
-        // MwSt-Satz from eintrag
         if (eintrag.mwst_satz != null) {
           const satz = String(eintrag.mwst_satz) as MwstSatzOption
-          if (['20', '13', '10', '0'].includes(satz)) {
-            setMwstSatz(satz)
-          } else {
-            setMwstSatz('none')
-          }
+          setMwstSatz(['20', '13', '10', '0'].includes(satz) ? satz : 'none')
         } else {
           setMwstSatz('none')
         }
 
-        // Lieferant und Beschreibung trennen
-        // Neues Format: U+001F (Unit Separator) | Legacy-Fallback: erstes " - "
         const desc = eintrag.beschreibung ?? ''
         const unitSepIdx = desc.indexOf('\x1F')
         if (unitSepIdx >= 0) {
@@ -143,7 +157,11 @@ export function KassaEintragDialog({
           }
         }
 
-        // Show existing beleg info if linked
+        // kategorie_id aus eintrag
+        const eid = (eintrag as KassaEintrag & { kategorie_id?: string | null }).kategorie_id
+        setKategorieId(eid ?? 'none')
+        setActiveVorlageId(null)
+
         if (eintrag.beleg_id && eintrag.belege) {
           setExistingBelegName(
             eintrag.belege.lieferant
@@ -153,6 +171,18 @@ export function KassaEintragDialog({
         } else {
           setExistingBelegName(null)
         }
+      } else if (initialVorlage) {
+        // BUG-PROJ7-22: Vorlagen-Übernahme befüllt Formular
+        const today = new Date().toISOString().split('T')[0]
+        setDatum(today)
+        setBuchungstyp(initialVorlage.kassa_buchungstyp as KassaBuchungstyp)
+        setBetrag(initialVorlage.betrag != null ? String(Math.abs(initialVorlage.betrag)) : '')
+        setBeschreibung(initialVorlage.beschreibung ?? '')
+        setLieferant('')
+        setMwstSatz('none')
+        setKategorieId(initialVorlage.kategorie_id ?? 'none')
+        setActiveVorlageId(initialVorlage.id)
+        setExistingBelegName(null)
       } else {
         const today = new Date().toISOString().split('T')[0]
         setDatum(today)
@@ -161,13 +191,14 @@ export function KassaEintragDialog({
         setMwstSatz('none')
         setBeschreibung('')
         setLieferant('')
+        setKategorieId('none')
+        setActiveVorlageId(null)
         setExistingBelegName(null)
       }
-      // Always reset file state
       setPendingBelegFile(null)
       setBelegSectionOpen(false)
     }
-  }, [open, eintrag])
+  }, [open, eintrag, initialVorlage])
 
   function handleFileSelect(file: File) {
     if (file.size > MAX_BELEG_SIZE) {
@@ -264,7 +295,7 @@ export function KassaEintragDialog({
     e.preventDefault()
 
     const numericBetrag = parseFloat(betrag.replace(',', '.'))
-    if (isNaN(numericBetrag) || numericBetrag === 0) {
+    if (isNaN(numericBetrag)) {
       toast.error('Bitte geben Sie einen gueltigen Betrag ein.')
       return
     }
@@ -308,6 +339,7 @@ export function KassaEintragDialog({
           mwst_satz: apiMwstSatz,
           mwst_betrag: ustBetrag,
           kassa_buchungstyp: buchungstyp,
+          kategorie_id: kategorieId === 'none' ? null : kategorieId,
         }
         if (belegId) {
           body.beleg_id = belegId
@@ -337,6 +369,8 @@ export function KassaEintragDialog({
           mwst_satz: apiMwstSatz,
           mwst_betrag: ustBetrag,
           kassa_buchungstyp: buchungstyp,
+          kategorie_id: kategorieId === 'none' ? null : kategorieId,
+          kassa_vorlage_id: activeVorlageId ?? null,
         }
         if (belegId) {
           body.beleg_id = belegId
@@ -457,6 +491,32 @@ export function KassaEintragDialog({
                 <span className="text-muted-foreground">USt.-Betrag: </span>
                 <span className="font-medium">{formatEur(ustBetrag)} EUR</span>
               </div>
+            </div>
+          )}
+
+          {/* Kategorie */}
+          {kategorien.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="kassa-kategorie">Kategorie <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Select value={kategorieId} onValueChange={setKategorieId}>
+                <SelectTrigger id="kassa-kategorie" aria-label="Kategorie">
+                  <SelectValue placeholder="Keine Kategorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine Kategorie</SelectItem>
+                  {kategorien.map(k => (
+                    <SelectItem key={k.id} value={k.id}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: k.farbe }}
+                        />
+                        {k.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 

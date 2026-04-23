@@ -10,12 +10,14 @@ type Buchungstyp = typeof BUCHUNGSTYPEN[number]
 
 const schema = z.object({
   datum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  betrag: z.number().refine(v => v !== 0, 'Betrag darf nicht 0 sein'),
+  betrag: z.number().finite(),
   beschreibung: z.string().optional(),
   beleg_id: z.string().uuid().optional(),
   mwst_satz: z.number().nullable().optional(),
   mwst_betrag: z.number().nullable().optional(),
   kassa_buchungstyp: z.enum(BUCHUNGSTYPEN).optional(),
+  kategorie_id: z.string().uuid().nullable().optional(),
+  kassa_vorlage_id: z.string().uuid().nullable().optional(),
 })
 
 // GET /api/kassabuch/eintraege – alle Kassaeintraege
@@ -40,11 +42,14 @@ export async function GET(request: Request) {
       id, datum, betrag, beschreibung, match_status, match_score, match_type,
       beleg_id, erstellt_am, mwst_satz, mwst_betrag,
       lfd_nr_kassa, kassa_buchungstyp, storno_zu_id, storno_grund,
-      belege ( lieferant, rechnungsnummer, bruttobetrag )
+      kategorie_id, kassa_vorlage_id,
+      belege ( lieferant, rechnungsnummer, bruttobetrag ),
+      kassa_kategorien ( name, farbe )
     `)
     .eq('quelle_id', kasse.id)
     .is('geloescht_am', null)
-    .order('lfd_nr_kassa', { ascending: false })
+    .order('datum', { ascending: true })
+    .order('lfd_nr_kassa', { ascending: true })
     .limit(1000)
 
   if (datumVon) query = query.gte('datum', datumVon)
@@ -106,9 +111,9 @@ export async function POST(request: Request) {
   }
 
   // Buchungstyp aus betrag ableiten wenn nicht explizit gesetzt
-  const buchungstyp: Buchungstyp = parsed.data.kassa_buchungstyp ?? (parsed.data.betrag > 0 ? 'EINNAHME' : 'AUSGABE')
+  const buchungstyp: Buchungstyp = parsed.data.kassa_buchungstyp ?? (parsed.data.betrag >= 0 ? 'EINNAHME' : 'AUSGABE')
 
-  const { beleg_id, kassa_buchungstyp: _bt, ...rest } = parsed.data
+  const { beleg_id, kassa_buchungstyp: _bt, kassa_vorlage_id, kategorie_id, ...rest } = parsed.data
 
   const insert: Record<string, unknown> = {
     ...rest,
@@ -116,6 +121,8 @@ export async function POST(request: Request) {
     quelle_id: kasse.id,
     kassa_buchungstyp: buchungstyp,
   }
+  if (kategorie_id !== undefined) insert.kategorie_id = kategorie_id
+  if (kassa_vorlage_id !== undefined) insert.kassa_vorlage_id = kassa_vorlage_id
 
   if (beleg_id) {
     insert.beleg_id = beleg_id

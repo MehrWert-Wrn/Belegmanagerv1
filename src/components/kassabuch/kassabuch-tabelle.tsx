@@ -53,6 +53,9 @@ export interface KassaEintrag {
   storno_zu_id: string | null
   storno_grund: string | null
   ist_storniert: boolean
+  kategorie_id: string | null
+  kassa_vorlage_id?: string | null
+  kassa_kategorien: { name: string; farbe: string } | null
   belege: {
     lieferant: string | null
     rechnungsnummer: string | null
@@ -133,9 +136,8 @@ export function KassabuchTabelle({
             <TableHead className="hidden sm:table-cell w-12 text-muted-foreground">#</TableHead>
             <TableHead>Datum</TableHead>
             <TableHead className="text-right">Betrag</TableHead>
-            <TableHead className="hidden md:table-cell">
-              Beschreibung
-            </TableHead>
+            <TableHead className="hidden md:table-cell">Beschreibung</TableHead>
+            <TableHead className="hidden xl:table-cell">Kategorie</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="hidden lg:table-cell">Beleg</TableHead>
             <TableHead className="w-10"></TableHead>
@@ -181,6 +183,19 @@ export function KassabuchTabelle({
                 <TableCell className="hidden max-w-[250px] truncate text-sm md:table-cell">
                   {eintrag.beschreibung || '-'}
                 </TableCell>
+                <TableCell className="hidden xl:table-cell">
+                  {eintrag.kassa_kategorien ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: eintrag.kassa_kategorien.farbe }}
+                      />
+                      {eintrag.kassa_kategorien.name}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">–</span>
+                  )}
+                </TableCell>
                 <TableCell>
                   {isStorno ? (
                     <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
@@ -201,7 +216,7 @@ export function KassabuchTabelle({
                   <BelegReferenz beleg={eintrag.belege} />
                 </TableCell>
                 <TableCell>
-                  {!isStorniert && (
+                  {!isStorniert && !isStorno && (
                     <KassaAktionenMenu
                       eintrag={eintrag}
                       onEdit={onEdit}

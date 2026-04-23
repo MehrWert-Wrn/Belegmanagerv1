@@ -3,6 +3,7 @@ import { requireAuth, requireAdmin, getMandantId } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { earMonatsabschluss } from '@/lib/ear-buchungsnummern'
+import { generiereKassabuchArchiv } from '@/lib/kassabuch-archiv'
 
 const schema = z.object({
   // Bei > 10 offenen Positionen muss explizit bestätigt werden
@@ -107,10 +108,31 @@ export async function POST(request: Request, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // PROJ-7: Kassabuch-Archiv direkt erzeugen (BUG-PROJ7-28: kein HTTP-Self-Call)
+  const monatKey = `${jahr}-${String(monat).padStart(2, '0')}`
+  const abgeschlossenAm = new Date()
+  let kassabuchArchivErstellt = false
+  try {
+    const archivResult = await generiereKassabuchArchiv(
+      supabase,
+      mandant_id,
+      monatKey,
+      user.id,
+      abgeschlossenAm,
+    )
+    kassabuchArchivErstellt = archivResult.success
+    if (!archivResult.success) {
+      console.error('[monatsabschluss] Kassabuch-Archivierung fehlgeschlagen:', archivResult.error)
+    }
+  } catch (archivErr) {
+    console.error('[monatsabschluss] Kassabuch-Archivierung fehlgeschlagen:', archivErr)
+  }
+
   return NextResponse.json({
     success: true,
     anzahl_offen: anzahlOffen,
     abgeschlossen_am: new Date().toISOString(),
+    kassabuch_archiv_erstellt: kassabuchArchivErstellt,
     ...(earResult ? {
       ear_buchungsnummern_vergeben: earResult.buchungsnummern_vergeben,
       ear_dateien_umbenannt: earResult.dateien_umbenannt,
