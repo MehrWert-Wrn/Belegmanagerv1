@@ -20,10 +20,10 @@ export async function POST(request: Request) {
 
   const { transaktion_id, beleg_id } = parsed.data
 
-  // Transaktion holen für Monat-Lock-Check und match_type-Erhalt
+  // Transaktion holen für Monat-Lock-Check, match_type-Erhalt und Betrag
   const { data: transaktion } = await supabase
     .from('transaktionen')
-    .select('datum, mandant_id, match_type')
+    .select('datum, mandant_id, match_type, betrag')
     .eq('id', transaktion_id)
     .single()
 
@@ -51,10 +51,21 @@ export async function POST(request: Request) {
   if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
   if (!updated?.length) return NextResponse.json({ error: 'Transaktion nicht gefunden oder keine Berechtigung' }, { status: 404 })
 
-  // Beleg als zugeordnet markieren
+  // Beleg als zugeordnet markieren; bei Fremdwährung bruttobetrag mit Transaktionsbetrag überschreiben
+  const { data: beleg } = await supabase
+    .from('belege')
+    .select('waehrung')
+    .eq('id', beleg_id)
+    .single()
+
+  const belegUpdate: Record<string, unknown> = { zuordnungsstatus: 'zugeordnet' }
+  if (beleg?.waehrung && beleg.waehrung !== 'EUR' && transaktion.betrag !== undefined) {
+    belegUpdate.bruttobetrag = Math.abs(transaktion.betrag)
+  }
+
   const { error: bErr } = await supabase
     .from('belege')
-    .update({ zuordnungsstatus: 'zugeordnet' })
+    .update(belegUpdate)
     .eq('id', beleg_id)
 
   if (bErr) return NextResponse.json({ error: bErr.message }, { status: 500 })

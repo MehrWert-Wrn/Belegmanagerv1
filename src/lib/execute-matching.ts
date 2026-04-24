@@ -14,6 +14,8 @@ export type MatchingStats = {
   total: number
 }
 
+const PARALLEL_CHUNK = 50 // max concurrent Supabase update calls per batch
+
 /**
  * Runs the matching batch for all open/vorgeschlagen transactions of a mandant.
  * Optionally scoped to a single quelle_id.
@@ -45,7 +47,7 @@ export async function executeMatching(
   // Load open belege
   const { data: belege, error: bErr } = await supabase
     .from('belege')
-    .select('id, lieferant, lieferant_iban, rechnungsnummer, bruttobetrag, rechnungsdatum, mandatsreferenz, zahlungsreferenz, bestellnummer')
+    .select('id, lieferant, rechnungsempfaenger, lieferant_iban, rechnungsnummer, bruttobetrag, rechnungsdatum, mandatsreferenz, zahlungsreferenz, bestellnummer')
     .eq('mandant_id', mandantId)
     .eq('zuordnungsstatus', 'offen')
     .is('geloescht_am', null)
@@ -56,18 +58,17 @@ export async function executeMatching(
     return { matched: 0, suggested: 0, unmatched: 0, kein_beleg: 0, total: 0 }
   }
 
-  // Apply kein_beleg_regeln: transactions matching a pattern → mark kein_beleg, exclude from matching
+  // Apply kein_beleg_regeln: collect IDs first, then do a single batch update
   let keinBelegCount = 0
   const matchingTransaktionen = []
+  const keinBelegIds: string[] = []
+
   if (patterns.length > 0) {
     for (const t of transaktionen) {
       const desc = (t.beschreibung ?? '').toLowerCase()
       const matchesRule = patterns.some(p => desc.includes(p))
       if (matchesRule) {
-        await supabase
-          .from('transaktionen')
-          .update({ match_status: 'kein_beleg', beleg_id: null, match_score: 0, match_type: null })
-          .eq('id', t.id)
+        keinBelegIds.push(t.id)
         keinBelegCount++
       } else {
         matchingTransaktionen.push(t)
@@ -75,6 +76,14 @@ export async function executeMatching(
     }
   } else {
     matchingTransaktionen.push(...transaktionen)
+  }
+
+  // Single batch update for all kein_beleg transactions
+  if (keinBelegIds.length > 0) {
+    await supabase
+      .from('transaktionen')
+      .update({ match_status: 'kein_beleg', beleg_id: null, match_score: 0, match_type: null })
+      .in('id', keinBelegIds)
   }
 
   if (!matchingTransaktionen.length || !belege?.length) {
@@ -88,43 +97,54 @@ export async function executeMatching(
     })),
     belege.map(b => ({
       ...b,
+      rechnungsempfaenger: b.rechnungsempfaenger ?? null,
       mandatsreferenz: b.mandatsreferenz ?? null,
       zahlungsreferenz: b.zahlungsreferenz ?? null,
       bestellnummer: b.bestellnummer ?? null,
     }))
   )
 
-  // Track which belege are already assigned in this batch run (deduplication)
-  const assignedBelegIds = new Set<string>()
+  // Determine final state for each transaction in memory (no sequential DB calls yet)
+  type TransaktionUpdate = {
+    id: string
+    match_status: 'bestaetigt' | 'vorgeschlagen' | 'offen'
+    match_score: number
+    match_type: string | null
+    beleg_id: string | null
+  }
 
+  const transaktionUpdates: TransaktionUpdate[] = []
+  const belegIdsToZugeordnet: string[] = []
+  const assignedBelegIds = new Set<string>()
   let matched = 0, suggested = 0, unmatched = 0
 
   for (const result of results) {
-    // BUG-PROJ5-004/010: beleg already taken → flag as vorgeschlagen (orange) for manual resolution
+    // BUG-PROJ5-004/010: beleg already taken → flag as vorgeschlagen for manual resolution
     if (result.beleg_id && assignedBelegIds.has(result.beleg_id)) {
-      await supabase
-        .from('transaktionen')
-        .update({ match_status: 'vorgeschlagen', match_score: result.match_score, match_type: result.match_type, beleg_id: result.beleg_id })
-        .eq('id', result.transaktion_id)
-      suggested++
-      continue
-    }
-
-    await supabase
-      .from('transaktionen')
-      .update({
-        match_status: result.match_status,
+      transaktionUpdates.push({
+        id: result.transaktion_id,
+        match_status: 'vorgeschlagen',
         match_score: result.match_score,
         match_type: result.match_type,
         beleg_id: result.beleg_id,
       })
-      .eq('id', result.transaktion_id)
+      suggested++
+      continue
+    }
+
+    transaktionUpdates.push({
+      id: result.transaktion_id,
+      match_status: result.match_status,
+      match_score: result.match_score,
+      match_type: result.match_type,
+      beleg_id: result.beleg_id,
+    })
 
     if (result.match_status === 'bestaetigt') {
       matched++
       if (result.beleg_id) {
         assignedBelegIds.add(result.beleg_id)
-        await supabase.from('belege').update({ zuordnungsstatus: 'zugeordnet' }).eq('id', result.beleg_id)
+        belegIdsToZugeordnet.push(result.beleg_id)
       }
     } else if (result.match_status === 'vorgeschlagen') {
       suggested++
@@ -133,9 +153,33 @@ export async function executeMatching(
     }
   }
 
+  // Batch update transactions in parallel chunks (avoids N sequential round-trips)
+  for (let i = 0; i < transaktionUpdates.length; i += PARALLEL_CHUNK) {
+    const chunk = transaktionUpdates.slice(i, i + PARALLEL_CHUNK)
+    await Promise.all(
+      chunk.map(u =>
+        supabase
+          .from('transaktionen')
+          .update({
+            match_status: u.match_status,
+            match_score: u.match_score,
+            match_type: u.match_type,
+            beleg_id: u.beleg_id,
+          })
+          .eq('id', u.id)
+      )
+    )
+  }
+
+  // Single batch update for all newly-assigned belege
+  if (belegIdsToZugeordnet.length > 0) {
+    await supabase
+      .from('belege')
+      .update({ zuordnungsstatus: 'zugeordnet' })
+      .in('id', belegIdsToZugeordnet)
+  }
+
   // BUG-PROJ5-R4-004: Post-processing to resolve duplicate beleg assignments from concurrent runs.
-  // If two overlapping matching runs both assigned the same beleg, detect and revert the loser(s)
-  // to 'vorgeschlagen' so the user can resolve manually.
   if (assignedBelegIds.size > 0) {
     const { data: conflicts } = await supabase
       .from('transaktionen')
@@ -152,18 +196,24 @@ export async function executeMatching(
         list.push(t)
         grouped.set(t.beleg_id, list)
       }
+
+      const loserIds: string[] = []
       for (const txs of grouped.values()) {
         if (txs.length <= 1) continue
-        // Keep highest score as 'bestaetigt', demote others to 'vorgeschlagen'
         const sorted = [...txs].sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
         for (const loser of sorted.slice(1)) {
-          await supabase
-            .from('transaktionen')
-            .update({ match_status: 'vorgeschlagen' })
-            .eq('id', loser.id)
+          loserIds.push(loser.id)
           matched = Math.max(0, matched - 1)
           suggested++
         }
+      }
+
+      // Single batch update for all losers
+      if (loserIds.length > 0) {
+        await supabase
+          .from('transaktionen')
+          .update({ match_status: 'vorgeschlagen' })
+          .in('id', loserIds)
       }
     }
   }

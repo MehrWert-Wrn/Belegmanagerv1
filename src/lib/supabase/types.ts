@@ -14,6 +14,7 @@ export type Database = {
           beschreibung: string | null
           bestellnummer: string | null
           bruttobetrag: number | null
+          bruttobetrag_fremdwaehrung: number | null
           dateityp: string
           eigenbeleg_jahr: number | null
           eigenbeleg_laufnummer: number | null
@@ -35,12 +36,15 @@ export type Database = {
           quelle: 'manual' | 'email'
           rechnungsdatum: string | null
           rechnungsname: string | null
+          rechnungsempfaenger: string | null
           rechnungsnummer: string | null
           rechnungstyp: Database['public']['Enums']['rechnungstyp']
           steuerzeilen: Array<{nettobetrag: number | null, mwst_satz: number | null, bruttobetrag: number | null}> | null
           storage_path: string | null
           storage_path_original: string | null
           uid_lieferant: string | null
+          waehrung: string
+          wechselkurs: number | null
           zahlungsreferenz: string | null
           zuordnungsstatus: Database['public']['Enums']['zuordnungsstatus']
         }
@@ -48,6 +52,7 @@ export type Database = {
           beschreibung?: string | null
           bestellnummer?: string | null
           bruttobetrag?: number | null
+          bruttobetrag_fremdwaehrung?: number | null
           dateityp?: string
           eigenbeleg_jahr?: number | null
           eigenbeleg_laufnummer?: number | null
@@ -66,12 +71,15 @@ export type Database = {
           original_filename?: string | null
           quelle?: 'manual' | 'email'
           rechnungsdatum?: string | null
+          rechnungsempfaenger?: string | null
           rechnungsname?: string | null
           rechnungsnummer?: string | null
           rechnungstyp?: Database['public']['Enums']['rechnungstyp']
           steuerzeilen?: Array<{nettobetrag: number | null, mwst_satz: number | null, bruttobetrag: number | null}> | null
           storage_path?: string | null
           uid_lieferant?: string | null
+          waehrung?: string
+          wechselkurs?: number | null
           zahlungsreferenz?: string | null
           zuordnungsstatus?: Database['public']['Enums']['zuordnungsstatus']
         }
@@ -79,6 +87,7 @@ export type Database = {
           beschreibung?: string | null
           bestellnummer?: string | null
           bruttobetrag?: number | null
+          bruttobetrag_fremdwaehrung?: number | null
           faelligkeitsdatum?: string | null
           faelligkeit_bezahlt?: boolean
           geloescht_am?: string | null
@@ -88,10 +97,13 @@ export type Database = {
           mwst_satz?: number | null
           nettobetrag?: number | null
           rechnungsdatum?: string | null
+          rechnungsempfaenger?: string | null
           rechnungsname?: string | null
           rechnungsnummer?: string | null
           rechnungstyp?: Database['public']['Enums']['rechnungstyp']
           uid_lieferant?: string | null
+          waehrung?: string
+          wechselkurs?: number | null
           zahlungsreferenz?: string | null
           zuordnungsstatus?: Database['public']['Enums']['zuordnungsstatus']
         }

@@ -73,6 +73,7 @@ export async function POST(_request: Request, { params }: Params) {
         mwst_satz,
         steuerzeilen,
         rechnungsnummer,
+        beschreibung,
         original_filename,
         storage_path
       )

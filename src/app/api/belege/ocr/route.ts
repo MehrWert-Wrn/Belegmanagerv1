@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth-helpers'
-import { performOcr, OCR_MAX_FILE_SIZE } from '@/lib/ocr'
+import { performOcr, OCR_MAX_FILE_SIZE, OcrResult } from '@/lib/ocr'
+import { convertToEur } from '@/lib/exchange-rate'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { NextResponse } from 'next/server'
 
@@ -111,5 +112,52 @@ export async function POST(request: Request) {
 
   const result = await performOcr(buffer, mimeType)
 
+  // 7. Currency conversion: if invoice is not in EUR, convert amounts to EUR
+  if (result.waehrung && result.waehrung !== 'EUR') {
+    const response = await applyForeignCurrencyConversion(result)
+    return NextResponse.json(response)
+  }
+
   return NextResponse.json(result)
+}
+
+/**
+ * Converts all monetary amounts in the OCR result from the detected foreign
+ * currency to EUR using the current ECB exchange rate.
+ *
+ * The original foreign-currency bruttobetrag is preserved in
+ * `bruttobetrag_fremdwährung` and the rate in `wechselkurs` so the calling
+ * code can store them alongside the converted EUR values.
+ */
+async function applyForeignCurrencyConversion(result: OcrResult): Promise<OcrResult & {
+  bruttobetrag_fremdwaehrung: number | null
+  wechselkurs: number | null
+}> {
+  const base = {
+    ...result,
+    bruttobetrag_fremdwaehrung: result.bruttobetrag,
+    wechselkurs: null as number | null,
+  }
+
+  if (result.bruttobetrag === null && result.nettobetrag === null) return base
+
+  const referenceAmount = result.bruttobetrag ?? result.nettobetrag!
+  const converted = await convertToEur(referenceAmount, result.waehrung)
+  if (!converted) return base // rate unavailable – keep original amounts, caller handles it
+
+  const { rate } = converted
+  const round2 = (n: number | null) => n !== null ? Math.round(n * rate * 100) / 100 : null
+
+  return {
+    ...result,
+    bruttobetrag: round2(result.bruttobetrag),
+    nettobetrag: round2(result.nettobetrag),
+    steuerzeilen: result.steuerzeilen?.map(z => ({
+      nettobetrag: round2(z.nettobetrag),
+      mwst_satz: z.mwst_satz,
+      bruttobetrag: round2(z.bruttobetrag),
+    })),
+    bruttobetrag_fremdwaehrung: result.bruttobetrag,
+    wechselkurs: rate,
+  }
 }

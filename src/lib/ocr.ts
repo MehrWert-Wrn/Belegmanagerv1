@@ -6,8 +6,10 @@ import Anthropic from '@anthropic-ai/sdk'
  */
 export interface OcrResult {
   lieferant: string | null
+  rechnungsempfaenger: string | null
   rechnungsnummer: string | null
   rechnungsdatum: string | null
+  waehrung: string
   bruttobetrag: number | null
   nettobetrag: number | null
   mwst_satz: number | null
@@ -18,8 +20,10 @@ export interface OcrResult {
 
 const EMPTY_RESULT: OcrResult = {
   lieferant: null,
+  rechnungsempfaenger: null,
   rechnungsnummer: null,
   rechnungsdatum: null,
+  waehrung: 'EUR',
   bruttobetrag: null,
   nettobetrag: null,
   mwst_satz: null,
@@ -46,11 +50,13 @@ const OCR_TIMEOUT_MS = 30_000
 
 const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen und Kassenbons. Analysiere das Dokument und extrahiere:
 
-- lieferant: Name des Rechnungsstellers
+- lieferant: Name des Rechnungsstellers (Absender, steht meist im Briefkopf oben)
+- rechnungsempfaenger: Name des Rechnungsempfängers – die Firma oder Person, AN DIE die Rechnung adressiert ist. Steht typischerweise im Adressblock (Empfängerfeld) im oberen Bereich des Dokuments, meist links unter dem Briefkopf oder im Fensterbereich. Null wenn nicht erkennbar oder wenn es sich um einen einfachen Kassenbon handelt.
 - rechnungsnummer: Rechnungsnummer (z.B. RE-2024-001, Beleg-Nr., Bon-Nr.)
 - rechnungsdatum: Rechnungsdatum im Format YYYY-MM-DD
-- bruttobetrag: Gesamtbruttobetrag (inkl. MwSt) als Zahl — die GESAMTSUMME inkl. aller Positionen und Trinkgeld
-- nettobetrag: Gesamtnettobetrag (ohne MwSt) als Zahl — die GESAMTSUMME netto
+- währung: ISO-4217-Währungscode der Rechnung (z.B. "EUR", "USD", "GBP", "CHF"). Standard: "EUR"
+- bruttobetrag: Gesamtbruttobetrag (inkl. MwSt) als Zahl in der Originalwährung — die GESAMTSUMME inkl. aller Positionen und Trinkgeld
+- nettobetrag: Gesamtnettobetrag (ohne MwSt) als Zahl in der Originalwährung — die GESAMTSUMME netto
 - mwst_satz: Hauptsteuersatz in Prozent (der häufigste oder höchste Steuersatz)
 - steuerzeilen: KRITISCH — suche nach der MwSt-Aufschlüsselungstabelle. Diese erscheint am Ende der Rechnung in verschiedenen Formaten:
   FORMAT A (Standard-Rechnung): Spalten "Netto / MwSt% / MwSt-Betrag / Brutto"
@@ -67,7 +73,7 @@ const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen und
 - confidence: Gesamtzuversicht (0.0 bis 1.0)
 
 Antworte NUR mit einem JSON-Objekt. Null für unbekannte Felder.
-Beträge: Punkt als Dezimaltrennzeichen (z.B. 1234.56).
+Beträge: Punkt als Dezimaltrennzeichen (z.B. 1234.56). Beträge immer in der Originalwährung der Rechnung.
 
 Beispiel österr. Restaurant-Kassenbon (FORMAT B) mit 10%, 20% und Trinkgeld:
 Bon zeigt: "Satz Netto MwSt Summe / EUR 10  31,54  3,16  34,70 / EUR 20  14,50  2,90  17,40 / Summe: 52,10 / + Tip: 1,90 / Visa PayWave: 54,00"
@@ -180,11 +186,15 @@ export async function performOcr(
       }))
     }
 
+    const waehrung = validateCurrencyCode(parsed.waehrung ?? parsed.währung)
+
     // Validate and sanitize the result
     return {
       lieferant: typeof parsed.lieferant === 'string' ? parsed.lieferant : null,
+      rechnungsempfaenger: typeof parsed.rechnungsempfaenger === 'string' ? parsed.rechnungsempfaenger : null,
       rechnungsnummer: typeof parsed.rechnungsnummer === 'string' ? parsed.rechnungsnummer : null,
       rechnungsdatum: validateDate(parsed.rechnungsdatum),
+      waehrung,
       bruttobetrag: validateNumber(parsed.bruttobetrag),
       nettobetrag: validateNumber(parsed.nettobetrag),
       mwst_satz: validateMwstSatz(parsed.mwst_satz),
@@ -228,4 +238,12 @@ function validateMwstSatz(value: unknown): number | null {
   if (num === null) return null
   if (num < 0 || num > 100) return null
   return num
+}
+
+/** Validate and normalize an ISO 4217 currency code. Defaults to EUR. */
+function validateCurrencyCode(value: unknown): string {
+  if (typeof value !== 'string') return 'EUR'
+  const code = value.trim().toUpperCase()
+  if (/^[A-Z]{3}$/.test(code)) return code
+  return 'EUR'
 }

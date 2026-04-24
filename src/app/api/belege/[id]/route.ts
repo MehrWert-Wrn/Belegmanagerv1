@@ -6,6 +6,7 @@ import { z } from 'zod'
 
 const updateSchema = z.object({
   lieferant: z.string().optional(),
+  rechnungsempfaenger: z.string().optional(),
   rechnungsnummer: z.string().optional(),
   rechnungsname: z.string().optional(),
   rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges', 'eigenbeleg']).optional(),

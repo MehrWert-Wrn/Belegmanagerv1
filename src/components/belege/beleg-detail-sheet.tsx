@@ -62,6 +62,7 @@ const updateSchema = z.object({
   rechnungsnummer: z.string().optional(),
   rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges', 'eigenbeleg', 'eigenverbrauch']),
   lieferant: z.string().optional(),
+  rechnungsempfaenger: z.string().optional(),
   uid_lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
   mandatsreferenz: z.string().optional(),
@@ -109,6 +110,7 @@ export function BelegDetailSheet({
 
   const beschreibungValue = form.watch('beschreibung') ?? ''
   const steuerzeilen = form.watch('steuerzeilen') ?? []
+  const rechnungstyp = form.watch('rechnungstyp')
 
   // Auto-calculate functions
   function handleNettoChange(index: number, value: string) {
@@ -182,6 +184,7 @@ export function BelegDetailSheet({
         rechnungsnummer: beleg.rechnungsnummer ?? '',
         rechnungstyp: beleg.rechnungstyp ?? 'eingangsrechnung',
         lieferant: beleg.lieferant ?? '',
+        rechnungsempfaenger: beleg.rechnungsempfaenger ?? '',
         uid_lieferant: beleg.uid_lieferant ?? '',
         lieferant_iban: beleg.lieferant_iban ?? '',
         mandatsreferenz: beleg.mandatsreferenz ?? '',
@@ -261,6 +264,10 @@ export function BelegDetailSheet({
 
       if (isEmpty(form.getValues('lieferant')) && ocr.lieferant) {
         form.setValue('lieferant', ocr.lieferant)
+        filled++
+      }
+      if (isEmpty(form.getValues('rechnungsempfaenger')) && ocr.rechnungsempfaenger) {
+        form.setValue('rechnungsempfaenger', ocr.rechnungsempfaenger)
         filled++
       }
       if (isEmpty(form.getValues('rechnungsnummer')) && ocr.rechnungsnummer) {
@@ -346,6 +353,7 @@ export function BelegDetailSheet({
           rechnungsnummer: values.rechnungsnummer || undefined,
           rechnungstyp: values.rechnungstyp,
           lieferant: values.lieferant || undefined,
+          rechnungsempfaenger: values.rechnungsempfaenger || undefined,
           uid_lieferant: values.uid_lieferant || undefined,
           lieferant_iban: values.lieferant_iban || undefined,
           mandatsreferenz: values.mandatsreferenz || undefined,
@@ -556,6 +564,22 @@ export function BelegDetailSheet({
                     )}
                   />
                 </div>
+
+                {rechnungstyp === 'ausgangsrechnung' && (
+                  <FormField
+                    control={form.control}
+                    name="rechnungsempfaenger"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rechnungsempfaenger</FormLabel>
+                        <FormControl>
+                          <Input placeholder="z.B. Mustermann GmbH" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <FormField

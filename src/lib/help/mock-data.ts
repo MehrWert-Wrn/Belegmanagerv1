@@ -120,7 +120,7 @@ export const MOCK_ARTICLES: HelpArticle[] = [
 
   // Topic 3: Kontoauszug & Matching
   article('art-3-1', 'topic-3', 'Kontoauszug importieren (CSV)', 'kontoauszug-csv-import', 'Kontoauszug als CSV hochladen und normalisieren lassen.', 1),
-  article('art-3-2', 'topic-3', 'Automatischer Import via FinAPI (Bankanbindung)', 'finapi-bankanbindung', 'Verbinde dein Bankkonto via PSD2-API fuer taegliche automatische Importe.', 2),
+  article('art-3-2', 'topic-3', 'Automatischer Import via BanksAPI (Bankanbindung)', 'banksapi-bankanbindung', 'Verbinde dein Bankkonto via PSD2-API fuer taegliche automatische Importe.', 2),
   article('art-3-3', 'topic-3', 'Matching-Status verstehen (Ampel-System)', 'matching-ampel-system', 'Gruen, Gelb, Rot: Was die Matching-Ampel aussagt.', 3),
   article('art-3-4', 'topic-3', 'Belege manuell zuordnen', 'belege-manuell-zuordnen', 'So ordnest du Belege manuell zu, wenn das Matching unsicher ist.', 4),
   article('art-3-5', 'topic-3', 'Kassabuch verwenden', 'kassabuch-verwenden', 'Barzahlungen im Kassabuch erfassen und mit Belegen verknuepfen.', 5),

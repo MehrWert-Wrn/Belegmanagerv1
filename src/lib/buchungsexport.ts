@@ -26,6 +26,7 @@ export type BuchungsexportBeleg = {
   mwst_satz?: number | null
   steuerzeilen?: Steuerzeile[] | null
   rechnungsnummer?: string | null
+  beschreibung?: string | null
   original_filename?: string | null
   storage_path?: string | null
 }
@@ -124,14 +125,14 @@ function deriveBucod(betragCsv: number, symbol: 'ER' | 'AR' | 'KA' | 'BK'): '1' 
   return '1'
 }
 
-// Buchungstext (text-Feld) fuer eine Zeile aus TX + match/workflow-Status
+// Buchungstext (text-Feld): Beleg-Beschreibung bevorzugt, Fallback = TX-Beschreibung
 function deriveText(tx: BuchungsexportTransaktion): string {
-  const base = clean(tx.beschreibung, 40)
+  const base = clean(tx.beleg?.beschreibung ?? tx.beschreibung, 40)
   if (tx.workflow_status === 'kein_beleg') {
-    return clean(`KEIN BELEG ${base}`, 40)
+    return clean(`KEIN BELEG ${clean(tx.beschreibung, 30)}`, 40)
   }
   if (tx.match_status === 'offen') {
-    return clean(`OFFEN ${base}`, 40)
+    return clean(`OFFEN ${clean(tx.beschreibung, 34)}`, 40)
   }
   return base
 }
@@ -359,6 +360,36 @@ export function generateLiesmich(params: {
     `symbol=AR  Ausgangsrechnung (eigene Rechnung an Kunden)`,
     `symbol=KA  Kassabuchung (Barzahlung)`,
     `symbol=BK  Bankbuchung (ohne zugeordnetem Beleg)`,
+    ``,
+    `BELEGBENAMUNG`,
+    `-------------`,
+    `Belege (PDFs) im Ordner /belege/ sind nach folgendem Schema benannt:`,
+    ``,
+    `  {Präfix}_{lfd-Nr}_{Kürzel}_{MM}_{JJJJ}_{Originaldateiname}`,
+    ``,
+    `  Präfix   = Rechnungstyp des Belegs:`,
+    `               E  = Eingangsrechnung`,
+    `               A  = Ausgangsrechnung`,
+    `               G  = Gutschrift`,
+    `               EB = Eigenbeleg`,
+    `               EV = Eigenverbrauch`,
+    `               SO = Sonstiges`,
+    `               S  = Kein Beleg zugeordnet (kein_beleg)`,
+    `  lfd-Nr   = Laufende Nummer je Zahlungsquelle und Monat (4-stellig, z. B. 0001)`,
+    `  Kürzel   = Kürzel der Zahlungsquelle (z. B. B1 = Bankkonto 1, K1 = Kasse 1)`,
+    `  MM/JJJJ  = Monat und Jahr des Monatsabschlusses`,
+    ``,
+    `  Beispiel: E_0001_B1_02_2026_Rechnung-Mustermann.pdf`,
+    `            └ Eingangsrechnung Nr. 1, Bankkonto B1, Februar 2026`,
+    ``,
+    `  Dieselbe Buchungsnummer erscheint als "belegnr" in der CSV – so ist`,
+    `  jede CSV-Zeile eindeutig einem Beleg im /belege/-Ordner zugeordnet.`,
+    ``,
+    `CSV-ZEILEN`,
+    `----------`,
+    `Jede Transaktion erzeugt mindestens eine CSV-Zeile.`,
+    `Hat ein Beleg mehrere MwSt-Sätze, entstehen mehrere Zeilen mit Suffix`,
+    `_1, _2 usw. an der belegnr (z. B. E_0001_B1_02_2026_1).`,
     ``,
     `OFFENE POSITIONEN`,
     `-----------------`,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { RefreshCw, CheckCircle2, AlertCircle, CircleDot } from 'lucide-react'
+import { RefreshCw, CheckCircle2, AlertCircle, CircleDot, MinusCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ interface MatchingStats {
   bestaetigt: number
   vorgeschlagen: number
   offen: number
+  kein_beleg: number
 }
 
 interface MatchingStatusBarProps {
@@ -29,8 +30,10 @@ export function MatchingStatusBar({
 }: MatchingStatusBarProps) {
   const [running, setRunning] = useState(false)
 
+  // kein_beleg counts as resolved (no receipt required = handled)
+  const resolved = stats.bestaetigt + stats.kein_beleg
   const matchQuote = stats.total > 0
-    ? Math.round((stats.bestaetigt / stats.total) * 100)
+    ? Math.round((resolved / stats.total) * 100)
     : 0
 
   async function handleRunMatching() {
@@ -83,15 +86,21 @@ export function MatchingStatusBar({
           {/* Stats */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span className="font-semibold">
-              {matchQuote}% zugeordnet
+              {matchQuote}% erledigt
             </span>
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />
               <span>{stats.bestaetigt} zugeordnet</span>
             </div>
+            {stats.kein_beleg > 0 && (
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <MinusCircle className="h-3.5 w-3.5 text-slate-400" />
+                <span>{stats.kein_beleg} kein Beleg</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
-              <span>{stats.vorgeschlagen} Vorschlaege</span>
+              <span>{stats.vorgeschlagen} Vorschläge</span>
             </div>
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <CircleDot className="h-3.5 w-3.5 text-red-500" />

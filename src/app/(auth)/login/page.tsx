@@ -25,7 +25,14 @@ function LoginForm() {
   const rawRedirect = searchParams.get('redirect') || '/dashboard'
   // Only allow relative paths to prevent open redirect attacks
   const redirect = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/dashboard'
-  const [error, setError] = useState<string | null>(null)
+  const errorParam = searchParams.get('error')
+  const initialError =
+    errorParam === 'einladung_abgelaufen'
+      ? 'Deine Einladung ist abgelaufen. Bitte fordere eine neue Einladung beim Administrator an.'
+      : errorParam === 'auth_callback_failed'
+      ? 'Anmeldung fehlgeschlagen. Bitte versuche es erneut oder fordere eine neue Einladung an.'
+      : null
+  const [error, setError] = useState<string | null>(initialError)
   const [loading, setLoading] = useState(false)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({

@@ -1,8 +1,8 @@
 # PROJ-12: Multi-Tenant User-Rollen
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-03-13
-**Last Updated:** 2026-03-17
+**Last Updated:** 2026-04-24
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) – Auth-System muss vorhanden sein
@@ -368,6 +368,44 @@ Keine neuen Packages.
 - **Security:** Critical issues found -- Buchhalter authorization bypass, middleware blocks invited users
 - **Production Ready:** NO
 - **Recommendation:** Fix the 4 Critical and 3 High bugs before deployment. The Critical bugs (BUG-PROJ12-001, BUG-PROJ12-002/SEC-001, BUG-PROJ12-SEC-004) represent fundamental feature gaps that make the multi-tenant user roles feature non-functional and insecure.
+
+## Erweiterung: Benutzer-Löschen (2026-04-24)
+
+### Hintergrund
+Admins konnten Benutzer einladen und deren Rolle/Passwort ändern, aber nicht aus dem Mandanten entfernen. Zum Abschluss des PROJ-12 User-Rollen-Systems wurde die Lösch-Funktion nachgezogen.
+
+### Neue Dateien
+- `src/app/api/benutzer/[id]/route.ts` – `DELETE /api/benutzer/[id]`
+  - Erfordert `requireAuth()` + `requireAdmin()`
+  - Prüft dass der zu löschende User zum eigenen Mandanten gehört (kein Cross-Tenant)
+  - Blockiert Selbst-Löschung (Admin kann sich nicht selbst entfernen)
+  - Entfernt den User aus `mandant_benutzer` (kaskadiert über FK, kein Hard-Delete im Auth)
+- `src/components/benutzer/benutzer-loeschen-dialog.tsx` – Bestätigungs-Dialog (AlertDialog) mit Username-Anzeige und Lade-Zustand
+
+### Geänderte Dateien
+- `src/components/benutzer/benutzer-tabelle.tsx`
+  - Neuer "Benutzer löschen" Eintrag im DropdownMenu (rot, mit Trash2-Icon)
+  - Nur sichtbar für andere Benutzer – nicht für den aktuell eingeloggten User (`user.user_id !== currentUserId`)
+  - Öffnet `BenutzerLoeschenDialog`, ruft nach Erfolg `onRefresh()` auf
+
+---
+
+## Bug Fixes (2026-04-24)
+
+**BUG-001 (Critical) – Eingeladener User wird nicht mit mandant_users verknüpft:**
+- Root cause: Callback verwendete den regulären User-Client für das UPDATE. Da `user_id` noch NULL war, gab `get_mandant_id()` NULL zurück → RLS-Policy blockierte das UPDATE still.
+- Fix: `src/app/auth/callback/route.ts` verwendet jetzt den Admin-Client (`createAdminClient`) für das `mandant_users` UPDATE beim `type=invite` Flow. Lookup über `id` statt Email für Präzision.
+
+**BUG-003 (High) – Deaktivierter User kann sich neu einloggen:**
+- Bereits gefixt: `src/app/api/benutzer/[id]/status/route.ts` setzt `ban_duration: '876600h'` bei Deaktivierung und `ban_duration: 'none'` bei Reaktivierung.
+
+**BUG-005 (High) – Bestehender Auth-User bei Einladung nicht verknüpft:**
+- Root cause: Reaktive Fehlerbehandlung nach `inviteUserByEmail` war abhängig vom genauen Fehlermeldungstext von Supabase.
+- Fix: `src/app/api/benutzer/einladen/route.ts` prüft **proaktiv** via `adminClient.schema('auth').from('users')` ob der User bereits existiert. Falls ja: `user_id` und `einladung_angenommen_am` werden sofort beim Insert gesetzt, kein Invite-Email. Falls nein: normaler Invite-Flow.
+
+**BUG-006 (Medium) – Einladungs-Ablauf wird nie geprüft:**
+- Fix: `src/app/auth/callback/route.ts` liest `einladung_gueltig_bis` aus dem Invite-Record. Falls abgelaufen: User wird ausgeloggt und auf `/login?error=einladung_abgelaufen` weitergeleitet.
+- `src/app/(auth)/login/page.tsx` zeigt bei `?error=einladung_abgelaufen` bzw. `?error=auth_callback_failed` eine sprechende Fehlermeldung.
 
 ## Deployment
 _To be added by /deploy_

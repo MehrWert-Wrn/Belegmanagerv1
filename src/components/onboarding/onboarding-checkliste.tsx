@@ -515,7 +515,7 @@ function StepContent({ stepKey, isDone, updating, onToggle, onCopyWhatsApp, onCr
             <Link href="/settings" className="font-medium text-teal-700 underline underline-offset-2">
               Einstellungen
             </Link>{' '}
-            und verbinde dein Bankkonto über unseren Partner <strong className="text-foreground">FinAPI</strong>{' '}
+            und verbinde dein Bankkonto über unseren Partner <strong className="text-foreground">BanksAPI</strong>{' '}
             sicher, um alle Transaktionen deiner Konten automatisch aufgelistet zu bekommen.
           </p>
           <p>

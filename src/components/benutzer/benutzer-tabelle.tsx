@@ -19,9 +19,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MoreHorizontal, UserX, RefreshCw, Shield, KeyRound } from 'lucide-react'
+import { MoreHorizontal, UserX, RefreshCw, Shield, KeyRound, Trash2 } from 'lucide-react'
 import { RolleAendernDialog } from './rolle-aendern-dialog'
 import { PasswortAendernDialog } from './passwort-aendern-dialog'
+import { BenutzerLoeschenDialog } from './benutzer-loeschen-dialog'
 
 interface BenutzerTabelleProps {
   users: BenutzerListItem[]
@@ -78,6 +79,7 @@ function RolleBadge({ rolle }: { rolle: string }) {
 
 export function BenutzerTabelle({ users, loading, onRefresh, currentUserId }: BenutzerTabelleProps) {
   const [rolleDialogUser, setRolleDialogUser] = useState<BenutzerListItem | null>(null)
+  const [loeschenDialogUser, setLoeschenDialogUser] = useState<BenutzerListItem | null>(null)
   const [showPasswortDialog, setShowPasswortDialog] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
@@ -211,6 +213,15 @@ export function BenutzerTabelle({ users, loading, onRefresh, currentUserId }: Be
                         Passwort ändern
                       </DropdownMenuItem>
                     )}
+                    {(!currentUserId || user.user_id !== currentUserId) && (
+                      <DropdownMenuItem
+                        onClick={() => setLoeschenDialogUser(user)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Benutzer löschen
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
@@ -237,6 +248,20 @@ export function BenutzerTabelle({ users, loading, onRefresh, currentUserId }: Be
         open={showPasswortDialog}
         onOpenChange={setShowPasswortDialog}
       />
+
+      {loeschenDialogUser && (
+        <BenutzerLoeschenDialog
+          user={loeschenDialogUser}
+          open={!!loeschenDialogUser}
+          onOpenChange={(open) => {
+            if (!open) setLoeschenDialogUser(null)
+          }}
+          onDeleted={() => {
+            setLoeschenDialogUser(null)
+            onRefresh()
+          }}
+        />
+      )}
     </>
   )
 }

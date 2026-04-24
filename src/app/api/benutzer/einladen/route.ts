@@ -78,15 +78,37 @@ export async function POST(request: Request) {
     )
   }
 
+  const adminClient = createAdminClient()
+
+  // BUG-005: Proactively check if an auth user with this email already exists.
+  // Doing this before calling inviteUserByEmail avoids relying on a fragile error
+  // message match and ensures user_id is set immediately for existing accounts.
+  const { data: existingAuthUser } = await adminClient
+    .schema('auth')
+    .from('users')
+    .select('id')
+    .eq('email', email.toLowerCase())
+    .maybeSingle()
+
+  const now = new Date().toISOString()
+  const insertPayload: Record<string, unknown> = {
+    mandant_id: mandantId,
+    email: email.toLowerCase(),
+    rolle,
+    ...(name ? { name } : {}),
+  }
+
+  // If the auth user already exists, link immediately so mandant_users.user_id is
+  // never NULL for this case. No invite email is needed – the user can log in now.
+  if (existingAuthUser?.id) {
+    insertPayload.user_id = existingAuthUser.id
+    insertPayload.einladung_angenommen_am = now
+  }
+
   // Insert mandant_users record
   const { data: newUser, error: insertError } = await supabase
     .from('mandant_users')
-    .insert({
-      mandant_id: mandantId,
-      email: email.toLowerCase(),
-      rolle,
-      ...(name ? { name } : {}),
-    })
+    .insert(insertPayload)
     .select('id, email, rolle, aktiv, eingeladen_am, einladung_angenommen_am, einladung_token')
     .single()
 
@@ -94,55 +116,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: insertError.message }, { status: 500 })
   }
 
-  // Send invite email via Supabase Admin
-  const adminClient = createAdminClient()
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-
-  const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
-    email.toLowerCase(),
-    {
-      redirectTo: `${siteUrl}/auth/callback?type=invite&next=/dashboard`,
+  // Only send an invite email when the user does not yet have an auth account.
+  // For existing accounts the admin should notify the user out-of-band.
+  if (!existingAuthUser?.id) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+      email.toLowerCase(),
+      {
+        redirectTo: `${siteUrl}/auth/callback?type=invite&next=/dashboard`,
+      }
+    )
+    if (inviteError) {
+      console.error('Invite email error:', inviteError.message)
     }
-  )
-
-  // If the email is already registered, link the existing auth user immediately
-  // so mandant_users.user_id is populated without waiting for a callback.
-  let linkedUserId: string | null = null
-  let linkedAt: string | null = null
-
-  if (inviteError?.message.includes('already been registered')) {
-    const { data: existingAuthUser } = await adminClient
-      .schema('auth')
-      .from('users')
-      .select('id')
-      .eq('email', email.toLowerCase())
-      .maybeSingle()
-
-    if (existingAuthUser?.id) {
-      linkedUserId = existingAuthUser.id
-      linkedAt = new Date().toISOString()
-      await supabase
-        .from('mandant_users')
-        .update({
-          user_id: linkedUserId,
-          einladung_angenommen_am: linkedAt,
-        })
-        .eq('id', newUser.id)
-    }
-  } else if (inviteError) {
-    console.error('Invite email error:', inviteError.message)
   }
 
   return NextResponse.json(
     {
       data: {
         id: newUser.id,
-        user_id: linkedUserId,
+        user_id: existingAuthUser?.id ?? null,
         email: newUser.email,
         rolle: newUser.rolle,
         aktiv: newUser.aktiv,
         eingeladen_am: newUser.eingeladen_am,
-        einladung_angenommen_am: linkedAt,
+        einladung_angenommen_am: existingAuthUser?.id ? now : null,
         last_sign_in_at: null,
       },
     },

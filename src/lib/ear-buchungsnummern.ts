@@ -24,6 +24,7 @@ const RECHNUNGSTYP_PREFIX: Record<string, string> = {
   gutschrift: 'G',
   eigenbeleg: 'EB',
   eigenverbrauch: 'EV',
+  sonstiges: 'SO',
 }
 
 /** Typ -> Kuerzel prefix mapping */

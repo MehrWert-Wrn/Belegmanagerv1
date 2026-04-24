@@ -225,8 +225,13 @@ export function TransaktionenTabelle({
                 >
                   {formatCurrency(t.betrag)}
                 </TableCell>
-                <TableCell className="hidden md:table-cell text-sm max-w-[450px] truncate">
-                  {t.beschreibung || '-'}
+                <TableCell className="hidden md:table-cell text-sm max-w-[450px]">
+                  <span className="block truncate">{t.beschreibung || '-'}</span>
+                  {t.buchungsnummer && (
+                    <span className="font-mono text-xs text-teal-600 dark:text-teal-400">
+                      {t.buchungsnummer}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <AmpelBadge

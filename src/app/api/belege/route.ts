@@ -15,6 +15,7 @@ const belegSchema = z.object({
   file_hash: z.string().length(64).optional(),
   lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
+  rechnungsempfaenger: z.string().optional(),
   rechnungsnummer: z.string().optional(),
   rechnungsname: z.string().optional(),
   rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges', 'eigenbeleg', 'eigenverbrauch']).optional(),
@@ -28,6 +29,9 @@ const belegSchema = z.object({
   bruttobetrag: z.number().nullable().optional(),
   nettobetrag: z.number().nullable().optional(),
   mwst_satz: z.number().nullable().optional(),
+  waehrung: z.string().length(3).optional(),
+  bruttobetrag_fremdwaehrung: z.number().nullable().optional(),
+  wechselkurs: z.number().nullable().optional(),
   rechnungsdatum: z.string().nullable().optional(),
   faelligkeitsdatum: z.string().nullable().optional(),
   steuerzeilen: z.array(z.object({

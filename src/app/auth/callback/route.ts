@@ -1,10 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Handles Supabase PKCE auth callbacks:
 // - Email verification links
 // - Password reset links
+// - Invite links (type=invite)
 // - OAuth redirects (future)
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -47,18 +49,44 @@ export async function GET(request: NextRequest) {
       // Link invited user to their mandant_users record
       if (type === 'invite') {
         const { data: { user: authUser } } = await supabase.auth.getUser()
+
         if (authUser?.email) {
-          await supabase
+          // Use admin client to bypass RLS – the new user is not yet in mandant_users
+          // (user_id is still NULL), so get_mandant_id() returns NULL and the regular
+          // client's RLS UPDATE policy would silently block the update (BUG-001).
+          const adminClient = createAdminClient()
+
+          // Find the pending invite record for this email (BUG-006: also read expiry)
+          const { data: inviteRecord } = await adminClient
             .from('mandant_users')
-            .update({
-              user_id: authUser.id,
-              einladung_angenommen_am: new Date().toISOString(),
-            })
+            .select('id, einladung_gueltig_bis')
             .eq('email', authUser.email.toLowerCase())
             .is('user_id', null)
             .eq('aktiv', true)
+            .maybeSingle()
+
+          if (inviteRecord) {
+            // BUG-006: Reject expired invites – sign out and show an error on the login page
+            if (
+              inviteRecord.einladung_gueltig_bis &&
+              new Date(inviteRecord.einladung_gueltig_bis) < new Date()
+            ) {
+              await supabase.auth.signOut()
+              return NextResponse.redirect(`${origin}/login?error=einladung_abgelaufen`)
+            }
+
+            // Link the newly-authenticated user to their mandant_users record
+            await adminClient
+              .from('mandant_users')
+              .update({
+                user_id: authUser.id,
+                einladung_angenommen_am: new Date().toISOString(),
+              })
+              .eq('id', inviteRecord.id)
+          }
         }
       }
+
       return NextResponse.redirect(`${origin}${redirectTo}`)
     }
   }

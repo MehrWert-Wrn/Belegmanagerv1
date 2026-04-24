@@ -151,7 +151,7 @@ export default function TransaktionenPage() {
   }, [])
 
   // BUG-PROJ5-R4-002: Stats fetched from dedicated endpoint (full dataset, not paginated slice)
-  const [matchingStats, setMatchingStats] = useState({ total: 0, bestaetigt: 0, vorgeschlagen: 0, offen: 0 })
+  const [matchingStats, setMatchingStats] = useState({ total: 0, bestaetigt: 0, vorgeschlagen: 0, offen: 0, kein_beleg: 0 })
 
   const fetchStats = useCallback(async () => {
     try {

@@ -430,5 +430,21 @@ None of the 7 bugs from Round 1 have been fixed. No PROJ-25-related commits exis
 4. BUG-PROJ25-008 -- Display buchungsnummer in transaktionen UI (core UX)
 5. BUG-PROJ25-003 -- Add storage rollback on DB failure (atomicity)
 
+---
+
+## Bug-Fix Round (2026-04-24)
+
+**All 5 medium bugs fixed. Build passes.**
+
+| Bug | Fix |
+|-----|-----|
+| BUG-PROJ25-001 | `kuerzel` Zod schema in `[id]/route.ts` has `.regex(/^[a-zA-Z0-9_-]+$/)` |
+| BUG-PROJ25-002 | Migration `20260417000004` adds `UNIQUE(mandant_id, kuerzel)`; PATCH route has server-side uniqueness check |
+| BUG-PROJ25-003 | `earMonatsabschluss` in `ear-buchungsnummern.ts` calls `rollbackStorageOps()` on any DB failure |
+| BUG-PROJ25-005 | `workflow-status` PATCH route calls `isMonatGesperrt()` before allowing status change; returns 403 if locked |
+| BUG-PROJ25-008 | Detail sheet shows `buchungsnummer` (teal mono); table shows it as sub-line under Beschreibung |
+
+**Remaining open (low severity, deferred):** BUG-004, BUG-006, BUG-007, BUG-009, BUG-010
+
 ## Deployment
 _To be added by /deploy_

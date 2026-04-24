@@ -1,7 +1,11 @@
 'use client'
 
+/**
+ * PROJ-20: BanksAPI Bankverbindung Karte
+ */
+
 import { useState } from 'react'
-import { RefreshCw, Trash2, ShieldAlert, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -17,12 +21,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import type { BankVerbindung, SyncErgebnis } from './types'
+import type { BanksApiSyncErgebnis, BanksApiVerbindung } from './banksapi-types'
 
-interface BankverbindungKarteProps {
-  verbindung: BankVerbindung
-  onSync: (id: string) => Promise<SyncErgebnis | null>
-  onErneuern: (id: string) => Promise<void>
+interface Props {
+  verbindung: BanksApiVerbindung
+  onSync: (id: string) => Promise<BanksApiSyncErgebnis | null>
   onTrennen: (id: string) => Promise<void>
 }
 
@@ -40,10 +43,10 @@ function formatDateTime(dateStr: string | null): string {
   }).format(new Date(dateStr))
 }
 
-function StatusBadge({ status }: { status: BankVerbindung['status'] }) {
+function StatusBadge({ status }: { status: BanksApiVerbindung['status'] }) {
   switch (status) {
     case 'aktiv':
-      return <Badge variant="default" className="bg-teal-600 hover:bg-teal-600">Aktiv</Badge>
+      return <Badge className="bg-teal-600 hover:bg-teal-600">Aktiv</Badge>
     case 'sca_faellig':
       return <Badge variant="destructive">SCA-Erneuerung notwendig</Badge>
     case 'fehler':
@@ -55,16 +58,10 @@ function StatusBadge({ status }: { status: BankVerbindung['status'] }) {
   }
 }
 
-export function BankverbindungKarte({
-  verbindung,
-  onSync,
-  onErneuern,
-  onTrennen,
-}: BankverbindungKarteProps) {
+export function BanksApiVerbindungKarte({ verbindung, onSync, onTrennen }: Props) {
   const [syncing, setSyncing] = useState(false)
-  const [erneuern, setErneuern] = useState(false)
   const [trennen, setTrennen] = useState(false)
-  const [syncResult, setSyncResult] = useState<SyncErgebnis | null>(null)
+  const [syncResult, setSyncResult] = useState<BanksApiSyncErgebnis | null>(null)
   const [showHistorie, setShowHistorie] = useState(false)
 
   const isSyncDisabled = verbindung.status === 'sca_faellig' || verbindung.status === 'fehler'
@@ -77,15 +74,6 @@ export function BankverbindungKarte({
       setSyncResult(result)
     } finally {
       setSyncing(false)
-    }
-  }
-
-  async function handleErneuern() {
-    setErneuern(true)
-    try {
-      await onErneuern(verbindung.id)
-    } finally {
-      setErneuern(false)
     }
   }
 
@@ -103,51 +91,42 @@ export function BankverbindungKarte({
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1">
-            <CardTitle className="text-base">
-              {verbindung.bank_name || 'Bankkonto'}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground font-mono">
-              {formatIBAN(verbindung.iban)}
-            </p>
+            <CardTitle className="text-base">{verbindung.bank_name || 'Bankkonto'}</CardTitle>
+            <p className="text-sm text-muted-foreground font-mono">{formatIBAN(verbindung.iban)}</p>
           </div>
           <StatusBadge status={verbindung.status} />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Zahlungsquelle */}
         {verbindung.zahlungsquellen && (
           <div className="text-sm text-muted-foreground">
-            Zahlungsquelle: <span className="font-medium text-foreground">{verbindung.zahlungsquellen.name}</span>
+            Zahlungsquelle:{' '}
+            <span className="font-medium text-foreground">{verbindung.zahlungsquellen.name}</span>
           </div>
         )}
 
-        {/* Letzter Sync */}
         <div className="text-sm text-muted-foreground">
           Letzter Sync: {formatDateTime(verbindung.letzter_sync_at)}
           {verbindung.letzter_sync_at && (
-            <span className="ml-1">
-              ({verbindung.letzter_sync_anzahl} Transaktionen)
-            </span>
+            <span className="ml-1">({verbindung.letzter_sync_anzahl} Transaktionen)</span>
           )}
         </div>
 
-        {/* Sync Result Alert */}
         {syncResult && (
           <div className="rounded-md border bg-muted/50 p-3 text-sm space-y-1">
             <p className="font-medium">Synchronisierung abgeschlossen</p>
-            <p>{syncResult.anzahl_importiert} importiert, {syncResult.anzahl_duplikate} Duplikate</p>
-            {(syncResult.anzahl_gesperrte_monate ?? 0) > 0 && (
-              <p className="text-amber-600">{syncResult.anzahl_gesperrte_monate} in gesperrten Monaten (uebersprungen)</p>
-            )}
-            {(syncResult.matching_quote ?? 0) > 0 && (
-              <p>Matching-Quote: {syncResult.matching_quote}%</p>
+            <p>
+              {syncResult.importiert} importiert, {syncResult.duplikate} Duplikate
+            </p>
+            {(syncResult.gesperrte_monate ?? 0) > 0 && (
+              <p className="text-amber-600">
+                {syncResult.gesperrte_monate} in gesperrten Monaten (uebersprungen)
+              </p>
             )}
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex flex-wrap gap-2">
-          {/* Sync Button */}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -177,27 +156,14 @@ export function BankverbindungKarte({
             </Tooltip>
           </TooltipProvider>
 
-          {/* SCA Renewal Button */}
-          {(verbindung.status === 'sca_faellig' || verbindung.status === 'fehler') && (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={handleErneuern}
-              disabled={erneuern}
-            >
-              {erneuern ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <ShieldAlert className="mr-2 h-4 w-4" />
-              )}
-              Verbindung erneuern
-            </Button>
-          )}
-
-          {/* Disconnect Button */}
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={trennen}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                disabled={trennen}
+              >
                 {trennen ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -217,7 +183,10 @@ export function BankverbindungKarte({
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                <AlertDialogAction onClick={handleTrennen} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <AlertDialogAction
+                  onClick={handleTrennen}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
                   Trennen
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -225,7 +194,6 @@ export function BankverbindungKarte({
           </AlertDialog>
         </div>
 
-        {/* Sync Historie Toggle */}
         {verbindung.sync_historie.length > 0 && (
           <div>
             <button
@@ -239,15 +207,18 @@ export function BankverbindungKarte({
               <div className="mt-2 space-y-1">
                 {verbindung.sync_historie.map((entry, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className={entry.status === 'fehler' ? 'text-destructive' : 'text-teal-600'}>
-                      {entry.status === 'fehler' ? 'Fehler' : 'Erfolg'}
+                    <span className={entry.status === 'error' ? 'text-destructive' : 'text-teal-600'}>
+                      {entry.status === 'error' ? 'Fehler' : 'Erfolg'}
                     </span>
-                    <span>{formatDateTime(entry.sync_at)}</span>
-                    {entry.status === 'erfolg' && (
+                    <span>{formatDateTime(entry.synced_at)}</span>
+                    {entry.status === 'success' && (
                       <span>{entry.anzahl_importiert} importiert</span>
                     )}
                     {entry.fehler_meldung && (
-                      <span className="text-destructive truncate max-w-48" title={entry.fehler_meldung}>
+                      <span
+                        className="text-destructive truncate max-w-48"
+                        title={entry.fehler_meldung}
+                      >
                         {entry.fehler_meldung}
                       </span>
                     )}

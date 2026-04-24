@@ -2,7 +2,7 @@
 
 ## Status: Deployed
 **Created:** 2026-03-13
-**Last Updated:** 2026-04-17
+**Last Updated:** 2026-04-24
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung)
@@ -1002,3 +1002,49 @@ In `src/app/api/onboarding/route.ts` wird nach erfolgreicher Mandant-Anlage die 
 ### GitHub Auto-Deploy
 Für automatisches Deployment bei jedem `git push`:
 → vercel.com → Project belegmanagerv1 → Settings → Git → GitHub Repository verbinden
+
+---
+
+## Erweiterung: Fremdwährung & Rechnungsempfänger (2026-04-24)
+
+### Hintergrund
+Eingangsrechnungen in Fremdwährung (z.B. USD-Rechnung eines US-Lieferanten) wurden bisher mit dem Fremdwährungs-Betrag gespeichert, was das Matching gegen EUR-Transaktionen verhinderte. Ausgangsrechnungen hatten kein Empfänger-Feld für das Matching.
+
+### Datenbank-Migrationen
+
+**`20260424000000_belege_fremdwaehrung.sql`** – Neue Spalten auf `belege`:
+- `waehrung` (text, NOT NULL DEFAULT `'EUR'`) – ISO-4217 Währungscode
+- `bruttobetrag_fremdwaehrung` (numeric, nullable) – Originalbetrag in Fremdwährung vor Konvertierung
+- `wechselkurs` (numeric, nullable) – EUR-Kurs zum Zeitpunkt des OCR-Scans
+
+**`20260424100000_belege_rechnungsempfaenger.sql`** – Neue Spalte auf `belege`:
+- `rechnungsempfaenger` (text, nullable) – Empfänger bei Ausgangsrechnungen; für Matching-Engine
+
+### Neue Dateien
+- `src/lib/exchange-rate.ts` – ECB-Wechselkurs-Lookup via Frankfurter.app (kostenlos, kein API-Key). In-Memory-Cache mit 4h TTL. Gibt `null` zurück bei Netzwerkfehler – Aufrufer behandelt Fallback.
+
+### Geänderte Dateien
+
+**`src/app/api/belege/ocr/route.ts`**
+- Nach OCR: wenn `result.waehrung !== 'EUR'`, werden alle Beträge (brutto, netto, Steuerzeilen) mit aktuellem ECB-Kurs in EUR umgerechnet
+- Originalbetrag in Fremdwährung wird in `bruttobetrag_fremdwaehrung` bewahrt, Kurs in `wechselkurs`
+- Bei nicht verfügbarem Kurs: Originalbeträge bleiben, Felder bleiben null
+
+**`src/app/api/belege/route.ts` + `src/app/api/belege/[id]/route.ts`**
+- Zod-Schema um `waehrung`, `bruttobetrag_fremdwaehrung`, `wechselkurs`, `rechnungsempfaenger` erweitert
+
+**`src/components/belege/beleg-detail-sheet.tsx`**
+- Neues Feld `rechnungsempfaenger` (nur sichtbar wenn `rechnungstyp === 'ausgangsrechnung'`)
+- OCR-Auto-Fill füllt `rechnungsempfaenger` wenn Feld leer und OCR-Ergebnis vorhanden
+
+**`src/lib/matching.ts`**
+- `MatchInput.beleg` um `rechnungsempfaenger` erweitert (für Ausgangsrechnungs-Matching)
+- Rechnungsnummern-Regex verbessert: erkennt jetzt auch `Re.-Nr.`, `Rg.-Nr.`
+- `matchesWordBounded()`: verhindert False-Positives (z.B. "1648" in "R202592042200419")
+- `LIEFERANT_STOPWORDS`: generische Firmenbezeichnungen (GmbH, Holding, etc.) werden beim Lieferanten-Matching ignoriert
+
+**`src/app/api/matching/confirm/route.ts`**
+- Bei Fremdwährungs-Belegen (`waehrung !== 'EUR'`): beim Bestätigen des Matchings wird `bruttobetrag` mit dem Transaktionsbetrag (EUR) überschrieben, damit der gespeicherte Betrag immer in EUR ist
+
+**`src/lib/supabase/types.ts`**
+- Neue Felder auf `belege` ergänzt

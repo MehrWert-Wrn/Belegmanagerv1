@@ -17,6 +17,7 @@ export type MatchInput = {
   beleg: {
     id: string
     lieferant: string | null
+    rechnungsempfaenger: string | null
     lieferant_iban: string | null
     rechnungsnummer: string | null
     bruttobetrag: number | null
@@ -57,7 +58,7 @@ function extractTokens(text: string | null): ExtractedTokens {
 
   const zahlungsreferenz = text.match(/(?:Zahlungsreferenz|Ref|Reference)[:\s]+([A-Z0-9\-\/]+)/i)?.[1] ?? null
 
-  const rechnungsnummern = [...text.matchAll(/(?:RN|Rechnungsnr|Rechnungsnummer|Invoice)[:\s#]+([A-Z0-9\-]+)/gi)]
+  const rechnungsnummern = [...text.matchAll(/(?:Rechnungsnummer|Rechnungsnr|Re\.?-?Nr\.?|Rg\.?-?Nr\.?|RN|Invoice)[:\s#.]+([A-Z0-9][A-Z0-9\-]*)/gi)]
     .map(m => m[1])
     .filter(Boolean)
 
@@ -76,6 +77,27 @@ function extractTokens(text: string | null): ExtractedTokens {
 
 function normalize(text: string | null | undefined): string {
   return (text ?? '').toLowerCase().trim()
+}
+
+/**
+ * Generic company-form tokens that appear in almost every Austrian/German company name
+ * AND in transaction descriptions — they have near-zero discriminating power for matching.
+ */
+const LIEFERANT_STOPWORDS = new Set([
+  'gmbh', 'gesellschaft', 'aktiengesellschaft', 'genossenschaft',
+  'holding', 'group', 'international', 'management', 'services',
+  'handels', 'vertriebs', 'beteiligungen', 'solutions', 'consulting',
+])
+
+/**
+ * Word-boundary-aware match: returns true only if token appears as a standalone unit —
+ * i.e., NOT embedded inside a longer alphanumeric sequence.
+ * Prevents "1648" from matching inside "R202592042200419" or "9164800".
+ */
+function matchesWordBounded(text: string, token: string): boolean {
+  if (!token) return false
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(?<![a-z0-9äöüß])${escaped}(?![a-z0-9äöüß])`, 'i').test(text)
 }
 
 /** Betrag-Differenz in Prozent (abs). Gibt null zurück wenn kein belegBetrag vorhanden. */
@@ -113,21 +135,27 @@ function dateScore(transaktionDatum: string, belegDatum: string | null): number 
 
 /**
  * Token-basiertes Lieferanten-Matching.
- * Jeden Token ≥ 4 Zeichen aus dem Lieferantennamen im Buchungstext suchen.
- * ≥ 1 Treffer = 20 Punkte.
+ * Jeden Token ≥ 4 Zeichen aus dem Lieferantennamen (ohne generische Firmenformen)
+ * als eigenständiges Wort im Buchungstext suchen. ≥ 1 Treffer = 20 Punkte.
  */
-function lieferantScore(beschreibung: string | null, lieferant: string | null): number {
-  if (!beschreibung || !lieferant) return 0
+function lieferantScore(beschreibung: string | null, lieferant: string | null, rechnungsempfaenger: string | null = null): number {
+  if (!beschreibung) return 0
   const desc = normalize(beschreibung)
-  const tokens = normalize(lieferant).split(/\s+/).filter(w => w.length >= 4)
-  if (tokens.length === 0) return 0
-  const hit = tokens.some(w => desc.includes(w))
-  return hit ? 20 : 0
+
+  function checkName(name: string | null): boolean {
+    if (!name) return false
+    const tokens = normalize(name)
+      .split(/\s+/)
+      .filter(w => w.length >= 4 && !LIEFERANT_STOPWORDS.has(w))
+    return tokens.length > 0 && tokens.some(w => matchesWordBounded(desc, w))
+  }
+
+  return (checkName(lieferant) || checkName(rechnungsempfaenger)) ? 20 : 0
 }
 
 function beschreibungScore(beschreibung: string | null, rechnungsnummer: string | null): number {
   if (!beschreibung || !rechnungsnummer || rechnungsnummer.length < 4) return 0
-  return normalize(beschreibung).includes(normalize(rechnungsnummer)) ? 20 : 0
+  return matchesWordBounded(normalize(beschreibung), normalize(rechnungsnummer)) ? 20 : 0
 }
 
 // --- Stage 1: Hard Match ---
@@ -211,7 +239,7 @@ function tryHardMatch(input: MatchInput): HardMatchResult {
   // RN_MATCH: Rechnungsnummer im Buchungstext oder buchungsreferenz (nicht PayPal)
   if (!isPayPal && beleg.rechnungsnummer && normalize(beleg.rechnungsnummer).length > 3) {
     const rnNorm = normalize(beleg.rechnungsnummer)
-    if (descNorm.includes(rnNorm) || ref.includes(rnNorm)) {
+    if (matchesWordBounded(descNorm, rnNorm) || matchesWordBounded(ref, rnNorm)) {
       console.log(`  → RN_MATCH (rechnungsnummer in Beschreibung)`)
       return { type: 'RN_MATCH', betragsWarnung: makeBetragsWarnung() }
     }
@@ -277,7 +305,7 @@ function calcScore(input: MatchInput): number {
   const score =
     amountScore(transaktion.betrag, beleg.bruttobetrag) +
     dateScore(transaktion.datum, beleg.rechnungsdatum) +
-    lieferantScore(transaktion.beschreibung, beleg.lieferant) +
+    lieferantScore(transaktion.beschreibung, beleg.lieferant, beleg.rechnungsempfaenger) +
     beschreibungScore(transaktion.beschreibung, beleg.rechnungsnummer)
 
   console.log(`  [Score] TX ${transaktion.id} / Beleg ${beleg.id}: ${score} Punkte`)
