@@ -1,6 +1,6 @@
 # PROJ-31: Weiterempfehlungssystem (Referral)
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-04-25
 **Last Updated:** 2026-04-25
 
@@ -597,4 +597,24 @@ Diese statische Analyse konnte folgende Aspekte NICHT verifizieren – bitte auf
 7. Prüfung dass Resend-API-Key + CRON_SECRET + STRIPE_WEBHOOK_SECRET in Vercel-ENV gesetzt sind.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-25
+**Commit:** 31bd902
+**Branch:** main → Vercel auto-deploy
+
+### Migrations (Supabase – manuell anzuwenden)
+1. `supabase/migrations/20260425000000_referral_system.sql` – Tabellen `referral_codes` + `referrals`, RLS, Indizes, RPC `increment_referral_clicks`
+2. `supabase/migrations/20260425000001_referral_bug_fixes.sql` – FK CASCADE → SET NULL, RPC `check_recent_auth_user`
+
+### Neue Routen in Production
+- `/ref/[code]` – öffentliche Landing Page
+- `/referral` – Referral-Dashboard (auth)
+- `/api/referral/code`, `/api/referral/stats`, `/api/referral/register`, `/api/referral/track-click`
+- `/api/cron/referral-reward` – täglich 06:00 UTC
+
+### Manuelle Verifikation auf Staging (vor Live-Schaltung)
+1. Supabase-Migrations anwenden und auf Fehler prüfen
+2. Landing Page `/ref/BM-TEST01` aufrufen → Cookie gesetzt, Click getrackt
+3. Stripe Test-Webhook `checkout.session.completed` triggern → Referral-Conversion
+4. Cron-Job manuell mit Bearer-Token aufrufen → Stripe Credit Balance prüfen
+5. Resend E-Mail 1 + E-Mail 2 auf Test-Empfänger prüfen
