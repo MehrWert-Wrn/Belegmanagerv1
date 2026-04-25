@@ -29,6 +29,10 @@ const RATE_LIMITED_ROUTES = [
   '/reset-password',
   // PROJ-9: Export endpoints are expensive (ZIP-Generierung + Storage-Downloads)
   '/api/export',
+  // PROJ-31: Referral endpoints – öffentlich, daher rate-limited gegen Flooding/Brute-Force
+  '/api/referral/track-click',
+  '/api/referral/register',
+  '/ref/',
 ]
 
 // ---------------------------------------------------------------------------

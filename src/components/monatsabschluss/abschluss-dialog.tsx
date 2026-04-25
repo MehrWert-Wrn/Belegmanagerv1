@@ -67,6 +67,20 @@ export function AbschlussDialog({
       toast.success(`${getMonatsname(monat)} ${jahr} erfolgreich abgeschlossen.`)
       onOpenChange(false)
       onAbgeschlossen()
+
+      // PROJ-31: Referral-Prompt nach erfolgreichem Monatsabschluss (max. 1x pro Tag)
+      const PROMPT_KEY = 'bm_referral_prompt_date'
+      const today = new Date().toISOString().split('T')[0]
+      if (localStorage.getItem(PROMPT_KEY) !== today) {
+        localStorage.setItem(PROMPT_KEY, today)
+        setTimeout(() => {
+          toast('Monat erfolgreich abgeschlossen!', {
+            description: 'Empfehle Belegmanager weiter und nutze es einen Monat gratis.',
+            action: { label: 'Empfehlen & Sparen', onClick: () => { window.location.href = '/referral' } },
+            duration: 8000,
+          })
+        }, 1000)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler'
       toast.error(message)

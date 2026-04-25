@@ -45,6 +45,7 @@
 | PROJ-28 | Vorkontierung | Planned | [PROJ-28-vorkontierung.md](PROJ-28-vorkontierung.md) | 2026-04-17 |
 | PROJ-29 | Buchungs-Sync FreeFinance | Planned | [PROJ-29-buchungs-sync-freefinance.md](PROJ-29-buchungs-sync-freefinance.md) | 2026-04-17 |
 | PROJ-30 | E-Mail-Belegeingang (testphase@belegmanager.at) | Deployed | [PROJ-30-email-belegeingang.md](PROJ-30-email-belegeingang.md) | 2026-04-20 |
+| PROJ-31 | Weiterempfehlungssystem (Referral) | In Review | [PROJ-31-weiterempfehlungssystem.md](PROJ-31-weiterempfehlungssystem.md) | 2026-04-25 |
 
 
-## Next Available ID: PROJ-31
+## Next Available ID: PROJ-32

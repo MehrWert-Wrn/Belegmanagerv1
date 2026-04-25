@@ -175,6 +175,93 @@ export async function sendCredentialNotificationEmail(params: {
   }
 }
 
+/**
+ * PROJ-31: Notification an Referrer, dass die Empfehlung zahlender Kunde geworden ist.
+ */
+export async function sendReferralPendingEmail(params: {
+  recipientEmail: string
+  referredEmailMasked: string
+}): Promise<void> {
+  const { recipientEmail, referredEmailMasked } = params
+  const referralUrl = `${getSiteUrl()}/referral`
+
+  try {
+    const resend = getResend()
+    await resend.emails.send({
+      from: SENDER,
+      to: recipientEmail,
+      subject: 'Deine Empfehlung ist zahlender Belegmanager-Kunde',
+      html: `
+        <div style="font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #0d9488;">Deine Empfehlung zahlt</h2>
+          <p style="color: #374151;">
+            Gute Nachricht: <strong>${escapeHtml(referredEmailMasked)}</strong> hat ein
+            kostenpflichtiges Belegmanager-Abo abgeschlossen.
+          </p>
+          <p style="color: #374151;">
+            In <strong>14 Tagen</strong> schreiben wir dir automatisch
+            <strong>39,90 &euro; Guthaben</strong> gut – das entspricht einem Gratismonat.
+            Voraussetzung ist, dass das Abo bis dahin aktiv bleibt.
+          </p>
+          <p>
+            <a href="${referralUrl}" style="display: inline-block; background: #0d9488; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">
+              Empfehlungen ansehen
+            </a>
+          </p>
+          <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
+            Belegmanager - Buchhaltungsvorbereitung fuer oesterreichische KMUs
+          </p>
+        </div>
+      `,
+    })
+  } catch (error) {
+    console.error('[Resend] Failed to send referral pending email:', error)
+  }
+}
+
+/**
+ * PROJ-31: Notification an Referrer, dass das Reward (39,90 EUR) gutgeschrieben wurde.
+ */
+export async function sendReferralRewardedEmail(params: {
+  recipientEmail: string
+  referredEmailMasked: string
+}): Promise<void> {
+  const { recipientEmail, referredEmailMasked } = params
+  const referralUrl = `${getSiteUrl()}/referral`
+
+  try {
+    const resend = getResend()
+    await resend.emails.send({
+      from: SENDER,
+      to: recipientEmail,
+      subject: 'Dein Gratismonat wurde gutgeschrieben – 39,90 € Guthaben',
+      html: `
+        <div style="font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #0d9488;">Dein Gratismonat ist da</h2>
+          <p style="color: #374151;">
+            Wir haben dir soeben <strong>39,90 &euro;</strong> Stripe-Guthaben gutgeschrieben –
+            ein kompletter Gratismonat als Dankeschoen fuer deine Empfehlung
+            (<strong>${escapeHtml(referredEmailMasked)}</strong>).
+          </p>
+          <p style="color: #374151;">
+            Das Guthaben wird automatisch mit deiner naechsten Rechnung verrechnet.
+          </p>
+          <p>
+            <a href="${referralUrl}" style="display: inline-block; background: #0d9488; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">
+              Zu meinen Empfehlungen
+            </a>
+          </p>
+          <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
+            Belegmanager - Buchhaltungsvorbereitung fuer oesterreichische KMUs
+          </p>
+        </div>
+      `,
+    })
+  } catch (error) {
+    console.error('[Resend] Failed to send referral rewarded email:', error)
+  }
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

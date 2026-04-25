@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   HelpCircle,
+  Gift,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { TrialBanner } from '@/components/billing/trial-banner'
@@ -45,6 +46,7 @@ const navItems = [
   { title: 'Transaktionen', href: '/transaktionen', icon: ArrowLeftRight },
   { title: 'Kassabuch', href: '/kassabuch', icon: BookOpen },
   { title: 'Monatsabschluss', href: '/monatsabschluss', icon: CalendarCheck },
+  { title: 'Empfehlen & Sparen', href: '/referral', icon: Gift },
   { title: 'Einstellungen', href: '/settings/firma', icon: Settings },
   { title: 'Hilfe-Center', href: '/help', icon: HelpCircle },
 ]

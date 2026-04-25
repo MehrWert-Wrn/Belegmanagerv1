@@ -1,16 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+
+const REFERRAL_COOKIE = 'bm_referral'
+
+function readReferralCookie(): string | null {
+  if (typeof document === 'undefined') return null
+  const match = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${REFERRAL_COOKIE}=`))
+  return match ? decodeURIComponent(match.split('=')[1]) : null
+}
+
+function clearReferralCookie() {
+  if (typeof document === 'undefined') return
+  document.cookie = `${REFERRAL_COOKIE}=; max-age=0; path=/; SameSite=Lax`
+}
 
 const schema = z.object({
   email: z.string().email('Bitte gib eine gültige E-Mail-Adresse ein'),
@@ -25,12 +41,24 @@ type FormData = z.infer<typeof schema>
 
 export default function RegisterPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [referralCode, setReferralCode] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
+
+  // Lese Referral-Code aus URL oder Cookie und persistiere in State
+  useEffect(() => {
+    const fromUrl = searchParams.get('ref')
+    const fromCookie = readReferralCookie()
+    const code = fromUrl ?? fromCookie
+    if (code && /^BM-[A-Z0-9]{6}$/.test(code.toUpperCase())) {
+      setReferralCode(code.toUpperCase())
+    }
+  }, [searchParams])
 
   async function onSubmit(data: FormData) {
     setError(null)
@@ -52,6 +80,28 @@ export default function RegisterPage() {
         setLoading(false)
         return
       }
+      // "already registered": redirect to verify page but skip referral attribution (BUG-007)
+      router.push(`/verify-email?email=${encodeURIComponent(data.email)}`)
+      return
+    }
+
+    // Referral-Attribution: nur bei echtem Signup-Erfolg (kein Fehler, BUG-007)
+    if (referralCode) {
+      try {
+        await fetch('/api/referral/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: referralCode,
+            referred_email: data.email,
+          }),
+        })
+      } catch (err) {
+        // Fehler nicht blockierend – Signup soll trotzdem weiterlaufen
+        console.error('[Referral] register-call fehlgeschlagen:', err)
+      } finally {
+        clearReferralCookie()
+      }
     }
 
     // Redirect to verify-email page with email param so resend button works
@@ -66,6 +116,19 @@ export default function RegisterPage() {
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="space-y-4">
+          {referralCode && (
+            <div
+              className="flex items-center gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800"
+              role="status"
+              aria-live="polite"
+            >
+              <Sparkles className="h-4 w-4 shrink-0 text-teal-600" aria-hidden="true" />
+              <span>
+                Du wurdest empfohlen! Code:{' '}
+                <code className="font-mono font-semibold">{referralCode}</code>
+              </span>
+            </div>
+          )}
           {error && (
             <div className="rounded-md bg-destructive/10 text-destructive text-sm px-3 py-2">
               {error}

@@ -7,6 +7,7 @@ import { CloudStorageWidget } from '@/components/dashboard/cloud-storage-widget'
 import { MonatssaldoWidget } from '@/components/dashboard/monatssaldo-widget'
 import { UeberfaelligeBelegeWidget } from '@/components/dashboard/ueberfaellige-belege-widget'
 import { BelegeOrdnerWidget } from '@/components/dashboard/belege-ordner-widget'
+import { ReferralWidget } from '@/components/dashboard/referral-widget'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -26,6 +27,8 @@ export default async function DashboardPage() {
       <OnboardingCheckliste />
 
       <CloudStorageWidget />
+
+      <ReferralWidget />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <BelegeOrdnerWidget />

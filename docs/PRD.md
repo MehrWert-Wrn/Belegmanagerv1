@@ -51,6 +51,7 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 | P1 | Vorkontierung (PROJ-28) | Buchungssatz (Soll/Haben, Betrag, MwSt, Text) pro Transaktion anlegen und verwalten | Planned |
 | P1 | Buchungs-Sync FreeFinance (PROJ-29) | Vorkontierungen einzeln oder als Batch via FreeFinance API buchen, Status-Tracking, Retry bei Fehlern | Planned |
 | P1 | E-Mail-Belegeingang (PROJ-30) | Shared Testphase-Postfach testphase@belegmanager.at; Mandant-Identifikation via Absender-E-Mail, OCR-Verarbeitung, automatische Beleg-Anlage | Planned |
+| P1 | Weiterempfehlungssystem (PROJ-31) | Referral-Links pro Mandant, Landing Page, Reward 1 Gratismonat via Stripe Credit Balance, Dashboard Widget + Full Page /referral | Planned |
 
 > Details zu jeder Feature (User Stories, Acceptance Criteria, Edge Cases, Tech Design) → `features/`
 

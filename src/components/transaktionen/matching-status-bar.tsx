@@ -55,6 +55,22 @@ export function MatchingStatusBar({
         `Matching abgeschlossen: ${result.matched} zugeordnet, ${result.suggested} Vorschlaege, ${result.unmatched} offen`
       )
       onMatchingComplete()
+
+      // PROJ-31: Referral-Prompt nach erfolgreichem Matching (max. 1x pro Tag)
+      if (result.matched > 0) {
+        const PROMPT_KEY = 'bm_referral_prompt_date'
+        const today = new Date().toISOString().split('T')[0]
+        if (localStorage.getItem(PROMPT_KEY) !== today) {
+          localStorage.setItem(PROMPT_KEY, today)
+          setTimeout(() => {
+            toast('Gerade Zeit gespart?', {
+              description: 'Empfehle Belegmanager weiter und nutze es einen Monat gratis.',
+              action: { label: 'Empfehlen & Sparen', onClick: () => { window.location.href = '/referral' } },
+              duration: 8000,
+            })
+          }, 1500)
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler'
       toast.error(message)

@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/banksapi-sync",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/referral-reward",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}

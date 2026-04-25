@@ -1,8 +1,11 @@
 import { stripe } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { invalidateBillingCache } from '@/lib/billing'
+import { sendReferralPendingEmail } from '@/lib/resend'
+import { maskEmail, sameEmailDomain } from '@/lib/referral'
 import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 
@@ -58,6 +61,16 @@ export async function POST(request: Request) {
       }, { onConflict: 'mandant_id' })
 
       invalidateBillingCache(mandantId)
+
+      // PROJ-31: Referral-Conversion-Logik
+      // Wenn der gerade gewonnene Mandant ueber einen Referral-Link kam,
+      // setzen wir den Referral auf "pending" und senden E-Mail 1 an den Referrer.
+      try {
+        await processReferralConversion(admin, mandantId, customerId)
+      } catch (refErr) {
+        console.error('[webhook] referral conversion failed:', refErr)
+        // Nicht blockierend
+      }
       break
     }
 
@@ -129,4 +142,160 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ received: true })
+}
+
+// ---------------------------------------------------------------------------
+// PROJ-31: Referral-Conversion bei checkout.session.completed
+// ---------------------------------------------------------------------------
+
+/**
+ * Wird vom Stripe-Webhook bei "checkout.session.completed" aufgerufen,
+ * sobald ein Mandant ein kostenpflichtiges Abo abschliesst.
+ *
+ * Flow:
+ *  1) Pruefen, ob ein passender Referral mit Status "registered" existiert
+ *     (Match ueber referred_email == primaere E-Mail des neuen Mandanten).
+ *  2) Self-Referral pruefen (gleiche Mandant-ID) -> blocked.
+ *  3) Payment-Method-Fingerprint pruefen -> blocked, wenn schon einmal verwendet.
+ *  4) Sonst: Status "pending", converted_at gesetzt, referred_mandant_id gesetzt,
+ *     reward_eligible_at = now + 14 Tage. E-Mail 1 an Referrer.
+ */
+async function processReferralConversion(
+  admin: SupabaseClient,
+  refereeMandantId: string,
+  customerId: string,
+): Promise<void> {
+  // 1) Primary E-Mail des geworbenen Mandanten ermitteln
+  const { data: refereeMandant } = await admin
+    .from('mandanten')
+    .select('owner_id')
+    .eq('id', refereeMandantId)
+    .maybeSingle()
+
+  if (!refereeMandant?.owner_id) return
+
+  const { data: refereeUserResp } = await admin.auth.admin.getUserById(
+    refereeMandant.owner_id,
+  )
+  const refereeEmail = refereeUserResp?.user?.email?.toLowerCase()
+  if (!refereeEmail) return
+
+  // 2) Passenden Referral-Eintrag finden (status registered + gleiche E-Mail)
+  const { data: referrals } = await admin
+    .from('referrals')
+    .select('id, referral_code_id, referred_email, status')
+    .eq('referred_email', refereeEmail)
+    .in('status', ['registered', 'clicked'])
+    .order('clicked_at', { ascending: false })
+    .limit(1)
+
+  const referral = referrals?.[0]
+  if (!referral) return
+
+  // 3) Referrer-Mandant ueber den Code finden
+  const { data: codeRow } = await admin
+    .from('referral_codes')
+    .select('mandant_id')
+    .eq('id', referral.referral_code_id)
+    .maybeSingle()
+
+  if (!codeRow?.mandant_id) return
+
+  // 4) Self-Referral – gleiche Mandant-ID -> blocked
+  if (codeRow.mandant_id === refereeMandantId) {
+    await admin
+      .from('referrals')
+      .update({ status: 'blocked', blocked_reason: 'self_referral' })
+      .eq('id', referral.id)
+    return
+  }
+
+  // 5) Payment-Method-Fingerprint laden (Fraud Check)
+  let fingerprint: string | null = null
+  try {
+    const customer = await stripe.customers.retrieve(customerId, {
+      expand: ['invoice_settings.default_payment_method'],
+    })
+    if (
+      customer &&
+      !('deleted' in customer && customer.deleted) &&
+      customer.invoice_settings?.default_payment_method &&
+      typeof customer.invoice_settings.default_payment_method !== 'string' &&
+      customer.invoice_settings.default_payment_method.card?.fingerprint
+    ) {
+      fingerprint =
+        customer.invoice_settings.default_payment_method.card.fingerprint
+    }
+  } catch (err) {
+    console.error('[webhook] could not load payment method fingerprint:', err)
+  }
+
+  if (fingerprint) {
+    const { data: existingFp } = await admin
+      .from('referrals')
+      .select('id')
+      .eq('payment_method_fingerprint', fingerprint)
+      .neq('id', referral.id)
+      .limit(1)
+      .maybeSingle()
+
+    if (existingFp) {
+      await admin
+        .from('referrals')
+        .update({
+          status: 'blocked',
+          blocked_reason: 'payment_method',
+          payment_method_fingerprint: fingerprint,
+        })
+        .eq('id', referral.id)
+      return
+    }
+  }
+
+  // 6) Referrer-E-Mail fuer Domain-Check + spaetere E-Mail-Notification
+  const { data: referrerMandant } = await admin
+    .from('mandanten')
+    .select('owner_id')
+    .eq('id', codeRow.mandant_id)
+    .maybeSingle()
+
+  let referrerEmail: string | null = null
+  if (referrerMandant?.owner_id) {
+    const { data: rUser } = await admin.auth.admin.getUserById(
+      referrerMandant.owner_id,
+    )
+    referrerEmail = rUser?.user?.email ?? null
+  }
+
+  const sameDomainFlag = sameEmailDomain(referrerEmail, refereeEmail)
+
+  // 7) Eligibility-Datum (heute + 14 Tage)
+  const now = new Date()
+  const eligible = new Date(now)
+  eligible.setUTCDate(eligible.getUTCDate() + 14)
+
+  const { error: updError } = await admin
+    .from('referrals')
+    .update({
+      status: 'pending',
+      converted_at: now.toISOString(),
+      reward_eligible_at: eligible.toISOString(),
+      referred_mandant_id: refereeMandantId,
+      payment_method_fingerprint: fingerprint,
+      same_domain_flag: sameDomainFlag,
+    })
+    .eq('id', referral.id)
+
+  if (updError) {
+    console.error('[webhook] referral status -> pending failed:', updError)
+    return
+  }
+
+  // 8) E-Mail 1 an Referrer
+  if (referrerEmail) {
+    await sendReferralPendingEmail({
+      recipientEmail: referrerEmail,
+      referredEmailMasked: maskEmail(refereeEmail),
+    })
+  }
 }
