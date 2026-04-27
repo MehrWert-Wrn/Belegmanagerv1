@@ -18,7 +18,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getBillingStatus } from '@/lib/billing'
 import {
   getOrCreateReferralCode,
   rewardedToMonths,
@@ -43,16 +42,6 @@ export async function GET() {
 
   if (!mandant) {
     return NextResponse.json({ error: 'Mandant nicht gefunden' }, { status: 404 })
-  }
-
-  const billing = await getBillingStatus(mandant.id)
-  const hasActive =
-    billing.subscriptionStatus === 'active' || billing.adminOverrideActive
-  if (!hasActive) {
-    return NextResponse.json(
-      { error: 'Empfehlungsprogramm erfordert ein aktives Abo' },
-      { status: 403 },
-    )
   }
 
   const referralCode = await getOrCreateReferralCode(admin, mandant.id)

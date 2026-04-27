@@ -3,7 +3,7 @@ import { ReferralPageClient } from './referral-client'
 
 export const metadata: Metadata = {
   title: 'Empfehlen & Sparen | Belegmanager',
-  description: 'Empfehle Belegmanager weiter und erhalte pro erfolgreicher Empfehlung einen Gratismonat.',
+  description: 'Empfehle Belegmanager weiter und erhalte pro erfolgreicher Empfehlung 50 € Guthaben.',
 }
 
 export default function ReferralPage() {

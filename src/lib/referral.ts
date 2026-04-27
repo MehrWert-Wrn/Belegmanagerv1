@@ -6,7 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const REFERRAL_CODE_PREFIX = 'BM-'
 export const REFERRAL_CODE_REGEX = /^BM-[A-Z0-9]{6}$/
-export const REFERRAL_REWARD_AMOUNT_CENTS = 3990 // 39,90 EUR
+export const REFERRAL_REWARD_AMOUNT_CENTS = 5000 // 50,00 EUR
 export const REFERRAL_HOLDING_DAYS = 14
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'

@@ -7,7 +7,7 @@
  *   - converted_at >= 14 Tage zurueck
  *   - Stripe-Abo des geworbenen Mandanten ist noch aktiv
  * Bei Eligibility:
- *   - Stripe Credit Balance -3990 Cent auf Referrer-Mandant
+ *   - Stripe Credit Balance -5000 Cent (50 EUR) auf Referrer-Mandant
  *   - Status -> "rewarded", rewarded_at gesetzt
  *   - E-Mail 2 an Referrer
  * Falls Abo nicht mehr aktiv -> Status "expired".
@@ -83,12 +83,9 @@ export async function GET(request: Request) {
         .maybeSingle()
 
       if (!refSub?.stripe_customer_id) {
-        // Referrer hat keinen Stripe Customer mehr (Account geloescht etc.) -> kein Reward
-        await admin
-          .from('referrals')
-          .update({ status: 'expired' })
-          .eq('id', ref.id)
-        results.push({ referral_id: ref.id, status: 'expired', fehler: 'Referrer ohne Stripe Customer' })
+        // Referrer ist noch Trial-User ohne Stripe Customer → pending lassen.
+        // Guthaben wird gutgeschrieben sobald sie ein Abo abschliessen.
+        results.push({ referral_id: ref.id, status: 'skipped', fehler: 'Referrer noch kein Stripe Customer' })
         continue
       }
 
@@ -120,13 +117,13 @@ export async function GET(request: Request) {
         continue
       }
 
-      // 3) Stripe Credit Balance Transaction anlegen (-3990 Cent)
+      // 3) Stripe Credit Balance Transaction anlegen (-5000 Cent = 50 EUR)
       const balanceTx = await stripe.customers.createBalanceTransaction(
         refSub.stripe_customer_id,
         {
           amount: -REFERRAL_REWARD_AMOUNT_CENTS,
           currency: 'eur',
-          description: `Referral Reward – 1 Gratismonat (Referral ${ref.id})`,
+          description: `Referral Reward – 50 EUR (Referral ${ref.id})`,
           metadata: {
             referral_id: ref.id,
             mandant_id: codeRow.mandant_id,

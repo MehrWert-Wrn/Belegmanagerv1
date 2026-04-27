@@ -44,7 +44,7 @@ export function ReferralWidget() {
       .then(([codeData, statsData]) => {
         if (cancelled) return
         if (!codeData) {
-          // 403 / 404 → Mandant hat kein aktives Abo, Widget verstecken
+          // Fehler beim Laden (404 etc.) → Widget verstecken
           setVisible(false)
           return
         }
@@ -100,7 +100,8 @@ export function ReferralWidget() {
                       {stats.saved_months === 1 ? 'Monat' : 'Monate'} gratis).
                     </>
                   ) : (
-                    <>Pro erfolgreicher Empfehlung gibt&apos;s 39,90 € Guthaben.</>
+                    <>Pro erfolgreicher Empfehlung gibt&apos;s 50 € Guthaben.</>
+
                   )}
                 </p>
               )}

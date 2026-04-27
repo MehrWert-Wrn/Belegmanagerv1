@@ -83,7 +83,7 @@ export function ReferralPageClient() {
           <AlertDescription>
             Das Weiterempfehlungssystem steht aktiven Belegmanager-Abonnenten zur Verfügung.
             Sobald dein Abo aktiv ist, kannst du Empfehlungen aussprechen und pro
-            Erfolg 39,90 € Guthaben sammeln.
+            Erfolg 50 € Guthaben sammeln.
           </AlertDescription>
         </Alert>
       </div>
@@ -101,7 +101,7 @@ export function ReferralPageClient() {
         </div>
         <p className="text-sm text-muted-foreground max-w-2xl">
           Bestehende Belegmanager-Kunden empfehlen weiter und erhalten pro Empfehlung{' '}
-          <strong className="text-teal-700">1 Monat gratis</strong> (39,90 € Guthaben).
+          <strong className="text-teal-700">50 € Guthaben</strong> pro Empfehlung.
           Kein Cap, keine Punktesystem-Tricks – einfach teilen, gewinnen, sparen.
         </p>
       </div>
@@ -175,8 +175,8 @@ export function ReferralPageClient() {
               </span>
               <span>
                 <strong>Belohnung erhalten:</strong> Nach 14 Tagen Stripe-Abo-Aktivität
-                schreiben wir dir <strong className="text-teal-700">39,90 €</strong>{' '}
-                Guthaben gut – das entspricht einem Gratismonat.
+                schreiben wir dir <strong className="text-teal-700">50 €</strong>{' '}
+                Guthaben gut.
               </span>
             </li>
           </ol>

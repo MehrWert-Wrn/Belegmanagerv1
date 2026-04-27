@@ -75,7 +75,7 @@ export function AbschlussDialog({
         localStorage.setItem(PROMPT_KEY, today)
         setTimeout(() => {
           toast('Monat erfolgreich abgeschlossen!', {
-            description: 'Empfehle Belegmanager weiter und nutze es einen Monat gratis.',
+            description: 'Empfehle Belegmanager weiter und erhalte 50 € Guthaben pro Empfehlung.',
             action: { label: 'Empfehlen & Sparen', onClick: () => { window.location.href = '/referral' } },
             duration: 8000,
           })

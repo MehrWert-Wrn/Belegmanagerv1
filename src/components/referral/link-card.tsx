@@ -66,8 +66,7 @@ export function LinkCard({ referralLink, loading = false }: LinkCardProps) {
         <ShareButtons referralLink={referralLink} disabled={loading || !referralLink} />
         <p className="text-xs text-muted-foreground">
           Pro erfolgreicher Empfehlung erhältst du{' '}
-          <strong className="text-teal-700">39,90 €</strong> Guthaben – das entspricht einem
-          kostenlosen Monat Belegmanager.
+          <strong className="text-teal-700">50 €</strong> Guthaben – direkt auf deinem Konto.
         </p>
       </CardContent>
     </Card>

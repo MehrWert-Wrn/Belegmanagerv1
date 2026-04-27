@@ -200,7 +200,7 @@ export async function sendReferralPendingEmail(params: {
           </p>
           <p style="color: #374151;">
             In <strong>14 Tagen</strong> schreiben wir dir automatisch
-            <strong>39,90 &euro; Guthaben</strong> gut – das entspricht einem Gratismonat.
+            <strong>50,00 &euro; Guthaben</strong> gut.
             Voraussetzung ist, dass das Abo bis dahin aktiv bleibt.
           </p>
           <p>
@@ -220,7 +220,7 @@ export async function sendReferralPendingEmail(params: {
 }
 
 /**
- * PROJ-31: Notification an Referrer, dass das Reward (39,90 EUR) gutgeschrieben wurde.
+ * PROJ-31: Notification an Referrer, dass das Reward (50,00 EUR) gutgeschrieben wurde.
  */
 export async function sendReferralRewardedEmail(params: {
   recipientEmail: string
@@ -234,13 +234,13 @@ export async function sendReferralRewardedEmail(params: {
     await resend.emails.send({
       from: SENDER,
       to: recipientEmail,
-      subject: 'Dein Gratismonat wurde gutgeschrieben – 39,90 € Guthaben',
+      subject: 'Deine Empfehlungs-Prämie wurde gutgeschrieben – 50 € Guthaben',
       html: `
         <div style="font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #0d9488;">Dein Gratismonat ist da</h2>
+          <h2 style="color: #0d9488;">Deine Praemie ist da</h2>
           <p style="color: #374151;">
-            Wir haben dir soeben <strong>39,90 &euro;</strong> Stripe-Guthaben gutgeschrieben –
-            ein kompletter Gratismonat als Dankeschoen fuer deine Empfehlung
+            Wir haben dir soeben <strong>50,00 &euro;</strong> Stripe-Guthaben gutgeschrieben –
+            deine Empfehlungs-Praemie fuer deine Empfehlung
             (<strong>${escapeHtml(referredEmailMasked)}</strong>).
           </p>
           <p style="color: #374151;">
