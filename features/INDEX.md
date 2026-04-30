@@ -37,7 +37,7 @@
 | PROJ-20 | BanksAPI-Integration – Automatischer Kontoauszug-Import | Deployed | [PROJ-20-finapi-integration.md](PROJ-20-finapi-integration.md) | 2026-04-14 |
 | PROJ-21 | Onboarding-Checkliste am Dashboard | Deployed | [PROJ-21-onboarding-checkliste.md](PROJ-21-onboarding-checkliste.md) | 2026-04-14 |
 | PROJ-22 | Hilfe-Center | Deployed | [PROJ-22-hilfe-center.md](PROJ-22-hilfe-center.md) | 2026-04-14 |
-| PROJ-23 | KI-Chatbot | Planned | [PROJ-23-ki-chatbot.md](PROJ-23-ki-chatbot.md) | 2026-04-14 |
+| PROJ-23 | KI-Chatbot | In Progress | [PROJ-23-ki-chatbot.md](PROJ-23-ki-chatbot.md) | 2026-04-14 |
 | PROJ-24 | Sichere Zugangsdaten-Übermittlung (E-Mail-Anbindung) | In Review | [PROJ-24-zugangsdaten-uebermittlung.md](PROJ-24-zugangsdaten-uebermittlung.md) | 2026-04-16 |
 | PROJ-25 | EAR-Buchungstyp & Buchungsnummern-System | Deployed | [PROJ-25-ear-buchungsnummern.md](PROJ-25-ear-buchungsnummern.md) | 2026-04-17 |
 | PROJ-26 | Buchhaltungsmanager Feature-Gate | Planned | [PROJ-26-buchhaltungsmanager-feature-gate.md](PROJ-26-buchhaltungsmanager-feature-gate.md) | 2026-04-17 |
