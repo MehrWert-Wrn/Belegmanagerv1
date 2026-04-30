@@ -48,6 +48,7 @@ import { KassenpruefungHistorie } from '@/components/kassabuch/kassenpruefung-hi
 import { KassaVorlagenListe } from '@/components/kassabuch/kassa-vorlagen-liste'
 import { KassaKategorienVerwaltung } from '@/components/kassabuch/kassa-kategorien-verwaltung'
 import { KassabuchArchivListe } from '@/components/kassabuch/kassabuch-archiv-liste'
+import { KassaEintragDetailSheet } from '@/components/kassabuch/kassa-eintrag-detail-sheet'
 import type { TransaktionWithRelations } from '@/lib/supabase/types'
 import type { KassaVorlage } from '@/components/kassabuch/kassa-vorlagen-dialog'
 
@@ -95,6 +96,11 @@ export default function KassabuchPage() {
   const [zuordnungsDialogOpen, setZuordnungsDialogOpen] = useState(false)
   const [zuordnungsTransaktion, setZuordnungsTransaktion] =
     useState<TransaktionWithRelations | null>(null)
+
+  // Detail sheet
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false)
+  const [detailEintrag, setDetailEintrag] = useState<KassaEintrag | null>(null)
+  const [detailAutoBeleg, setDetailAutoBeleg] = useState(false)
 
   // New dialogs (Kassabuch-Erweiterung 2026-04-23)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
@@ -242,6 +248,18 @@ export default function KassabuchPage() {
 
     setZuordnungsTransaktion(asTransaktion)
     setZuordnungsDialogOpen(true)
+  }
+
+  function handleRowClick(eintrag: KassaEintrag) {
+    setDetailEintrag(eintrag)
+    setDetailAutoBeleg(false)
+    setDetailSheetOpen(true)
+  }
+
+  function handleBelegClick(eintrag: KassaEintrag) {
+    setDetailEintrag(eintrag)
+    setDetailAutoBeleg(true)
+    setDetailSheetOpen(true)
   }
 
   function clearFilters() {
@@ -493,6 +511,8 @@ export default function KassabuchPage() {
         onDelete={handleDeleteRequest}
         onManualAssign={handleManualAssign}
         onActionComplete={refreshAll}
+        onRowClick={handleRowClick}
+        onBelegClick={handleBelegClick}
       />
 
       {/* Existing dialogs */}
@@ -560,6 +580,14 @@ export default function KassabuchPage() {
       <KassabuchArchivListe
         open={archivListeOpen}
         onOpenChange={setArchivListeOpen}
+      />
+
+      <KassaEintragDetailSheet
+        open={detailSheetOpen}
+        onOpenChange={setDetailSheetOpen}
+        eintrag={detailEintrag}
+        initialBelegPanelOpen={detailAutoBeleg}
+        onActionComplete={refreshAll}
       />
     </div>
   )

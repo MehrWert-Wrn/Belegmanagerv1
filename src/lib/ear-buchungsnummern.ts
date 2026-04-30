@@ -17,16 +17,6 @@ export type ZahlungsquellenTyp = 'kontoauszug' | 'kassa' | 'kreditkarte' | 'payp
 
 export type Rechnungstyp = 'eingangsrechnung' | 'ausgangsrechnung' | 'gutschrift' | 'eigenbeleg' | 'eigenverbrauch' | null
 
-/** Prefix mapping: rechnungstyp -> Buchungsnummer-Praefix */
-const RECHNUNGSTYP_PREFIX: Record<string, string> = {
-  eingangsrechnung: 'E',
-  ausgangsrechnung: 'A',
-  gutschrift: 'G',
-  eigenbeleg: 'EB',
-  eigenverbrauch: 'EV',
-  sonstiges: 'SO',
-}
-
 /** Typ -> Kuerzel prefix mapping */
 const TYP_KUERZEL_PREFIX: Record<ZahlungsquellenTyp, string> = {
   kontoauszug: 'B',
@@ -40,7 +30,6 @@ interface BelegForRename {
   id: string
   storage_path: string | null
   dateiname: string | null
-  rechnungstyp: string | null
 }
 
 interface StorageRenameOp {
@@ -91,19 +80,17 @@ export async function generateKuerzel(
 
 /**
  * Build a buchungsnummer string from its components.
- * Format: {Prefix}_{lfd_nr:04d}_{kuerzel}_{MM}_{YYYY}
+ * Format: {kuerzel}_{lfd_nr:04d}_{MM}_{YYYY}
  */
 export function buildBuchungsnummer(
-  rechnungstyp: string | null,
   lfdNr: number,
   kuerzel: string,
   monat: number,
   jahr: number
 ): string {
-  const prefix = (rechnungstyp && RECHNUNGSTYP_PREFIX[rechnungstyp]) || 'S'
   const lfdStr = String(lfdNr).padStart(4, '0')
   const monatStr = String(monat).padStart(2, '0')
-  return `${prefix}_${lfdStr}_${kuerzel}_${monatStr}_${jahr}`
+  return `${kuerzel}_${lfdStr}_${monatStr}_${jahr}`
 }
 
 // ── Filename Sanitization ──────────────────────────────────────────────
@@ -193,7 +180,7 @@ export async function earMonatsabschluss(
   if (belegIds.length > 0) {
     const { data: belege } = await supabase
       .from('belege')
-      .select('id, storage_path, dateiname, rechnungstyp')
+      .select('id, storage_path, dateiname')
       .in('id', belegIds)
 
     for (const b of belege ?? []) {
@@ -215,11 +202,8 @@ export async function earMonatsabschluss(
     const currentCount = (lfdCounters.get(counterKey) ?? 0) + 1
     lfdCounters.set(counterKey, currentCount)
 
-    // Determine rechnungstyp from beleg if available
     const beleg = tx.beleg_id ? belegMap.get(tx.beleg_id) : null
-    const rechnungstyp = beleg?.rechnungstyp ?? null
-
-    const buchungsnummer = buildBuchungsnummer(rechnungstyp, currentCount, kuerzel, monat, jahr)
+    const buchungsnummer = buildBuchungsnummer(currentCount, kuerzel, monat, jahr)
     nummernUpdates.push({ id: tx.id, buchungsnummer })
 
     // File rename if beleg has a storage_path

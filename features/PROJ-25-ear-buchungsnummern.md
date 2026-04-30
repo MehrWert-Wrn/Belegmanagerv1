@@ -83,10 +83,10 @@ Gilt ausschließlich für EAR-Mandanten (Ein-/Ausgabenrechner). Für DOPPELT-Man
 - [ ] Nur für EAR-Mandanten; DOPPELT-Mandanten: kein Unterschied zum bisherigen Ablauf
 - [ ] Erfasste Transaktionen: match_status IN ('bestaetigt', 'kein_beleg') UND workflow_status ≠ 'privat'
 - [ ] Sortierung: datum ASC, bei Gleichstand erstellt_am ASC
-- [ ] Nummernformat: `{Präfix}_{lfd_nr:04d}_{kuerzel}_{MM}_{YYYY}`
-  - Präfix aus belege.rechnungstyp: E / A / G / EB / S (bei null oder kein_beleg → S)
+- [ ] Nummernformat: `{kuerzel}_{lfd_nr:04d}_{MM}_{YYYY}`
+  - kein Rechnungstyp-Präfix (Typ steht in der `symbol`-Spalte der CSV)
   - lfd_nr: pro quelle_id + Monat + Jahr, beginnt bei 0001
-  - Beispiel: `E_0001_B1_01_2026`
+  - Beispiel: `B1_0001_01_2026`
 - [ ] Datei-Umbenennung (nur wenn belege.storage_path != null):
   - Neuer Dateiname: `{buchungsnummer}_{original_filename}`
   - Storage: copy(old_path, new_path) → remove(old_path)

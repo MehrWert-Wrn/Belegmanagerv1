@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { useState } from 'react'
+import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
   Table,
@@ -70,6 +71,8 @@ interface KassabuchTabelleProps {
   onDelete: (eintrag: KassaEintrag) => void
   onManualAssign: (eintragId: string) => void
   onActionComplete: () => void
+  onRowClick?: (eintrag: KassaEintrag) => void
+  onBelegClick?: (eintrag: KassaEintrag) => void
 }
 
 function formatCurrency(amount: number) {
@@ -94,6 +97,8 @@ export function KassabuchTabelle({
   onDelete,
   onManualAssign,
   onActionComplete,
+  onRowClick,
+  onBelegClick,
 }: KassabuchTabelleProps) {
   if (loading) {
     return (
@@ -152,7 +157,11 @@ export function KassabuchTabelle({
             return (
               <TableRow
                 key={eintrag.id}
-                className={isStorno || isStorniert ? 'opacity-50 bg-muted/20' : undefined}
+                className={cn(
+                  isStorno || isStorniert ? 'opacity-50 bg-muted/20' : undefined,
+                  onRowClick && 'cursor-pointer',
+                )}
+                onClick={() => onRowClick?.(eintrag)}
               >
                 <TableCell>
                   {isStorno || isStorniert ? (
@@ -212,10 +221,18 @@ export function KassabuchTabelle({
                     />
                   )}
                 </TableCell>
-                <TableCell className="hidden lg:table-cell">
-                  <BelegReferenz beleg={eintrag.belege} />
+                <TableCell
+                  className="hidden lg:table-cell"
+                  onClick={eintrag.beleg_id && onBelegClick
+                    ? (e) => { e.stopPropagation(); onBelegClick(eintrag) }
+                    : undefined}
+                >
+                  <BelegReferenz
+                    beleg={eintrag.belege}
+                    clickable={!!eintrag.beleg_id && !!onBelegClick}
+                  />
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   {!isStorniert && !isStorno && (
                     <KassaAktionenMenu
                       eintrag={eintrag}
@@ -243,15 +260,21 @@ interface BelegReferenzProps {
     rechnungsnummer: string | null
     bruttobetrag: number | null
   } | null
+  clickable?: boolean
 }
 
-function BelegReferenz({ beleg }: BelegReferenzProps) {
+function BelegReferenz({ beleg, clickable }: BelegReferenzProps) {
   if (!beleg) {
     return <span className="text-xs text-muted-foreground">-</span>
   }
 
   return (
-    <div className="flex items-center gap-1.5 text-sm">
+    <div
+      className={cn(
+        'flex items-center gap-1.5 text-sm',
+        clickable && 'text-teal-700 dark:text-teal-400 hover:underline underline-offset-2',
+      )}
+    >
       <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <div className="max-w-[180px] truncate">
         <span className="font-medium">
