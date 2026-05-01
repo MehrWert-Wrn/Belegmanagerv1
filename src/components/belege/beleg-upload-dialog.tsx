@@ -545,6 +545,20 @@ export function BelegUploadDialog({
         // Run OCR
         const ocrResult = await runOcr(item.file)
 
+        // Content-based duplicate check after OCR (catches format-crossing duplicates)
+        if (ocrResult) {
+          const contentDup = await runContentCheck(ocrResult)
+          if (contentDup) {
+            await supabase.storage.from('belege').remove([storagePath])
+            setMassFiles((prev) => {
+              const next = [...prev]
+              next[i] = { ...next[i], status: 'duplicate', error: `Inhaltl. Duplikat: ${contentDup.rechnungsname || contentDup.original_filename}` }
+              return next
+            })
+            continue
+          }
+        }
+
         // Create beleg in DB (rechnungsname=null -> "nicht reviewed")
         const response = await fetch('/api/belege', {
           method: 'POST',
