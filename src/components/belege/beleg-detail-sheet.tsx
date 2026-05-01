@@ -279,13 +279,12 @@ export function BelegDetailSheet({
         filled++
       }
 
-      // Steuerzeilen: only fill if the single existing row has no amounts at all
+      // Steuerzeilen: only fill if no amount fields are set (mwst_satz may already be filled)
       const currentRows = form.getValues('steuerzeilen')
       const allEmpty = currentRows.every(
         (z) =>
           (z.bruttobetrag == null || z.bruttobetrag === '') &&
-          (z.nettobetrag == null || z.nettobetrag === '') &&
-          (z.mwst_satz == null || z.mwst_satz === '')
+          (z.nettobetrag == null || z.nettobetrag === '')
       )
 
       if (allEmpty) {

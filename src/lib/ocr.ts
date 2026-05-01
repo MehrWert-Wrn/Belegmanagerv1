@@ -141,7 +141,7 @@ export async function performOcr(
   try {
     const response = await Promise.race([
       client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         messages: [
           {
@@ -226,9 +226,9 @@ function validateDate(value: unknown): string | null {
 /** Validate a numeric amount */
 function validateNumber(value: unknown): number | null {
   if (value === null || value === undefined) return null
-  const num = typeof value === 'string' ? parseFloat(value) : value
+  const normalized = typeof value === 'string' ? value.replace(',', '.') : value
+  const num = typeof normalized === 'string' ? parseFloat(normalized) : normalized
   if (typeof num !== 'number' || isNaN(num)) return null
-  // Round to 2 decimal places
   return Math.round(num * 100) / 100
 }
 

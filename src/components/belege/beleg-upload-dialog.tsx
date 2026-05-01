@@ -166,6 +166,7 @@ export function BelegUploadDialog({
 
   // Duplicate detection state
   const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null)
+  const [contentDuplicateInfo, setContentDuplicateInfo] = useState<DuplicateInfo | null>(null)
   const pendingSubmitRef = useRef<{ values: MetadataFormValues; fileHash: string } | null>(null)
 
   const form = useForm<MetadataFormValues>({
@@ -303,11 +304,9 @@ export function BelegUploadDialog({
       }
 
       const result: OcrResult = await response.json()
-      if (result.confidence === 0) {
-        if (result.error) {
-          console.error('[OCR] Server error:', result.error)
-          toast.error(`OCR Fehler: ${result.error}`)
-        }
+      if (result.error) {
+        console.error('[OCR] Server error:', result.error)
+        toast.error(`OCR Fehler: ${result.error}`)
         return null
       }
       return result
@@ -375,6 +374,30 @@ export function BelegUploadDialog({
     setOcrFields(newOcrFields)
   }
 
+  async function runContentCheck(result: OcrResult): Promise<DuplicateInfo | null> {
+    const params = new URLSearchParams()
+    if (result.rechnungsnummer) params.set('rechnungsnummer', result.rechnungsnummer)
+    if (result.lieferant) params.set('lieferant', result.lieferant)
+    if (result.bruttobetrag != null) params.set('bruttobetrag', String(result.bruttobetrag))
+    if (result.rechnungsdatum) params.set('rechnungsdatum', result.rechnungsdatum)
+
+    let meaningful = 0
+    if (params.get('rechnungsnummer')) meaningful++
+    if (params.get('lieferant')) meaningful++
+    if (params.get('bruttobetrag')) meaningful++
+    if (params.get('rechnungsdatum')) meaningful++
+    if (meaningful < 2) return null
+
+    try {
+      const res = await fetch(`/api/belege/check-content?${params.toString()}`)
+      if (!res.ok) return null
+      const json = await res.json()
+      return (json.duplicate as DuplicateInfo | null) ?? null
+    } catch {
+      return null
+    }
+  }
+
   // --- Dropzone ---
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return
@@ -403,6 +426,8 @@ export function BelegUploadDialog({
 
       if (ocrResult) {
         applyOcrToForm(ocrResult)
+        const contentDup = await runContentCheck(ocrResult)
+        if (contentDup) setContentDuplicateInfo(contentDup)
       } else {
         toast.info('OCR konnte keine Daten erkennen - bitte manuell ausfuellen')
       }
@@ -611,6 +636,7 @@ export function BelegUploadDialog({
     setMassProcessing(false)
     massAbortRef.current = false
     setDuplicateInfo(null)
+    setContentDuplicateInfo(null)
     pendingSubmitRef.current = null
   }
 
@@ -968,6 +994,18 @@ export function BelegUploadDialog({
               <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
                 <ScanSearch className="h-4 w-4" />
                 OCR hat {ocrFields.size} Feld{ocrFields.size !== 1 ? 'er' : ''} erkannt (blau markiert). Bitte pruefen und bei Bedarf korrigieren.
+              </div>
+            )}
+
+            {contentDuplicateInfo && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Mögliches Duplikat erkannt</p>
+                  <p className="text-xs mt-0.5">
+                    „{contentDuplicateInfo.rechnungsname || contentDuplicateInfo.original_filename}&ldquo; wurde bereits hochgeladen. Du kannst trotzdem fortfahren.
+                  </p>
+                </div>
               </div>
             )}
 
