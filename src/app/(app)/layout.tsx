@@ -6,7 +6,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { getBillingStatus } from '@/lib/billing'
 import { AccessGuard } from '@/components/billing/access-guard'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
-import { SupportWidget } from '@/components/support/support-widget'
+import { ChatbotWidget } from '@/components/chat/chatbot-widget'
 
 export default async function AppLayout({
   children,
@@ -61,7 +61,7 @@ export default async function AppLayout({
           {children}
         </AccessGuard>
       </AppSidebar>
-      {!impersonationMandantName && <SupportWidget />}
+      {!impersonationMandantName && <ChatbotWidget />}
     </>
   )
 }
