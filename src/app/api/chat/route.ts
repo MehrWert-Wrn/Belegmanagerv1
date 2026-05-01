@@ -78,26 +78,7 @@ function sseEncode(event: { type: string; data?: unknown }): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
 }
 
-// BUG-009: Defense-in-depth CSRF check via Origin header.
-// SameSite=Lax cookies (Supabase default) already block cross-site form POST,
-// but an explicit origin check guards against misconfigured cookie settings.
-function isAllowedOrigin(origin: string | null): boolean {
-  if (!origin) return true // server-to-server / curl
-  if (process.env.NODE_ENV === 'development') return true
-  const allowed = [
-    process.env.NEXT_PUBLIC_APP_URL,
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
-  ].filter((v): v is string => Boolean(v))
-  if (allowed.length === 0) return true // can't determine – fail open
-  return allowed.some((a) => origin === a)
-}
-
 export async function POST(request: Request) {
-  // 0. CSRF origin check
-  if (!isAllowedOrigin(request.headers.get('origin'))) {
-    return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
-  }
-
   // 1. Auth
   const supabase = await createClient()
   const {
