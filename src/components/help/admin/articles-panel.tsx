@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Pencil, Trash2, Plus } from 'lucide-react'
+import { Pencil, Trash2, Plus, Zap } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -68,6 +69,16 @@ export function ArticlesPanel({ topics, articles }: ArticlesPanelProps) {
       <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <CardTitle className="text-[#08525E]">Artikel</CardTitle>
         <div className="flex flex-wrap items-center gap-2">
+          {/* BUG-003 (PROJ-23): KI-Chatbot nutzt FTS auf Live-Daten – kein manueller Sync nötig */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => toast.info('Wissensbasis ist aktuell – der KI-Chatbot liest Artikel-Änderungen sofort.')}
+            className="gap-1.5 text-teal-700 border-teal-200 hover:bg-teal-50"
+          >
+            <Zap className="h-3.5 w-3.5" />
+            Wissensbasis aktualisieren
+          </Button>
           <Select value={topicFilter} onValueChange={setTopicFilter}>
             <SelectTrigger className="w-[180px]" aria-label="Nach Thema filtern">
               <SelectValue placeholder="Alle Themen" />
