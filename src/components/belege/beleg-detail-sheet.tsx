@@ -375,7 +375,7 @@ export function BelegDetailSheet({
 
       if (!response.ok) {
         const err = await response.json()
-        toast.error(`Fehler: ${err.error || 'Unbekannter Fehler'}`)
+        toast.error(`Fehler: ${typeof err.error === 'string' ? err.error : 'Unbekannter Fehler'}`)
         return
       }
 

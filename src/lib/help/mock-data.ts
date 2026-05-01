@@ -106,34 +106,39 @@ function article(
 export const MOCK_ARTICLES: HelpArticle[] = [
   // Topic 1: Erste Schritte
   article('art-1-1', 'topic-1', 'Registrierung & Erstanmeldung', 'registrierung-erstanmeldung', 'So legst du dein Konto an und meldest dich zum ersten Mal an.', 1),
-  article('art-1-2', 'topic-1', 'Dashboard-Uebersicht', 'dashboard-uebersicht', 'Die wichtigsten Bereiche deines Dashboards im Ueberblick.', 2),
-  article('art-1-3', 'topic-1', 'Onboarding-Checkliste – Was muss ich tun?', 'onboarding-checkliste', 'Die Checkliste fuehrt dich Schritt fuer Schritt zum produktiven System.', 3),
-  article('art-1-4', 'topic-1', 'E-Mail-Postfach anbinden – Microsoft 365', 'email-microsoft-365', 'Verbinde dein Microsoft-365-Postfach fuer den automatischen Beleg-Import.', 4),
-  article('art-1-5', 'topic-1', 'E-Mail-Postfach anbinden – Gmail', 'email-gmail', 'Verbinde dein Gmail-Konto fuer den automatischen Beleg-Import.', 5),
+  article('art-1-2', 'topic-1', 'Dashboard-Übersicht', 'dashboard-uebersicht', 'Die wichtigsten Bereiche deines Dashboards im Überblick.', 2),
+  article('art-1-3', 'topic-1', 'Onboarding-Checkliste – Was muss ich tun?', 'onboarding-checkliste', 'Die Checkliste führt dich Schritt für Schritt zum produktiven System.', 3),
+  article('art-1-4', 'topic-1', 'E-Mail-Postfach anbinden – Microsoft 365', 'email-microsoft-365', 'Verbinde dein Microsoft-365-Postfach für den automatischen Beleg-Import.', 4),
+  article('art-1-5', 'topic-1', 'E-Mail-Postfach anbinden – Gmail', 'email-gmail', 'Verbinde dein Gmail-Konto für den automatischen Beleg-Import.', 5),
   article('art-1-6', 'topic-1', 'E-Mail-Postfach anbinden – IMAP', 'email-imap', 'Verbinde ein beliebiges IMAP-Postfach mit dem Belegmanager.', 6),
+  article('art-1-7', 'topic-1', 'KI-Assistent – Der Belegmanager-Chatbot', 'ki-assistent-chatbot', 'Der KI-Assistent beantwortet deine Fragen rund um den Belegmanager sofort – rund um die Uhr.', 7),
 
   // Topic 2: Belegverwaltung
-  article('art-2-1', 'topic-2', 'Belege hochladen (manuell)', 'belege-manuell-hochladen', 'So laedst du einzelne Belege per Drag-and-Drop hoch.', 1),
+  article('art-2-1', 'topic-2', 'Belege hochladen (manuell)', 'belege-manuell-hochladen', 'So lädst du einzelne Belege per Drag-and-Drop hoch.', 1),
   article('art-2-2', 'topic-2', 'Belege per WhatsApp senden', 'belege-whatsapp', 'Sende Belege bequem vom Handy per WhatsApp an den Belegmanager.', 2),
-  article('art-2-3', 'topic-2', 'Belege per E-Mail einsenden', 'belege-email', 'Leite Rechnungen einfach an deine persoenliche Belegmanager-Adresse weiter.', 3),
-  article('art-2-4', 'topic-2', 'OCR-Erkennung und automatisches Ausfuellen', 'ocr-erkennung', 'Wie die OCR-Erkennung funktioniert und was du pruefen solltest.', 4),
+  article('art-2-3', 'topic-2', 'Belege per E-Mail einsenden', 'belege-email', 'Leite Rechnungen einfach an deine persönliche Belegmanager-Adresse weiter.', 3),
+  article('art-2-4', 'topic-2', 'OCR-Erkennung und automatisches Ausfüllen', 'ocr-erkennung', 'Wie die OCR-Erkennung funktioniert und was du prüfen solltest.', 4),
+  article('art-2-5', 'topic-2', 'Belege per E-Mail einsenden (zentrales Postfach)', 'belege-email-zentrales-postfach', 'Sende Rechnungen an testphase@belegmanager.at – automatische Erkennung und OCR-Verarbeitung.', 5),
+  article('art-2-6', 'topic-2', 'Eigenbeleg erstellen', 'eigenbeleg-erstellen', 'Einen Eigenbeleg anlegen, wenn kein externer Beleg vorhanden oder beschaffbar ist.', 6),
 
   // Topic 3: Kontoauszug & Matching
   article('art-3-1', 'topic-3', 'Kontoauszug importieren (CSV)', 'kontoauszug-csv-import', 'Kontoauszug als CSV hochladen und normalisieren lassen.', 1),
-  article('art-3-2', 'topic-3', 'Automatischer Import via BanksAPI (Bankanbindung)', 'banksapi-bankanbindung', 'Verbinde dein Bankkonto via PSD2-API fuer taegliche automatische Importe.', 2),
+  article('art-3-2', 'topic-3', 'Automatischer Import via BanksAPI (Bankanbindung)', 'banksapi-bankanbindung', 'Verbinde dein Bankkonto via PSD2-API für tägliche automatische Importe.', 2),
   article('art-3-3', 'topic-3', 'Matching-Status verstehen (Ampel-System)', 'matching-ampel-system', 'Gruen, Gelb, Rot: Was die Matching-Ampel aussagt.', 3),
   article('art-3-4', 'topic-3', 'Belege manuell zuordnen', 'belege-manuell-zuordnen', 'So ordnest du Belege manuell zu, wenn das Matching unsicher ist.', 4),
   article('art-3-5', 'topic-3', 'Kassabuch verwenden', 'kassabuch-verwenden', 'Barzahlungen im Kassabuch erfassen und mit Belegen verknuepfen.', 5),
 
   // Topic 4: Monatsabschluss & Export
-  article('art-4-1', 'topic-4', 'Monatsabschluss durchfuehren', 'monatsabschluss-durchfuehren', 'Der komplette Workflow zum Monatsabschluss in unter 30 Minuten.', 1),
-  article('art-4-2', 'topic-4', 'DATEV-Export fuer den Steuerberater', 'datev-export', 'So exportierst du deine Daten im DATEV-kompatiblen Format.', 2),
+  article('art-4-1', 'topic-4', 'Monatsabschluss durchführen', 'monatsabschluss-durchfuehren', 'Der komplette Workflow zum Monatsabschluss in unter 30 Minuten.', 1),
+  article('art-4-2', 'topic-4', 'DATEV-Export für den Steuerberater', 'datev-export', 'So exportierst du deine Daten im DATEV-kompatiblen Format.', 2),
   article('art-4-3', 'topic-4', 'Zahlungsquellen verwalten', 'zahlungsquellen-verwalten', 'Mehrere Zahlungsquellen wie Kreditkarte oder PayPal anlegen und nutzen.', 3),
+  article('art-4-4', 'topic-4', 'EAR-Buchungstyp & Buchungsnummern', 'ear-buchungstyp-buchungsnummern', 'Einnahmen-Ausgaben-Rechnung konfigurieren und automatische Buchungsnummern verstehen.', 4),
 
   // Topic 5: Einstellungen & Benutzerverwaltung
   article('art-5-1', 'topic-5', 'Benutzerverwaltung und Rollen (Admin / Buchhalter)', 'benutzer-rollen', 'Weitere Benutzer einladen und Rollen zuweisen.', 1),
-  article('art-5-2', 'topic-5', 'Passwort aendern', 'passwort-aendern', 'So aenderst du dein Passwort sicher.', 2),
+  article('art-5-2', 'topic-5', 'Passwort ändern', 'passwort-aendern', 'So änderst du dein Passwort sicher.', 2),
   article('art-5-3', 'topic-5', 'Abonnement & Rechnungen', 'abonnement-rechnungen', 'Dein Abo verwalten und Rechnungen herunterladen.', 3),
+  article('art-5-4', 'topic-5', 'Freunde werben & Gratismonat verdienen', 'weiterempfehlung-referral', 'Empfehle den Belegmanager und erhalte pro erfolgreichem Abonnenten einen Gratismonat.', 4),
 
   // Topic 6: Portalanbindungen
   article('art-6-1', 'topic-6', 'Amazon Business anbinden', 'amazon-business-anbinden', 'Verbinde dein Amazon-Business-Konto fuer automatischen Rechnungsabruf.', 1),

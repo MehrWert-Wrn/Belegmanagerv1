@@ -741,7 +741,7 @@ export function BelegUploadDialog({
       if (!response.ok) {
         const err = await response.json()
         await supabase.storage.from('belege').remove([storagePath])
-        toast.error(`Fehler beim Speichern: ${err.error || 'Unbekannter Fehler'}`)
+        toast.error(`Fehler beim Speichern: ${typeof err.error === 'string' ? err.error : 'Unbekannter Fehler'}`)
         setUploading(false)
         return
       }

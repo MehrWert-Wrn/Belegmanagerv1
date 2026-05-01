@@ -37,6 +37,7 @@ export default function ZahlungsquellenPage() {
 
   const aktiveQuellen = quellen.filter((q) => q.aktiv).length
   const MAX_AKTIVE = 10
+  const existingTypen = quellen.map((q) => q.typ)
 
   function handleEdit(quelle: ZahlungsquelleWithMeta) {
     setEditQuelle(quelle)
@@ -162,6 +163,7 @@ export default function ZahlungsquellenPage() {
         }}
         quelle={editQuelle}
         onSaved={handleSaved}
+        existingTypen={editQuelle ? [] : existingTypen}
       />
     </div>
   )

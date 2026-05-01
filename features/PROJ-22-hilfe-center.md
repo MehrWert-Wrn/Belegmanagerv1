@@ -2,7 +2,7 @@
 
 ## Status: Deployed
 **Created:** 2026-04-14
-**Last Updated:** 2026-04-15
+**Last Updated:** 2026-05-01
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) – Zugang für eingeloggte User
@@ -613,3 +613,25 @@ Nach Fix von Bug-014 sollten die folgenden Punkte aus Runde 1 live nachgezogen w
 - Live-QA: Cross-Browser, Responsive, Video-Upload-Stresstest
 - Bug-008: `HelpLink`-Button auf App-Seiten (für Direktlinks in Artikel)
 - Rate-Limiting: Upstash Redis für produktionsreifes Multi-Instance-Limit
+
+## Content-Update (2026-05-01)
+
+Migration `20260501000000_help_content_update.sql` eingespielt. Artikel-Bestand auf 38 Artikel (war 31) erweitert.
+
+### Geänderte Artikel
+- **BanksAPI-Fix:** `finapi-bankanbindung` → `banksapi-bankanbindung` (Titel, Slug, Inhalt – FinAPI wurde in PROJ-20 durch BanksAPI ersetzt)
+- **Onboarding-Checkliste:** BanksAPI-Referenz + Buchführungstyp-Schritt ergänzt
+- **Microsoft-365-Artikel:** AES-256-Sicherheitshinweis + Hard-Delete-Hinweis (PROJ-24)
+- **IMAP-Artikel:** AES-256-Sicherheitshinweis + Hard-Delete-Hinweis (PROJ-24)
+
+### Neue Artikel
+| Slug | Thema | Feature |
+|---|---|---|
+| `ki-assistent-chatbot` | Erste Schritte | PROJ-23 |
+| `belege-email-zentrales-postfach` | Belegverwaltung | PROJ-30 |
+| `eigenbeleg-erstellen` | Belegverwaltung | PROJ-17 |
+| `ear-buchungstyp-buchungsnummern` | Monatsabschluss & Export | PROJ-25 |
+| `weiterempfehlung-referral` | Einstellungen & Benutzerverwaltung | PROJ-31 |
+
+### KI-Chatbot-Anbindung (PROJ-23)
+Der KI-Chatbot (PROJ-23) greift via PostgreSQL FTS direkt auf `help_articles` zu. Alle neuen und aktualisierten Artikel sind sofort für den Chatbot verfügbar – kein manueller Sync-Schritt nötig.

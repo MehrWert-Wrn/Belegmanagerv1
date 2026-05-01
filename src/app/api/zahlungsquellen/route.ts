@@ -86,6 +86,22 @@ export async function POST(request: Request) {
     )
   }
 
+  // Only one Kassabuch allowed per Mandant
+  if (parsed.data.typ === 'kassa') {
+    const { count: kassaCount } = await supabase
+      .from('zahlungsquellen')
+      .select('id', { count: 'exact', head: true })
+      .eq('mandant_id', mandantId)
+      .eq('typ', 'kassa')
+
+    if ((kassaCount ?? 0) >= 1) {
+      return NextResponse.json(
+        { error: 'Es kann nur ein Kassabuch pro Mandant geben.' },
+        { status: 400 }
+      )
+    }
+  }
+
   // Server-side limit: max 10 active sources
   const { count } = await supabase
     .from('zahlungsquellen')

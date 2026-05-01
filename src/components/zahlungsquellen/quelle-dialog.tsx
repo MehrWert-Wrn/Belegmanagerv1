@@ -71,6 +71,7 @@ interface QuelleDialogProps {
   onOpenChange: (open: boolean) => void
   quelle: ZahlungsquelleWithMeta | null
   onSaved: () => void
+  existingTypen?: string[]
 }
 
 export function QuelleDialog({
@@ -78,6 +79,7 @@ export function QuelleDialog({
   onOpenChange,
   quelle,
   onSaved,
+  existingTypen = [],
 }: QuelleDialogProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -234,11 +236,14 @@ export function QuelleDialog({
                 <SelectValue placeholder="Typ wählen..." />
               </SelectTrigger>
               <SelectContent>
-                {TYP_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
+                {TYP_OPTIONS.map((opt) => {
+                  const alreadyExists = existingTypen.includes(opt.value)
+                  return (
+                    <SelectItem key={opt.value} value={opt.value} disabled={alreadyExists}>
+                      {opt.label}{alreadyExists ? ' (bereits vorhanden)' : ''}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
           </div>
