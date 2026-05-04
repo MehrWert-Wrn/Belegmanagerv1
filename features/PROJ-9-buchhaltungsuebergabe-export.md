@@ -1,8 +1,10 @@
 # PROJ-9: Buchhaltungsübergabe-Export
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-03-13
 **Last Updated:** 2026-05-04
+**Deployed:** 2026-05-04
+**Production URL:** https://app.belegmanager.at
 **Replaces:** DATEV-Export (entfernt, da nicht relevant für österreichischen Markt)
 
 ## Dependencies
