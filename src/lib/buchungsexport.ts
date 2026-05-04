@@ -8,7 +8,7 @@
  *   - Trennzeichen:   Semikolon (;)
  *   - Dezimalzeichen: Komma (,)
  *   - Datumsformat:   YYYYMMDD (z.B. 20260430)
- *   - Zeichensatz:    UTF-8 OHNE BOM
+ *   - Zeichensatz:    UTF-8 MIT BOM (U+FEFF) – für Excel/BMD/RZL-Kompatibilität
  *   - Zeilentrennung: \r\n
  *
  * Spalten (feste Reihenfolge):
@@ -197,7 +197,7 @@ function buildRowsForTx(
     ?? ''
   const dokument = clean(
     rawFilename ? `${belegnrBase}_${rawFilename}` : '',
-    120
+    255
   )
   const text = deriveText(tx)
 
@@ -273,7 +273,7 @@ function buildRowsForTx(
 
 /**
  * Erzeugt den CSV-Inhalt der Buchhaltungsübergabe für den angegebenen Monat.
- * Rückgabe: UTF-8 CSV-String OHNE BOM.
+ * Rückgabe: UTF-8 CSV-String MIT BOM (U+FEFF) für Excel/BMD/RZL-Kompatibilität.
  */
 export function generateBuchungsCSV(
   transaktionen: BuchungsexportTransaktion[],
@@ -292,7 +292,7 @@ export function generateBuchungsCSV(
     txRows.forEach(r => rows.push(rowToCsv(r)))
   })
 
-  return [header, ...rows].join('\r\n')
+  return '\uFEFF' + [header, ...rows].join('\r\n')
 }
 
 /**
@@ -365,17 +365,17 @@ export function generateLiesmich(params: {
     `-------------`,
     `Belege (PDFs) im Ordner /belege/ sind nach folgendem Schema benannt:`,
     ``,
-    `  {Kürzel}_{lfd-Nr}_{MM}_{JJJJ}_{Originaldateiname}`,
+    `  {belegnr}_{Originaldateiname}`,
     ``,
-    `  Kürzel   = Kürzel der Zahlungsquelle (z. B. B1 = Bankkonto 1, K1 = Kasse 1)`,
-    `  lfd-Nr   = Laufende Nummer je Zahlungsquelle und Monat (4-stellig, z. B. 0001)`,
-    `  MM/JJJJ  = Monat und Jahr des Monatsabschlusses`,
+    `  belegnr           = Buchungsnummer aus der CSV-Spalte "belegnr"`,
+    `                      (z. B. B1_0007_04_2026 fuer Bankbelege,`,
+    `                       K2_0003_04_2026 fuer Kassenbelege)`,
+    `  Originaldateiname = Dateiname beim Upload`,
     ``,
-    `  Beispiel: B1_0001_02_2026_Rechnung-Mustermann.pdf`,
-    `            └ Bankkonto B1, lfd. Nr. 1, Februar 2026`,
+    `  Beispiel: B1_0007_04_2026_Rechnung-Lieferant.pdf`,
     ``,
-    `  Dieselbe Buchungsnummer erscheint als "belegnr" in der CSV – so ist`,
-    `  jede CSV-Zeile eindeutig einem Beleg im /belege/-Ordner zugeordnet.`,
+    `  Jede CSV-Zeile mit Beleg hat denselben "belegnr"-Wert wie der`,
+    `  Dateiname im /belege/-Ordner – so ist die Zuordnung eindeutig.`,
     ``,
     `CSV-ZEILEN`,
     `----------`,
@@ -423,4 +423,228 @@ export function csvDateiname(jahr: number, monat: number, firmenname: string): s
 export function zipDateiname(jahr: number, monat: number, firmenname: string): string {
   const mm = String(monat).padStart(2, '0')
   return `buchungsuebergabe_${jahr}_${mm}_${firmaSlug(firmenname)}.zip`
+}
+
+// ===========================================================================
+// Belegliste-Export (PROJ-9 Erweiterung)
+// ---------------------------------------------------------------------------
+// Eine belegbasierte CSV (vs. transaktionsbasierte Buchhaltungsuebergabe).
+// Eine Zeile pro Beleg im Monat – fuer Mandanten, die nicht mit
+// Transaktions-Matching arbeiten.
+// ===========================================================================
+
+export type BelegslisteBeleg = {
+  rechnungsdatum?: string | null     // ISO 'YYYY-MM-DD'
+  erstellt_am?: string | null        // ISO Zeitstempel (Fallback fuer Datum)
+  lieferant?: string | null          // Name des Lieferanten
+  rechnungsnummer?: string | null    // Externe RN des Lieferanten
+  beschreibung?: string | null       // Beleg-Beschreibung
+  nettobetrag?: number | null
+  mwst_satz?: number | null
+  bruttobetrag?: number | null
+  steuerzeilen?: Steuerzeile[] | null
+  rechnungstyp?: string | null
+  zahlungsquelle_name?: string | null // Name der Zahlungsquelle (aus JOIN)
+  original_filename?: string | null
+}
+
+const BELEGLISTE_COLUMNS = [
+  'datum',
+  'lieferant',
+  'rechnungsnummer',
+  'beschreibung',
+  'nettobetrag',
+  'mwst_satz',
+  'steuerbetrag',
+  'bruttobetrag',
+  'rechnungstyp',
+  'zahlungsquelle',
+  'dokument',
+] as const
+
+type BelegslisteRow = Record<typeof BELEGLISTE_COLUMNS[number], string>
+
+function rowToCsvBelegliste(r: BelegslisteRow): string {
+  return BELEGLISTE_COLUMNS.map(c => field(r[c] ?? '')).join(';')
+}
+
+// Datum: ISO -> YYYYMMDD; Fallback erstellt_am wenn rechnungsdatum fehlt
+function belegDatumYYYYMMDD(b: BelegslisteBeleg): string {
+  const iso = b.rechnungsdatum ?? (b.erstellt_am ? b.erstellt_am.slice(0, 10) : null)
+  if (!iso) return ''
+  return formatDatum(iso)
+}
+
+// Bruttobetrag-Fallback: aus Beleg, sonst netto + steuer berechnen
+function bruttoOrFallback(b: BelegslisteBeleg, netto: number | null, steuer: number): string {
+  if (b.bruttobetrag != null) return formatBetrag(Number(b.bruttobetrag))
+  if (netto != null) return formatBetrag(netto + steuer)
+  return ''
+}
+
+function buildBelegslisteRows(b: BelegslisteBeleg): BelegslisteRow[] {
+  const datum = belegDatumYYYYMMDD(b)
+  const lieferant = clean(b.lieferant ?? '', 80)
+  const beschreibung = clean(b.beschreibung ?? '', 80)
+  const rechnungstyp = clean(b.rechnungstyp ?? '', 32)
+  const zahlungsquelle = clean(b.zahlungsquelle_name ?? '', 64)
+  const dokument = clean(b.original_filename ?? '', 255)
+
+  const steuerzeilen = Array.isArray(b.steuerzeilen) ? b.steuerzeilen : []
+
+  // Multi-MwSt: eine Zeile pro Steuerzeile (rechnungsnummer mit Suffix)
+  if (steuerzeilen.length >= 2) {
+    const baseNr = clean(b.rechnungsnummer ?? '', 36)
+    return steuerzeilen.map((sz, idx) => {
+      const netto = Number(sz.nettobetrag)
+      const mwst = Number(sz.mwst_satz)
+      const steuer = (Math.abs(netto) * mwst) / 100
+      const brutto =
+        sz.bruttobetrag != null
+          ? Number(sz.bruttobetrag)
+          : netto + steuer
+      return {
+        datum,
+        lieferant,
+        rechnungsnummer: baseNr ? `${baseNr}_${idx + 1}` : `_${idx + 1}`,
+        beschreibung,
+        nettobetrag: formatBetrag(netto),
+        mwst_satz: String(mwst),
+        steuerbetrag: formatBetrag(steuer),
+        bruttobetrag: formatBetrag(brutto),
+        rechnungstyp,
+        zahlungsquelle,
+        dokument,
+      }
+    })
+  }
+
+  // Single-MwSt: eine Zeile aus Toplevel-Beleg-Feldern
+  const nettoNum = b.nettobetrag != null ? Number(b.nettobetrag) : null
+  const mwstNum = b.mwst_satz != null ? Number(b.mwst_satz) : 0
+  const steuer = nettoNum != null ? (Math.abs(nettoNum) * mwstNum) / 100 : 0
+
+  return [{
+    datum,
+    lieferant,
+    rechnungsnummer: clean(b.rechnungsnummer ?? '', 36),
+    beschreibung,
+    nettobetrag: nettoNum != null ? formatBetrag(nettoNum) : '',
+    mwst_satz: b.mwst_satz != null ? String(mwstNum) : '',
+    steuerbetrag: nettoNum != null ? formatBetrag(steuer) : '0,00',
+    bruttobetrag: bruttoOrFallback(b, nettoNum, steuer),
+    rechnungstyp,
+    zahlungsquelle,
+    dokument,
+  }]
+}
+
+/**
+ * Erzeugt den CSV-Inhalt der Belegliste fuer den angegebenen Monat.
+ * Format: UTF-8 mit BOM (analog zu generateBuchungsCSV) – BMD/RZL/Excel-kompatibel.
+ * Eine Zeile pro Beleg; bei Multi-MwSt: eine Zeile pro Steuerzeile mit
+ * Rechnungsnummer-Suffix _1, _2 ...
+ */
+export function generateBelegslisteCSV(belege: BelegslisteBeleg[]): string {
+  const header = BELEGLISTE_COLUMNS.join(';')
+  const rows: string[] = []
+  for (const b of belege) {
+    const built = buildBelegslisteRows(b)
+    for (const r of built) rows.push(rowToCsvBelegliste(r))
+  }
+  return '\uFEFF' + [header, ...rows].join('\r\n')
+}
+
+/**
+ * Zaehlt CSV-Zeilen, die der Belegliste-Export erzeugen wuerde
+ * (ohne Header). Beruecksichtigt Multi-MwSt-Expansion.
+ */
+export function countBelegslisteZeilen(belege: BelegslisteBeleg[]): number {
+  let count = 0
+  for (const b of belege) {
+    const sz = Array.isArray(b.steuerzeilen) ? b.steuerzeilen : []
+    count += sz.length >= 2 ? sz.length : 1
+  }
+  return count
+}
+
+/**
+ * Erzeugt den Inhalt der LIESMICH_BELEGLISTE.txt fuer das ZIP-Paket
+ * der Belegliste.
+ */
+export function generateLiesmichBelegliste(params: {
+  firmenname: string
+  jahr: number
+  monat: number
+  exportiertAmIso: string
+  exportiertVon: string
+  anzahlBelege: number
+  anzahlZeilenGesamt: number
+  anzahlBelegePdfs: number
+  csvDateiname: string
+}): string {
+  const mm = String(params.monat).padStart(2, '0')
+  const datumFormatted = new Date(params.exportiertAmIso).toLocaleDateString('de-AT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+
+  return [
+    `\uFEFFBELEGLISTE – ${params.firmenname}`,
+    `Monat: ${mm}/${params.jahr}`,
+    `Exportiert am: ${datumFormatted} von ${params.exportiertVon}`,
+    `System: Belegmanager`,
+    ``,
+    `INHALT DIESES PAKETS`,
+    `--------------------`,
+    `CSV-Datei:  ${params.csvDateiname}`,
+    `Belege:     ${params.anzahlBelegePdfs} PDF-Dateien im Ordner /belege/`,
+    ``,
+    `CSV-FORMAT`,
+    `----------`,
+    `Trennzeichen:     Semikolon (;)`,
+    `Dezimalzeichen:   Komma (,)`,
+    `Datumsformat:     JJJJMMTT (z.B. 20260430)`,
+    `Beträge:          Nettobetrag, Steuerbetrag, Bruttobetrag separat ausgewiesen`,
+    ``,
+    `SPALTEN`,
+    `-------`,
+    `datum            Rechnungsdatum (Fallback: Erstellungsdatum des Belegs)`,
+    `lieferant        Name des Lieferanten / Rechnungsausstellers`,
+    `rechnungsnummer  Externe Rechnungsnummer (mit Suffix _1, _2 bei Multi-MwSt)`,
+    `beschreibung     Beleg-Beschreibung (max. 80 Zeichen)`,
+    `nettobetrag      Nettobetrag des Belegs`,
+    `mwst_satz        MwSt-Satz in Prozent (z.B. 20)`,
+    `steuerbetrag     Berechneter Steuerbetrag`,
+    `bruttobetrag     Bruttobetrag (oder netto + steuer als Fallback)`,
+    `rechnungstyp     eingangsrechnung / ausgangsrechnung / gutschrift / ...`,
+    `zahlungsquelle   Name der Zahlungsquelle (leer bei direkt hochgeladenen Belegen)`,
+    `dokument         Dateiname des Belegs im Ordner /belege/`,
+    ``,
+    `MEHRERE MWST-SAETZE PRO BELEG`,
+    `-----------------------------`,
+    `Hat ein Beleg mehrere MwSt-Saetze, wird pro Steuerzeile eine eigene CSV-Zeile`,
+    `erzeugt. Die rechnungsnummer erhaelt dabei den Suffix _1, _2 usw.`,
+    ``,
+    `Anzahl Belege im Monat:   ${params.anzahlBelege}`,
+    `Anzahl Zeilen in CSV:     ${params.anzahlZeilenGesamt}`,
+    ``,
+  ].join('\r\n')
+}
+
+/**
+ * Erzeugt den Dateinamen fuer die Belegliste-CSV.
+ */
+export function belegslisteDateiname(jahr: number, monat: number, firmenname: string): string {
+  const mm = String(monat).padStart(2, '0')
+  return `belegliste_${jahr}_${mm}_${firmaSlug(firmenname)}.csv`
+}
+
+/**
+ * Erzeugt den Dateinamen fuer das Belegliste-ZIP-Paket.
+ */
+export function belegslisteZipDateiname(jahr: number, monat: number, firmenname: string): string {
+  const mm = String(monat).padStart(2, '0')
+  return `belegliste_${jahr}_${mm}_${firmaSlug(firmenname)}.zip`
 }

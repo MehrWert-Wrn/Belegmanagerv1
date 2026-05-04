@@ -2,7 +2,7 @@
 
 ## Status: In Review
 **Created:** 2026-03-13
-**Last Updated:** 2026-04-21
+**Last Updated:** 2026-05-04
 **Replaces:** DATEV-Export (entfernt, da nicht relevant für österreichischen Markt)
 
 ## Dependencies
@@ -50,7 +50,7 @@ Der Monatsabschluss erzeugt ein ZIP-Paket zur Übergabe an die Buchhaltung/Steue
 - [ ] Trennzeichen: Semikolon (`;`)
 - [ ] Dezimaltrennzeichen: Komma (`,`) — z.B. `1000,00`
 - [ ] Datumsformat: `YYYYMMDD` (8-stellig, kein Trennzeichen) — z.B. `20250430`
-- [ ] Zeichensatz: UTF-8 (ohne BOM — kein DATEV-Artefakt)
+- [ ] Zeichensatz: UTF-8 mit BOM (U+FEFF) — für Excel/BMD/RZL-Kompatibilität
 - [ ] Erste Zeile: Spaltenüberschriften
 - [ ] Keine Leerzeilen zwischen Datensätzen
 - [ ] Kein Semikolon im Freitext-Feld `text` (wird bereinigt)
@@ -80,7 +80,7 @@ belegnr;belegdat;buchdat;betrag;bucod;mwst;steuer;symbol;extbelegnr;text;dokumen
 - `rechnungstyp = eingangsrechnung` → `ER`
 - `rechnungstyp = ausgangsrechnung` → `AR`
 - `rechnungstyp = gutschrift` → `ER` (mit positivem betrag, da Erlösminderung)
-- Zahlungsquelle ist Kassabuch (DB-Typ = `kassa`) → `KA`
+- Zahlungsquelle ist Kassabuch (DB-Typ = `kassa`, nicht `kassabuch`) → `KA`
 - Zahlungsquelle ist Bankkonto + kein Beleg (ungematchte TX) → `BK`
 
 ### Mehrwertsteuersätze auf einer Rechnung (steuerzeilen)
@@ -164,6 +164,103 @@ Davon ohne Beleg (offen): {ohne_beleg}
 
 ---
 
+## Erweiterung: Belegliste-Export (Option A)
+
+Mandanten, die nicht mit Transaktions-Matching arbeiten, benötigen am Monatsende eine beleg-zentrierte Liste für die Steuerberatung. Der Export-Dialog bietet dafür einen zweiten Export-Typ an.
+
+### User Stories
+
+- Als Mandant ohne Transaktions-Matching möchte ich am Monatsende eine Belegliste als CSV herunterladen können, damit mein Steuerberater alle Belege des Monats strukturiert erhält.
+- Als Mandant möchte ich zwischen "Buchhaltungsübergabe" (transaktionsbasiert) und "Belegliste" (belegbasiert) wählen können, damit ich den für mich passenden Export-Typ verwenden kann.
+- Als Steuerberater möchte ich in der Belegliste Datum, Lieferant, Rechnungsnummer, Netto, MwSt und Brutto pro Beleg sehen, damit ich die Liste direkt in mein Buchhaltungssystem übernehmen kann.
+
+### Acceptance Criteria
+
+#### UI – Export-Dialog
+- [ ] RadioGroup zeigt zwei Optionen: "Buchhaltungsübergabe" (bestehend) und "Belegliste"
+- [ ] Bei Auswahl "Belegliste": Vorschau zeigt Anzahl Belege im Monat (nicht Transaktionen)
+- [ ] Beide Export-Typen sind für alle Mandanten sichtbar und wählbar
+- [ ] Export-Button und Verlauf funktionieren für beide Typen
+
+#### Monats-Filter
+- [ ] Belegliste enthält alle Belege, deren `rechnungsdatum` im gewählten Monat liegt
+- [ ] Fallback: Hat ein Beleg kein `rechnungsdatum`, wird `created_at` herangezogen
+- [ ] Belege ohne Transaktionsbezug (direkt hochgeladen) werden eingeschlossen
+
+#### CSV-Format Belegliste
+- [ ] Trennzeichen: Semikolon (`;`), Dezimaltrennzeichen: Komma (`,`), UTF-8 mit BOM
+- [ ] Datumsformat: `YYYYMMDD`
+- [ ] Erste Zeile: Spaltenüberschriften
+
+**Spalten (Reihenfolge fix):**
+```
+datum;lieferant;rechnungsnummer;beschreibung;nettobetrag;mwst_satz;steuerbetrag;bruttobetrag;rechnungstyp;zahlungsquelle;dokument
+```
+
+| Feld | Quelle | Hinweis |
+|---|---|---|
+| `datum` | `belege.rechnungsdatum` | Fallback: `belege.created_at` (YYYYMMDD) |
+| `lieferant` | `belege.lieferant_name` | Leer wenn nicht erfasst |
+| `rechnungsnummer` | `belege.rechnungsnummer` | Externe RN des Lieferanten |
+| `beschreibung` | `belege.beschreibung` | Max 80 Zeichen, kein Semikolon |
+| `nettobetrag` | `belege.nettobetrag` | Komma-Dezimal |
+| `mwst_satz` | `belege.mwst_satz` | Zahl (z.B. `20`) |
+| `steuerbetrag` | Berechnet: `netto × mwst / 100` | Komma-Dezimal |
+| `bruttobetrag` | `belege.bruttobetrag` | Fallback: `netto + steuer` |
+| `rechnungstyp` | `belege.rechnungstyp` | `eingangsrechnung` / `ausgangsrechnung` / etc. |
+| `zahlungsquelle` | `zahlungsquellen.name` | Name der Quelle, leer wenn kein Bezug |
+| `dokument` | `belege.original_filename` | Dateiname ohne Pfad |
+
+#### Multi-MwSt
+- [ ] Hat ein Beleg `steuerzeilen` mit ≥2 Einträgen: eine Zeile pro Steuerzeile, `rechnungsnummer` erhält Suffix `_1`, `_2`
+
+#### ZIP-Paket Belegliste
+- [ ] ZIP-Inhalt: `belegliste_{YYYY}_{MM}_{Firma}.csv` + `belege/` (PDFs) + `LIESMICH_BELEGLISTE.txt`
+- [ ] Dateiname des ZIP: `belegliste_{YYYY}_{MM}_{Firmenname}.zip`
+- [ ] `LIESMICH_BELEGLISTE.txt` erklärt den Inhalt (analog zu LIESMICH.txt der Buchungsübergabe)
+- [ ] Export-Protokoll: `export_typ = 'belegliste'` (neuer Wert neben `'csv'` und `'zip'`)
+
+#### Edge Cases
+- [ ] Monat ohne Belege: CSV nur mit Kopfzeile, Vorschau-Warnung, Export-Button aktiv
+- [ ] Beleg ohne `nettobetrag`: Zeile wird exportiert, `nettobetrag` leer, `steuerbetrag` = `0,00`
+- [ ] Beleg-PDF fehlt in Storage: CSV-Zeile vollständig, PDF übersprungen, `FEHLENDE_BELEGE.txt` ins ZIP
+
+### Tech Design
+
+**Neue API-Endpoints:**
+```
+POST /api/export/[jahr]/[monat]/belegliste/csv   ← CSV-only Download
+POST /api/export/[jahr]/[monat]/belegliste/zip   ← ZIP mit CSVs + Belege-PDFs
+```
+
+**DB-Query (Belegliste):**
+```sql
+SELECT b.*, zq.name AS zahlungsquelle_name
+FROM belege b
+LEFT JOIN transaktionen t ON t.beleg_id = b.id
+LEFT JOIN zahlungsquellen zq ON zq.id = t.zahlungsquelle_id
+WHERE b.mandant_id = $mandant_id
+  AND (
+    DATE_TRUNC('month', b.rechnungsdatum) = DATE_TRUNC('month', $datum)
+    OR (b.rechnungsdatum IS NULL AND DATE_TRUNC('month', b.created_at) = DATE_TRUNC('month', $datum))
+  )
+ORDER BY COALESCE(b.rechnungsdatum, b.created_at::date) ASC
+```
+
+**Neue Funktion in `src/lib/buchungsexport.ts`:**
+```typescript
+export function generateBelegslisteCSV(
+  belege: BelegslisteBeleg[],
+  jahr: number,
+  monat: number
+): string
+```
+
+**Preview-Endpoint-Erweiterung:**
+- `/api/export/[jahr]/[monat]/preview` gibt zusätzlich `anzahl_belege` zurück (für Belegliste-Vorschau)
+
+---
+
 ## Nicht im Scope
 
 - Automatischer E-Mail-Versand des ZIP an Steuerberater
@@ -171,6 +268,7 @@ Davon ohne Beleg (offen): {ohne_beleg}
 - Kontenplan-Zuordnung (konto/gegenkonto) — liegt bei PROJ-27/28
 - Steuercode (`steucod`) — wird bewusst leer gelassen; Buchhaltung trägt nach
 - Splitbuchungen (eine Transaktion → mehrere Kostenstellen) — liegt bei PROJ-28 (Vorkontierung)
+- Mandanten-Einstellung "Arbeitsweise" (matching vs. belegliste) — bewusst nicht implementiert, beide Typen sind immer verfügbar
 
 ---
 
@@ -325,9 +423,373 @@ Alle Code-Referenzen (`datev_export_vorhanden`) werden entsprechend aktualisiert
 Keine neuen Packages nötig — `jszip` ist bereits installiert.
 
 ## Implementation Notes
-_Wird durch /frontend und /backend ergänzt_
+
+### Frontend (2026-05-04 – /frontend)
+
+**Erweiterung Belegliste-Export – UI**
+
+Die `ExportDialog`-Komponente (`src/components/monatsabschluss/export-dialog.tsx`) wurde um den zweiten Export-Typ "Belegliste" erweitert. Das vorhandene Buchhaltungsübergabe-UI bleibt erhalten – die neue RadioGroup steuert lediglich den Modus.
+
+**Geänderte/Neue Datei:**
+- `src/components/monatsabschluss/export-dialog.tsx`
+
+**UI-Architektur (zwei separate RadioGroups):**
+
+1. **Export-Typ** (`exportModus`): `buchungsuebergabe` | `belegliste`
+   - Kachel "Buchhaltungsübergabe" (Icon `ListChecks`) – transaktionsbasiert (bestehend)
+   - Kachel "Belegliste" (Icon `Receipt`) – belegbasiert (neu)
+   - Default: `buchungsuebergabe` (Reset bei jedem Dialog-Open)
+
+2. **Format** (`exportFormat`): `csv` | `zip`
+   - Beide Formate für beide Modi verfügbar
+   - Beschreibung der Kacheln passt sich modus-abhängig an (`formatLabel`)
+
+**Dynamische Vorschau-Kachel (modus-abhängig):**
+- Bei `belegliste`: zeigt nur den Hauptzähler **Belege im Monat** (`anzahl_belege`)
+- Bei `buchungsuebergabe`: zeigt 3-spaltiges Layout (CSV-Zeilen / mit Beleg / ohne Beleg) wie bisher
+- Multi-MwSt-Hinweis bleibt nur im Buchungsuebergabe-Modus sichtbar
+
+**Warnungs-Banner:**
+- Belegliste + 0 Belege → "Keine Belege im Monat vorhanden" (mit Hinweis dass Export trotzdem möglich)
+- Buchungsuebergabe + 0 TX → "Keine Transaktionen vorhanden"
+- Buchungsuebergabe + offene TX → Hinweis auf leeres Belegfeld
+
+**API-Routing:**
+- `belegliste` + `csv` → `POST /api/export/{jahr}/{monat}/belegliste/csv`
+- `belegliste` + `zip` → `POST /api/export/{jahr}/{monat}/belegliste/zip`
+- `buchungsuebergabe` + `csv` → `POST /api/export/{jahr}/{monat}/csv` (unverändert)
+- `buchungsuebergabe` + `zip` → `POST /api/export/{jahr}/{monat}/zip` (unverändert)
+
+**Toast-Meldungen** sind nun modus-spezifisch ("Belegliste …" vs. "Buchhaltungsübergabe …").
+
+**Fallback-Dateiname** beim Download nutzt `belegliste_…` oder `buchungsuebergabe_…` Präfix, falls die `Content-Disposition`-Header nicht parseable ist.
+
+**Bonus-Fixes:**
+- DialogContent erhält `max-h-[90vh] overflow-y-auto` – auf Mobile passte der Dialog mit drei Sektionen + History sonst nicht mehr ins Viewport.
+- DialogTitle wurde generischer ("Export für Mai 2026") da der Dialog jetzt zwei Export-Typen anbietet.
+
+**Beobachtung zum vorherigen QA-Befund:**
+- BUG-PROJ9-012 (Export-Button bei 0 TX deaktiviert) ist im aktuellen Code bereits behoben – der Button ist nur noch bei `exporting || vorschauLoading` deaktiviert, nicht mehr bei `!hatTransaktionen`.
+
+**Backend ToDo (offen):**
+- Implementierung der zwei neuen Endpoints `belegliste/csv` und `belegliste/zip`
+- Erweiterung des Preview-Endpoints um `anzahl_belege`-Feld (Frontend liest bereits `vorschau.anzahl_belege`, fällt aktuell auf `0` zurück)
+- Neue Funktion `generateBelegslisteCSV()` in `src/lib/buchungsexport.ts`
+- Neuer Wert `belegliste` in `export_protokolle.export_typ`
+- Neue LIESMICH-Variante `LIESMICH_BELEGLISTE.txt`
+
+### Backend (2026-05-04 – /backend)
+
+**Erweiterung Belegliste-Export – Backend abgeschlossen.**
+
+Alle vom Frontend (siehe oben) erwarteten Endpoints und Lib-Erweiterungen sind
+implementiert. `npm run build` ist grün.
+
+**Geänderte/Neue Dateien:**
+- `supabase/migrations/20260504000000_export_typ_belegliste.sql` *(neu)* – fügt
+  `'belegliste'` zum `export_typ` ENUM hinzu (zusätzlich zu `'csv'` und `'zip'`).
+- `src/lib/buchungsexport.ts` *(erweitert)* – neue Exporte:
+  `BelegslisteBeleg`, `generateBelegslisteCSV()`, `countBelegslisteZeilen()`,
+  `generateLiesmichBelegliste()`, `belegslisteDateiname()`,
+  `belegslisteZipDateiname()`. Wiederverwendet die bestehenden Helfer
+  (`formatDatum`, `formatBetrag`, `clean`, `field`, `firmaSlug`).
+- `src/app/api/export/[jahr]/[monat]/belegliste/csv/route.ts` *(neu)* –
+  CSV-only Download.
+- `src/app/api/export/[jahr]/[monat]/belegliste/zip/route.ts` *(neu)* –
+  ZIP mit Belegliste-CSV + `belege/` + `LIESMICH_BELEGLISTE.txt`.
+- `src/app/api/export/[jahr]/[monat]/preview/route.ts` *(erweitert)* – liefert
+  zusätzlich `anzahl_belege` (count(*)-Query mit gleicher Filterlogik wie die
+  Belegliste-Endpoints).
+
+**Schema-Beobachtung & Abweichung von der Spec:**
+- Spec nennt `belege.lieferant_name` und `belege.created_at`. In der DB heißen
+  die Spalten `belege.lieferant` und `belege.erstellt_am` (siehe
+  `20260313000000_initial_schema.sql`). Implementierung verwendet die
+  tatsächlichen Spaltennamen.
+
+**DB-Filter für Monatsfenster (Belegliste):**
+```
+.or(
+  `and(rechnungsdatum.gte.${monatStart},rechnungsdatum.lte.${monatEnde}),
+   and(rechnungsdatum.is.null,erstellt_am.gte.${monatStartTs},erstellt_am.lt.${monatEndePlus1})`
+)
+```
+Ein einziger Roundtrip; rechnungsdatum hat Vorrang, Fallback auf `erstellt_am`
+nur wenn `rechnungsdatum IS NULL`.
+
+**Sicherheit & Multi-Tenancy:**
+- Beide neuen Endpoints prüfen `supabase.auth.getUser()` (401 sonst).
+- `getMandantId()` deckt RLS + Admin-Impersonation ab.
+- Monat muss `abgeschlossen` sein (403 sonst).
+- Zod-Validation auf `jahr`/`monat` (400 bei Fehler).
+- Filename-Sanitization gegen Zip-Slip (CWE-22) wie bei der
+  Buchhaltungsuebergabe.
+- ZIP-Limit `50` Belege (HTTP 413), synchroner Generator analog zur
+  Buchhaltungsuebergabe.
+
+**Export-Protokoll:**
+- Neuer `export_typ`-Wert `'belegliste'` (Migration `20260504000000`).
+- Beide Endpoints schreiben `export_protokolle` und setzen
+  `monatsabschluesse.export_vorhanden = true`.
+- `anzahl_transaktionen` enthält bei `belegliste` die Anzahl Belege als
+  Schlüsselzahl (das Schema bietet kein `anzahl_belege`-Feld).
+
+**Vorschau-Endpoint:**
+- Liefert nun `anzahl_belege` (HEAD-Count auf `belege` mit gleicher
+  Filterlogik). Frontend liest dieses Feld bereits.
+
 
 ## QA Test Results
+
+### Round 2 (2026-05-04) – Belegliste-Erweiterung + Re-Audit Buchhaltungsuebergabe
+
+**Tested:** 2026-05-04
+**App URL:** http://localhost:3000
+**Tester:** QA Engineer (AI)
+**Method:** Static code review + build verification (no running app instance)
+**Scope:** Re-Audit nach Belegliste-Erweiterung (Option A) + Verifikation der Bugfixes aus Runde 1
+
+#### Build Status
+- [x] `npm run build` kompiliert erfolgreich, alle 5 Export-Routes (preview, csv, zip, belegliste/csv, belegliste/zip) sind als ƒ (Dynamic) im Manifest
+
+#### Status der Round 1-Bugs (Verifikation)
+
+| Bug | Vorher | Aktueller Code | Status |
+|---|---|---|---|
+| BUG-PROJ9-010 (kassa vs kassabuch) | Spec sagte `kassabuch`, Code prüft `kassa` | Spec wurde nicht angepasst, Code prüft weiter `kassa` (korrekter DB-Wert) | OFFEN (Doku) |
+| BUG-PROJ9-011 (FEHLENDE_BELEGE.txt = 4 Elemente) | Spec sagt "genau 3 Elemente", aber Edge-Case erlaubt 4. | Spec im AC nun "mindestens 3 Elemente" formuliert, EC-2 deckt 4. ab | BEHOBEN |
+| BUG-PROJ9-012 (Button bei 0 TX deaktiviert) | `disabled={!hatTransaktionen}` | Button ist nur noch `disabled={exporting || vorschauLoading}` (Zeile 543) | BEHOBEN |
+| BUG-PROJ9-013 (LIESMICH erwähnt fehlende Spalten) | "konto/gkto" Spalten standen drin | `generateLiesmich` schreibt jetzt `Sachkonto/Gegenkonto: Bitte nach Import im Buchhaltungssystem eintragen.` (Zeile 355 buchungsexport.ts) | BEHOBEN |
+| BUG-PROJ9-014 (nicht-atomarer Insert + Update) | `Promise.all` ohne Transaktion | Jetzt `Promise.allSettled` – Insert-Fehler blockiert Download nicht, aber atomar ist es nicht | OFFEN (Low) |
+| BUG-PROJ9-015 (Rate-Limit instance-local) | In-Memory Rate-Limit | Unverändert, Kommentar im Code dokumentiert das Problem | OFFEN (Medium) |
+| BUG-PROJ9-016 (dokument-Spalte UUID) | `storagePathToFilename(storage_path, original_filename)` | Code nutzt jetzt `original_filename ?? storagePathToFilename(...)` mit Präfix `{buchungsnummer}_{filename}` (Zeile 195-201 buchungsexport.ts), spiegelt ZIP-Filename | BEHOBEN |
+
+#### Acceptance Criteria – Belegliste-Erweiterung (Option A)
+
+##### AC-UI – Export-Dialog
+- [x] RadioGroup zeigt `Buchhaltungsübergabe` und `Belegliste` (Zeilen 254-307 export-dialog.tsx)
+- [x] Bei `belegliste` zeigt Vorschau nur die Belegezahl (`anzahl_belege`, Zeile 318-323)
+- [x] Beide Modi sind für jeden Mandant immer wählbar (kein Feature-Gate)
+- [x] Export-Button und Verlauf funktionieren in beiden Modi
+- [x] Format-RadioGroup (CSV/ZIP) bleibt für beide Modi sichtbar
+- [x] Reset bei jedem Open: `setExportModus('buchungsuebergabe')`, `setExportFormat('csv')` (Zeile 99-107)
+
+##### AC-Monats-Filter (Belegliste)
+- [x] Filter `rechnungsdatum` im Monat ODER (`rechnungsdatum IS NULL` UND `erstellt_am` im Monat) – Zeile 91 csv route, 90 zip route
+- [x] Belege ohne Transaktionsbezug werden eingeschlossen (LEFT JOIN auf `transaktionen`, Zeile 88)
+- [x] Order by `rechnungsdatum` ascending mit `nullsFirst: false`
+
+##### AC-CSV-Format Belegliste
+- [x] Trennzeichen Semikolon (`BELEGLISTE_COLUMNS.join(';')`)
+- [x] Dezimaltrennzeichen Komma (`formatBetrag` mit `.replace('.', ',')`)
+- [x] Datumsformat `YYYYMMDD` (`belegDatumYYYYMMDD`)
+- [ ] BUG: AC fordert "UTF-8 mit BOM", `generateBelegslisteCSV` schreibt `'﻿'` als BOM (Zeile 555 buchungsexport.ts) – das ist konsistent mit AC. Verwirrend ist allerdings, dass die alte Spec für die Buchhaltungsuebergabe-CSV "ohne BOM" forderte. Siehe BUG-PROJ9-017.
+- [x] Erste Zeile = Spaltenüberschriften
+- [x] Spalten-Reihenfolge: `datum;lieferant;rechnungsnummer;beschreibung;nettobetrag;mwst_satz;steuerbetrag;bruttobetrag;rechnungstyp;zahlungsquelle;dokument` (Zeile 451-463)
+- [x] Quellen pro Spalte korrekt:
+  - `datum` aus `rechnungsdatum`, Fallback `erstellt_am` (`belegDatumYYYYMMDD`)
+  - `lieferant` aus `belege.lieferant` (Spec sagte fälschlich `lieferant_name` – siehe Implementation Notes)
+  - `rechnungsnummer`, `beschreibung`, `nettobetrag`, `mwst_satz`, `bruttobetrag`, `rechnungstyp` aus Beleg-Toplevel
+  - `steuerbetrag` berechnet
+  - `zahlungsquelle` aus JOIN
+  - `dokument` aus `original_filename`
+- [x] `bruttobetrag`-Fallback (`netto + steuer`, Zeile 478-483)
+- [x] Multi-MwSt: eine Zeile pro Steuerzeile, `rechnungsnummer_1` etc. (Zeile 496-520)
+
+##### AC-ZIP-Paket Belegliste
+- [x] Inhalt: `belegliste_{YYYY}_{MM}_{Firma}.csv` + `belege/` + `LIESMICH_BELEGLISTE.txt` (Zeile 144-200 zip route)
+- [x] ZIP-Dateiname `belegliste_{YYYY}_{MM}_{Firma}.zip` (`belegslisteZipDateiname`)
+- [x] LIESMICH_BELEGLISTE.txt erklärt Inhalt (Zeile 593-633 buchungsexport.ts)
+- [x] Export-Protokoll mit `export_typ: 'belegliste'` (DB-Migration `20260504000000_export_typ_belegliste.sql` fügt Wert hinzu)
+- [x] Synchroner ZIP-Guard: Limit 50 Belege → 413 (Zeile 100-109 zip route)
+
+##### AC-Edge Cases Belegliste
+- [x] Monat ohne Belege: Vorschau-Warnung "Keine Belege im Monat vorhanden" (Zeile 375-386 export-dialog.tsx); Export-Button bleibt aktiv
+- [x] CSV bei 0 Belegen enthält nur Kopfzeile (Loop schreibt keine Zeilen)
+- [x] Beleg ohne `nettobetrag`: Zeile mit leerem Netto-Feld, `steuerbetrag = '0,00'` (Zeile 525-540)
+- [x] Beleg-PDF fehlt → in `fehlendeBelege`-Array, `FEHLENDE_BELEGE.txt` ins ZIP geschrieben
+
+#### Acceptance Criteria – Buchhaltungsuebergabe (Re-Audit)
+
+##### AC-CSV-Format (BOM)
+- [ ] BUG: Spec zur Buchhaltungsuebergabe sagt **"Zeichensatz: UTF-8 (ohne BOM — kein DATEV-Artefakt)"** (Zeile 53). Der aktuelle `generateBuchungsCSV` produziert aber jetzt **mit BOM** (`'﻿' + [header, ...rows].join('\r\n')`, Zeile 295). Auch der File-Header-Kommentar wurde geändert auf "UTF-8 MIT BOM (U+FEFF) – für Excel/BMD/RZL-Kompatibilität" (Zeile 11). Spec und Code widersprechen sich. Frontend-UI sagt im CSV-Beschriebung "UTF-8, Semikolon, kompatibel mit BMD…" und sagt nichts zu BOM. Siehe BUG-PROJ9-017.
+
+##### AC-CSV-Spalten (dokument)
+- [x] `dokument` enthält jetzt `{buchungsnummer}_{original_filename}` (Zeile 195-201 buchungsexport.ts)
+- [ ] BUG: Spec sagt zur dokument-Spalte: `belege.storage_path → Dateiname. Nur der Dateiname, kein Pfad; leer wenn kein Beleg`. Code schreibt jetzt `original_filename` (Spec-Inhalt deckt das nicht). Der Wert hat nun ein Buchungsnummer-Präfix (`{buchungsnummer}_{filename}`), aber das CSV-Feld ist auf `120 Zeichen` begrenzt (Zeile 198 lib). Wenn `original_filename` plus Buchungsnummer länger ist als 120 Zeichen, wird abgeschnitten – dokument im CSV stimmt dann nicht mehr mit ZIP-Filename überein (das im ZIP wird durch `safeFilename`-Pipeline geschickt, eigene Logik). Siehe BUG-PROJ9-018.
+
+##### AC-LIESMICH.txt – Dateinamen-Schema
+- [x] LIESMICH erklärt das Beleg-Benamungsschema `{Kürzel}_{lfd-Nr}_{MM}_{JJJJ}_{Originaldateiname}` (Zeile 364-378 buchungsexport.ts)
+- [ ] BUG: Das im LIESMICH dokumentierte Schema (`B1_0001_02_2026_Rechnung-Mustermann.pdf`) entspricht NICHT dem, was der Code tatsächlich erzeugt. Code erzeugt `{buchungsnummer}_{rawName}` (Zeile 151 zip route) – also z. B. `B1-2026-02-0001_Rechnung-Mustermann.pdf`, falls die Buchungsnummer dieses Format hat. Aber das `_` zwischen Bestandteilen aus dem LIESMICH-Beispiel kommt nicht aus der Code-Logik. Siehe BUG-PROJ9-019.
+
+##### AC-Symbol für Eigenbeleg/Eigenverbrauch
+- [x] `eigenbeleg` und `eigenverbrauch` werden auf `ER` gemappt (Zeile 111 buchungsexport.ts) – nicht in Spec, aber sinnvoll, da beides aufwandsseitig gebucht wird
+
+##### AC-Authorization (Belegliste)
+- [x] Beide Belegliste-Endpoints prüfen `supabase.auth.getUser()` → 401
+- [x] `getMandantId(supabase)` deckt RLS + Admin-Impersonation ab
+- [x] Monat muss `abgeschlossen` sein → 403
+- [x] Zod-Validation auf `jahr`/`monat` → 400
+
+##### AC-Tenant-Isolation (Belegliste)
+- [x] Belege-Query: `.eq('mandant_id', mandant.id)` als zusätzliche Schutzschicht über RLS hinaus
+- [x] Storage-Download nutzt nur `storage_path` aus dem RLS-gefilterten Belege-Set – kein direkter User-Input
+- [x] Multi-Tenant-Isolation – KEIN Cross-Mandant-Leak möglich
+
+##### AC-Path Traversal (Belegliste-ZIP)
+- [x] `safeFilename`-Pipeline analog zur Buchhaltungsuebergabe (Zeile 168-173 belegliste/zip)
+- [x] Pfadseparatoren, Parent-Sequences, Sonderzeichen werden ersetzt
+- [x] Fallback `'beleg.pdf'` bei leerem Filename
+
+#### Bugs Found – Round 2
+
+##### BUG-PROJ9-017: Spec-Code-Konflikt zu UTF-8 BOM
+- **Severity:** Medium (Spec-Compliance)
+- **Steps to Reproduce:**
+  1. Spec AC-CSV-Format sagt: "Zeichensatz: UTF-8 (ohne BOM — kein DATEV-Artefakt)" (Zeile 53)
+  2. Code in `generateBuchungsCSV` prepended `'﻿'` (Zeile 295 buchungsexport.ts)
+  3. Code-Kommentar (Zeile 11): "UTF-8 MIT BOM (U+FEFF) – für Excel/BMD/RZL-Kompatibilität"
+  4. Frontend-Label: "UTF-8, Semikolon, kompatibel mit BMD, RZL, Sage" (kein BOM-Hinweis)
+- **Erwartet:** Spec und Code müssen konsistent sein. Entscheidung: BOM JA (für Excel/BMD/RZL) oder NEIN (DATEV-Heritage).
+- **Impact:** Wenn Spec gewollt war, müssen Steuerberater-Tools BOM ablehnen → Code muss Fix; wenn Code gewollt ist, muss Spec aktualisiert werden.
+- **Empfehlung:** Spec aktualisieren auf "UTF-8 MIT BOM" (Code-Verhalten ist user-freundlicher für Excel-Import). Frontend-Beschreibung an Spec anpassen.
+- **Priorität:** Vor Deployment klären (Spec-Compliance)
+
+##### BUG-PROJ9-018: dokument-Spalte – Truncation auf 120 Zeichen kann Zuordnung brechen
+- **Severity:** Low
+- **Steps to Reproduce:**
+  1. Lade Beleg mit langem Dateinamen hoch (z.B. `Rechnung_Anwaltskanzlei_Müller_und_Partner_GmbH_2026_03_KW_12_Akte_4711.pdf`, ~78 Zeichen)
+  2. Buchungsnummer ist z.B. `E_0001_B1_03_2026` (~17 Zeichen)
+  3. Im CSV: `dokument`-Spalte wird durch `clean(rawFilename ? \`${belegnrBase}_${rawFilename}\` : '', 120)` auf 120 Zeichen begrenzt (Zeile 198 buchungsexport.ts)
+  4. Im ZIP wird `safeFilename` separat gebildet (Zeile 160-164 zip route) ohne 120-Zeichen-Limit
+  5. Bei sehr langen Originalnamen kann der CSV-Wert von der ZIP-Datei abweichen → Zuordnung gebrochen
+- **Erwartet:** Beide Werte (CSV `dokument` und ZIP-Filename) sollten identisch sein
+- **Aktuell:** CSV begrenzt auf 120, ZIP nicht. Die meisten realen Dateinamen sind kürzer als 120, aber Edge Case existiert.
+- **Priorität:** Nice to have
+
+##### BUG-PROJ9-019: LIESMICH dokumentiert anderes Beleg-Benamungsschema als Code erzeugt
+- **Severity:** Medium (Steuerberater-UX)
+- **Steps to Reproduce:**
+  1. Exportiere ZIP, öffne LIESMICH.txt
+  2. Schema steht dort als: `{Kürzel}_{lfd-Nr}_{MM}_{JJJJ}_{Originaldateiname}` mit Beispiel `B1_0001_02_2026_Rechnung-Mustermann.pdf` (Zeile 364-374 buchungsexport.ts)
+  3. Code erzeugt im ZIP-Filename aber: `${buchungsnummer}_${rawName}` (Zeile 151 zip route)
+  4. Wenn `buchungsnummer = 'E_0001_B1_02_2026'` (PROJ-25-Format), dann ZIP-Filename = `E_0001_B1_02_2026_Rechnung-Mustermann.pdf` – das Format vom LIESMICH-Beispiel `B1_0001_02_2026_…` kommt im Code nicht vor
+  5. Steuerberater wird durch Schema-Beispiel verwirrt
+- **Erwartet:** LIESMICH-Schema spiegelt exakt das tatsächliche Buchungsnummer-Format aus PROJ-25 wider
+- **Empfehlung:** Schema im LIESMICH dynamisch aus tatsächlichen Buchungsnummern ableiten oder Spec-konformer Hinweis "Prefix = Buchungsnummer aus PROJ-25"
+- **Priorität:** Fix vor Deployment (Doku-Inkonsistenz)
+
+##### BUG-PROJ9-020: Belegliste-Endpoints ignorieren Belege-Limit für CSV-Pfad
+- **Severity:** Low (Performance/DOS)
+- **Steps to Reproduce:**
+  1. Mandant hat 4500 Belege in einem Monat (extrem ungewöhnlich, aber möglich nach Bulk-Import)
+  2. POST `/api/export/{jahr}/{monat}/belegliste/csv`
+  3. Query nutzt `.limit(5000)` → 4500 Belege werden geladen
+  4. CSV-Generator iteriert über 4500 Belege synchron
+  5. Vercel Lambda kann timeout (10s default) bei großen Multi-MwSt-Tabellen
+- **Erwartet:** Documented Limit oder asynchroner Generator
+- **Aktuell:** ZIP hat ein 50-Belege-Limit, CSV nur 5000-Query-Limit ohne Anzeige
+- **Priorität:** Nice to have (Edge-Case-Schutz)
+
+##### BUG-PROJ9-021: belegliste/csv und belegliste/zip selektieren `storage_path`, übergeben es aber nicht in `BelegslisteBeleg`
+- **Severity:** Info (Code-Smell, kein Bug)
+- **Steps to Reproduce:**
+  1. CSV-Route lädt `storage_path` (Zeile 87) aber mappt es nicht in `BelegslisteBeleg` (Zeile 113-127)
+  2. Trotz Selektion wird das Feld nicht für die CSV genutzt
+- **Impact:** Marginal (extra Bytes über die Leitung)
+- **Priorität:** Nice to have (Code-Cleanup)
+
+##### BUG-PROJ9-022: Vorschau-Endpoint zeigt `anzahl_belege` auch im Buchungsuebergabe-Modus, was UI nicht nutzt
+- **Severity:** Info
+- **Steps to Reproduce:**
+  1. Preview liefert immer `anzahl_belege` (Zeile 86-92 preview route)
+  2. Buchungsuebergabe-Modus zeigt es nicht (UI-Branch in export-dialog Zeile 316-350)
+- **Impact:** Zusätzliche DB-Roundtrip auch wenn nicht gebraucht
+- **Priorität:** Nice to have (Performance-Mikro-Optimierung)
+
+#### Edge Cases – Round 2
+
+##### EC-Belegliste-1: Belege mit `rechnungsdatum NULL` und `erstellt_am` außerhalb Monat
+- [x] Filter `(rechnungsdatum IS NULL UND erstellt_am im Monat)` – greift nur, wenn beides NULL/außerhalb → Beleg wird korrekt **ausgeschlossen**
+
+##### EC-Belegliste-2: Beleg mit Multi-MwSt + ohne `bruttobetrag`
+- [x] Fallback `netto + steuer` (Zeile 502-505 buchungsexport.ts)
+
+##### EC-Belegliste-3: Beleg mit Steuerzeilen-Array, aber leer
+- [x] `steuerzeilen.length >= 2` → falsch bei `length === 0` oder `1`, fällt auf Single-MwSt-Branch zurück (Zeile 522-540)
+
+##### EC-Belegliste-4: Beleg mit `lieferant = NULL`
+- [x] `clean(b.lieferant ?? '', 80)` → leerer String, keine Fehler
+
+##### EC-Belegliste-5: Mehrere Transaktionen referenzieren denselben Beleg
+- [x] Code nimmt erste Transaktion (`txArr[0]`) → potenziell zwei Transaktionen-Quellen, aber CSV zeigt nur die erste. Das ist konsistent mit Multi-Match-Konzept aus PROJ-5/6 (1 Beleg = 1 Hauptzuordnung), Edge Case ungewöhnlich.
+
+#### Security Audit – Round 2
+
+##### Authorization
+- [x] Beide neuen Endpoints prüfen Auth, Mandant, abgeschlossen-Status
+- [x] RLS-Policies auf `belege` und `transaktionen` decken Tenant-Isolation ab
+- [x] `export_protokolle.insert` ist durch RLS abgesichert (`get_mandant_id()`)
+- [x] Belegliste-Endpoint erbt das gleiche Sicherheitsmodell wie Buchhaltungsuebergabe
+
+##### Storage Download Security
+- [x] `storage_path` kommt aus DB (RLS gefiltert), nicht aus User-Input – kein Path-Traversal über Storage möglich
+- [x] Storage-Bucket `belege` muss eigene RLS-Policies haben (außerhalb dieses Specs)
+
+##### Input Validation
+- [x] `paramsSchema` (Zod) für `jahr` und `monat` in beiden neuen Routes
+- [x] Keine User-Input direkt in SQL/Storage-Calls
+
+##### Resource Exhaustion
+- [x] ZIP-Limit 50 Belege bleibt
+- [ ] BUG-020: CSV-Pfad hat nur Query-Limit 5000, kein User-Visible-Limit – aber für realistische Datenmengen kein Problem
+
+##### Information Disclosure
+- [x] CSV enthält keine Storage-Pfade, keine internen IDs, keine User-Mails
+- [x] CSV enthält Lieferant, Rechnungsnummer, Beträge – alles Mandant-eigene Daten, OK
+
+#### Cross-Browser & Responsive
+- Nicht durchgeführt (statische Code-Review). Code-Review:
+  - Dialog hat `max-h-[90vh] overflow-y-auto` – Mobile-Scroll OK
+  - RadioGroup-Kacheln sind `grid-cols-1 sm:grid-cols-2` – stacken auf Mobile
+  - Vorschau-Kachel: `grid-cols-3` (Buchungsuebergabe) bzw. `grid-cols-1` (Belegliste) – beide Mobile-tauglich
+  - Buttons: `gap-2 sm:gap-0` im Footer – Mobile freundlich
+
+#### Regression Testing – Round 2
+- **Buchhaltungsuebergabe-CSV (PROJ-9 Round 1):** Build grün, alle Round-1-Verbesserungen (Filename-Präfix, LIESMICH-Text, Button-Enable) funktionieren.
+- **Monatsabschluss (PROJ-8):** Wiederöffnen-Dialog liest weiterhin `export_vorhanden` – konsistent, da neue Belegliste-Endpoints den Flag ebenfalls setzen.
+- **EAR-Buchungsnummern (PROJ-25, Deployed):** Buchungsnummer wird unverändert in CSV `belegnr` und ZIP-Filename verwendet.
+- **Multi-Tenant User-Rollen (PROJ-12):** `getMandantId()` mit invited users bleibt unverändert.
+- **Storage RLS (PROJ-3):** Storage-Download nutzt nur DB-gefilterte `storage_path`s.
+
+#### Production-Ready Decision – Round 2
+
+| Kategorie | Bewertung |
+|---|---|
+| Critical Bugs | 0 |
+| High Bugs | 0 |
+| Medium Bugs | 3 (BUG-017 BOM-Konflikt, BUG-019 LIESMICH-Schema, BUG-015 Rate-Limit aus R1) |
+| Low Bugs | 3 (BUG-014, BUG-018, BUG-020) |
+| Info | 2 (BUG-021, BUG-022) |
+| Build | Grün |
+| Security | Keine kritischen Issues. Belegliste erbt Sicherheitsmodell von Buchhaltungsuebergabe. |
+
+**Production Ready:** YES (bedingt) – Keine Blocker. BUG-017 (BOM Spec-Konflikt) und BUG-019 (LIESMICH-Schema) sollten vor Public Launch behoben werden, sind aber Doku/UX-Issues, keine Funktionsprobleme.
+
+**Empfehlung:**
+1. **Vor Deployment:** Spec-Update für BOM (BUG-017) → Spec auf "UTF-8 MIT BOM" anpassen, Frontend-Label klarstellen.
+2. **Vor Deployment:** LIESMICH-Schema-Beispiel (BUG-019) korrigieren oder dynamisch generieren.
+3. **Im nächsten Sprint:** Rate-Limit auf Upstash Redis migrieren (BUG-015, weiterhin offen).
+4. **Optional:** Code-Cleanup für BUG-021 und BUG-022.
+
+**Manuelles Testing offen:** Cross-Browser (Chrome/Firefox/Safari) und Responsive (375/768/1440) sollten gegen laufende Dev-Instanz verifiziert werden, insbesondere:
+- Belegliste-Modus auf Mobile (Dialog-Höhe mit Vorschau + History)
+- ZIP-Download in allen Browsern (große Buffers, Memory)
+- LIESMICH_BELEGLISTE.txt-Encoding in Windows Notepad (BOM-Test)
+
+---
+
+### Round 1 (2026-04-21)
 
 **Tested:** 2026-04-21
 **App URL:** http://localhost:3000

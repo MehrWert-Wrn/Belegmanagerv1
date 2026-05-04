@@ -20,7 +20,7 @@
 | PROJ-6 | Manuelle Zuordnung | In Review | [PROJ-6-manuelle-zuordnung.md](PROJ-6-manuelle-zuordnung.md) | 2026-03-13 |
 | PROJ-7 | Kassabuch | Deployed | [PROJ-7-kassabuch.md](PROJ-7-kassabuch.md) | 2026-03-13 |
 | PROJ-8 | Monatsabschluss-Workflow | In Review | [PROJ-8-monatsabschluss.md](PROJ-8-monatsabschluss.md) | 2026-03-13 |
-| PROJ-9 | Buchhaltungsübergabe-Export | In Progress | [PROJ-9-buchhaltungsuebergabe-export.md](PROJ-9-buchhaltungsuebergabe-export.md) | 2026-03-13 |
+| PROJ-9 | Buchhaltungsübergabe-Export | In Review | [PROJ-9-buchhaltungsuebergabe-export.md](PROJ-9-buchhaltungsuebergabe-export.md) | 2026-03-13 |
 | PROJ-10 | Zahlungsquellen-Verwaltung (v2) | In Review | [PROJ-10-zahlungsquellen-verwaltung.md](PROJ-10-zahlungsquellen-verwaltung.md) | 2026-03-13 |
 | PROJ-11 | Kommentare & Workflow-Status | In Review | [PROJ-11-kommentare-workflow.md](PROJ-11-kommentare-workflow.md) | 2026-03-13 |
 | PROJ-12 | Multi-Tenant User-Rollen | Deployed | [PROJ-12-user-rollen.md](PROJ-12-user-rollen.md) | 2026-03-13 |

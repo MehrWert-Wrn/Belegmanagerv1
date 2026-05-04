@@ -78,6 +78,19 @@ export async function GET(_request: Request, { params }: Params) {
   const anzahl_mit_beleg = anzahl_transaktionen - anzahl_ohne_beleg
   const anzahl_csv_zeilen = countCsvZeilen(list)
 
+  // Anzahl Belege im Monat (fuer Belegliste-Vorschau).
+  // Filterlogik analog zu /belegliste/csv|zip: rechnungsdatum im Monat
+  // ODER (rechnungsdatum NULL UND erstellt_am im Monat).
+  const monatStartTs = `${vonDatum}T00:00:00.000Z`
+  const monatEndePlus1 = new Date(Date.UTC(jahr, monat, 1)).toISOString()
+  const { count: anzahl_belege } = await supabase
+    .from('belege')
+    .select('id', { count: 'exact', head: true })
+    .eq('mandant_id', mandantId)
+    .or(
+      `and(rechnungsdatum.gte.${vonDatum},rechnungsdatum.lte.${bisDatum}),and(rechnungsdatum.is.null,erstellt_am.gte.${monatStartTs},erstellt_am.lt.${monatEndePlus1})`
+    )
+
   // Letzte Exporte
   const { data: letzteExporte } = await supabase
     .from('export_protokolle')
@@ -93,6 +106,7 @@ export async function GET(_request: Request, { params }: Params) {
     anzahl_mit_beleg,
     anzahl_ohne_beleg,
     anzahl_csv_zeilen,
+    anzahl_belege: anzahl_belege ?? 0,
     letzte_exporte: letzteExporte ?? [],
   })
 }

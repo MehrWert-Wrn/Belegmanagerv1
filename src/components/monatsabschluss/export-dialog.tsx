@@ -9,6 +9,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Receipt,
+  ListChecks,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -34,13 +36,15 @@ interface ExportVorschau {
   anzahl_mit_beleg: number
   anzahl_ohne_beleg: number
   anzahl_csv_zeilen: number
+  anzahl_belege?: number
   letzte_exporte: {
     exportiert_am: string
     export_typ: string
   }[]
 }
 
-type ExportTyp = 'csv' | 'zip'
+type ExportModus = 'buchungsuebergabe' | 'belegliste'
+type ExportFormat = 'csv' | 'zip'
 
 type ExportPhase = 'vorschau' | 'exportiert' | 'fehler'
 
@@ -63,7 +67,8 @@ export function ExportDialog({
   const [vorschauLoading, setVorschauLoading] = useState(false)
   const [vorschauError, setVorschauError] = useState<string | null>(null)
 
-  const [exportTyp, setExportTyp] = useState<ExportTyp>('csv')
+  const [exportModus, setExportModus] = useState<ExportModus>('buchungsuebergabe')
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv')
   const [exporting, setExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
   const [phase, setPhase] = useState<ExportPhase>('vorschau')
@@ -95,7 +100,8 @@ export function ExportDialog({
     if (open) {
       setPhase('vorschau')
       setExportProgress(0)
-      setExportTyp('csv')
+      setExportModus('buchungsuebergabe')
+      setExportFormat('csv')
       fetchVorschau()
     }
   }, [open, fetchVorschau])
@@ -105,7 +111,11 @@ export function ExportDialog({
     setExportProgress(10)
 
     try {
-      const endpoint = `/api/export/${jahr}/${monat}/${exportTyp}`
+      const endpoint =
+        exportModus === 'belegliste'
+          ? `/api/export/${jahr}/${monat}/belegliste/${exportFormat}`
+          : `/api/export/${jahr}/${monat}/${exportFormat}`
+
       setExportProgress(30)
 
       const response = await fetch(endpoint, {
@@ -129,7 +139,11 @@ export function ExportDialog({
       const blob = await response.blob()
       const contentDisposition = response.headers.get('Content-Disposition')
       const filenameMatch = contentDisposition?.match(/filename="(.+)"/)
-      const filename = filenameMatch?.[1] ?? `buchungsuebergabe_${jahr}_${String(monat).padStart(2, '0')}.${exportTyp}`
+      const fallbackPrefix =
+        exportModus === 'belegliste' ? 'belegliste' : 'buchungsuebergabe'
+      const filename =
+        filenameMatch?.[1] ??
+        `${fallbackPrefix}_${jahr}_${String(monat).padStart(2, '0')}.${exportFormat}`
 
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -143,7 +157,11 @@ export function ExportDialog({
       setExportProgress(100)
       setPhase('exportiert')
 
-      toast.success(`Buchhaltungsübergabe fuer ${monatsname} ${jahr} heruntergeladen.`)
+      const erfolgsMeldung =
+        exportModus === 'belegliste'
+          ? `Belegliste fuer ${monatsname} ${jahr} heruntergeladen.`
+          : `Buchhaltungsübergabe fuer ${monatsname} ${jahr} heruntergeladen.`
+      toast.success(erfolgsMeldung)
       onExportiert?.()
 
       // Refresh preview to show updated export history
@@ -163,19 +181,39 @@ export function ExportDialog({
     }
   }
 
-  const hatTransaktionen = (vorschau?.anzahl_transaktionen ?? 0) > 0
+  const istBelegliste = exportModus === 'belegliste'
+  const anzahlBelege = vorschau?.anzahl_belege ?? 0
+  const anzahlTransaktionen = vorschau?.anzahl_transaktionen ?? 0
+  const hatTransaktionen = anzahlTransaktionen > 0
+  const hatBelege = anzahlBelege > 0
   const hatOhneBelege = (vorschau?.anzahl_ohne_beleg ?? 0) > 0
+
+  // Hauptzaehler in der Vorschau – abhaengig vom Modus
+  const hauptzaehler = istBelegliste
+    ? anzahlBelege
+    : (vorschau?.anzahl_csv_zeilen ?? 0)
+  const hauptzaehlerLabel = istBelegliste ? 'Belege' : 'CSV-Zeilen'
+
+  const formatLabel = istBelegliste
+    ? {
+        csv: 'CSV-Datei der Belegliste (UTF-8 mit BOM)',
+        zip: 'Belegliste-CSV + alle Belege (PDFs) + LIESMICH',
+      }
+    : {
+        csv: 'Buchhaltungs-CSV (UTF-8, Semikolon, kompatibel mit BMD, RZL, Sage)',
+        zip: 'CSV + Belege (PDFs) + LIESMICH.txt für den Steuerberater',
+      }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            Buchhaltungsübergabe
+            Export für {monatsname} {jahr}
           </DialogTitle>
           <DialogDescription>
-            {monatsname} {jahr} als Paket für die Buchhaltung exportieren (CSV + Belege).
+            Wähle Export-Typ und Format. Beide Typen können beliebig oft erzeugt werden.
           </DialogDescription>
         </DialogHeader>
 
@@ -210,36 +248,118 @@ export function ExportDialog({
           {/* Preview loaded */}
           {vorschau && !vorschauLoading && (
             <>
-              {/* Export summary */}
-              <div className="rounded-lg border bg-muted/50 p-4">
-                <h4 className="text-sm font-medium mb-3">Export-Vorschau</h4>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-2xl font-bold">{vorschau.anzahl_csv_zeilen}</p>
-                    <p className="text-xs text-muted-foreground">CSV-Zeilen</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
-                      {vorschau.anzahl_mit_beleg}
-                    </p>
-                    <p className="text-xs text-muted-foreground">mit Beleg</p>
-                  </div>
-                  <div>
-                    <p className={`text-2xl font-bold ${hatOhneBelege ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
-                      {vorschau.anzahl_ohne_beleg}
-                    </p>
-                    <p className="text-xs text-muted-foreground">ohne Beleg</p>
-                  </div>
-                </div>
-                {vorschau.anzahl_csv_zeilen > vorschau.anzahl_transaktionen && (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Enthält {vorschau.anzahl_csv_zeilen - vorschau.anzahl_transaktionen} zusätzliche Zeilen durch Belege mit mehreren MwSt-Sätzen.
-                  </p>
-                )}
+              {/* Export-Typ Auswahl (Buchhaltungsübergabe vs Belegliste) */}
+              <div>
+                <h4 className="text-sm font-medium mb-3">Export-Typ</h4>
+                <RadioGroup
+                  value={exportModus}
+                  onValueChange={(v) => setExportModus(v as ExportModus)}
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                  disabled={exporting}
+                >
+                  <Label
+                    htmlFor="modus-buchungsuebergabe"
+                    className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                      exportModus === 'buchungsuebergabe'
+                        ? 'border-primary bg-primary/5'
+                        : 'hover:bg-muted/50'
+                    }`}
+                  >
+                    <RadioGroupItem
+                      value="buchungsuebergabe"
+                      id="modus-buchungsuebergabe"
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <ListChecks className="h-4 w-4 shrink-0" />
+                        <span className="font-medium text-sm">Buchhaltungsübergabe</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Transaktionsbasiert, ideal nach Matching-Workflow
+                      </p>
+                    </div>
+                  </Label>
+
+                  <Label
+                    htmlFor="modus-belegliste"
+                    className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                      exportModus === 'belegliste'
+                        ? 'border-primary bg-primary/5'
+                        : 'hover:bg-muted/50'
+                    }`}
+                  >
+                    <RadioGroupItem
+                      value="belegliste"
+                      id="modus-belegliste"
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="h-4 w-4 shrink-0" />
+                        <span className="font-medium text-sm">Belegliste</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Belegbasiert – alle Belege des Monats als CSV
+                      </p>
+                    </div>
+                  </Label>
+                </RadioGroup>
               </div>
 
-              {/* Warning: no transactions */}
-              {!hatTransaktionen && (
+              {/* Export-Vorschau (modus-abhaengig) */}
+              <div className="rounded-lg border bg-muted/50 p-4">
+                <h4 className="text-sm font-medium mb-3">
+                  {istBelegliste ? 'Belegliste – Vorschau' : 'Buchhaltungsübergabe – Vorschau'}
+                </h4>
+
+                {istBelegliste ? (
+                  <div className="grid grid-cols-1 gap-4 text-center">
+                    <div>
+                      <p className="text-3xl font-bold">{hauptzaehler}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {hauptzaehlerLabel} im Monat
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <p className="text-2xl font-bold">{hauptzaehler}</p>
+                      <p className="text-xs text-muted-foreground">CSV-Zeilen</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+                        {vorschau.anzahl_mit_beleg}
+                      </p>
+                      <p className="text-xs text-muted-foreground">mit Beleg</p>
+                    </div>
+                    <div>
+                      <p
+                        className={`text-2xl font-bold ${
+                          hatOhneBelege
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        {vorschau.anzahl_ohne_beleg}
+                      </p>
+                      <p className="text-xs text-muted-foreground">ohne Beleg</p>
+                    </div>
+                  </div>
+                )}
+
+                {!istBelegliste &&
+                  vorschau.anzahl_csv_zeilen > vorschau.anzahl_transaktionen && (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Enthält {vorschau.anzahl_csv_zeilen - vorschau.anzahl_transaktionen}{' '}
+                      zusätzliche Zeilen durch Belege mit mehreren MwSt-Sätzen.
+                    </p>
+                  )}
+              </div>
+
+              {/* Warning: no transactions (Buchungsuebergabe) */}
+              {!istBelegliste && !hatTransaktionen && (
                 <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
                   <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
                   <div className="text-sm text-amber-700 dark:text-amber-300">
@@ -251,8 +371,22 @@ export function ExportDialog({
                 </div>
               )}
 
-              {/* Warning: transactions without beleg */}
-              {hatOhneBelege && hatTransaktionen && (
+              {/* Warning: no Belege (Belegliste) */}
+              {istBelegliste && !hatBelege && (
+                <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                  <div className="text-sm text-amber-700 dark:text-amber-300">
+                    <p className="font-medium">Keine Belege im Monat vorhanden</p>
+                    <p className="mt-0.5">
+                      Die CSV enthaelt nur die Kopfzeile. Das Paket kann trotzdem an
+                      die Steuerberatung uebergeben werden.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Warning: transactions without beleg (Buchungsuebergabe) */}
+              {!istBelegliste && hatOhneBelege && hatTransaktionen && (
                 <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
                   <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
                   <div className="text-sm text-amber-700 dark:text-amber-300">
@@ -262,51 +396,51 @@ export function ExportDialog({
                 </div>
               )}
 
-              {/* Export type selection */}
+              {/* Format selection (CSV / ZIP) */}
               <div>
-                <h4 className="text-sm font-medium mb-3">Export-Format</h4>
+                <h4 className="text-sm font-medium mb-3">Format</h4>
                 <RadioGroup
-                  value={exportTyp}
-                  onValueChange={(v) => setExportTyp(v as ExportTyp)}
+                  value={exportFormat}
+                  onValueChange={(v) => setExportFormat(v as ExportFormat)}
                   className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                   disabled={exporting}
                 >
                   <Label
-                    htmlFor="export-csv"
+                    htmlFor="format-csv"
                     className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                      exportTyp === 'csv'
+                      exportFormat === 'csv'
                         ? 'border-primary bg-primary/5'
                         : 'hover:bg-muted/50'
                     }`}
                   >
-                    <RadioGroupItem value="csv" id="export-csv" className="mt-0.5" />
+                    <RadioGroupItem value="csv" id="format-csv" className="mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 shrink-0" />
                         <span className="font-medium text-sm">Nur CSV</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Buchhaltungs-CSV (UTF-8, Semikolon, kompatibel mit BMD, RZL, Sage)
+                        {formatLabel.csv}
                       </p>
                     </div>
                   </Label>
 
                   <Label
-                    htmlFor="export-zip"
+                    htmlFor="format-zip"
                     className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                      exportTyp === 'zip'
+                      exportFormat === 'zip'
                         ? 'border-primary bg-primary/5'
                         : 'hover:bg-muted/50'
                     }`}
                   >
-                    <RadioGroupItem value="zip" id="export-zip" className="mt-0.5" />
+                    <RadioGroupItem value="zip" id="format-zip" className="mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <FolderArchive className="h-4 w-4 shrink-0" />
                         <span className="font-medium text-sm">ZIP-Paket</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        CSV + Belege (PDFs) + LIESMICH.txt für den Steuerberater
+                        {formatLabel.zip}
                       </p>
                     </div>
                   </Label>
@@ -318,11 +452,15 @@ export function ExportDialog({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">
-                      {exportTyp === 'zip' ? 'ZIP wird erstellt...' : 'CSV wird generiert...'}
+                      {exportFormat === 'zip' ? 'ZIP wird erstellt...' : 'CSV wird generiert...'}
                     </span>
                     <span className="font-medium">{exportProgress}%</span>
                   </div>
-                  <Progress value={exportProgress} className="h-2" aria-label="Export-Fortschritt" />
+                  <Progress
+                    value={exportProgress}
+                    className="h-2"
+                    aria-label="Export-Fortschritt"
+                  />
                 </div>
               )}
 

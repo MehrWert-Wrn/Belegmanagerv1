@@ -194,24 +194,21 @@ export async function POST(_request: Request, { params }: Params) {
 
   const zipBuffer = await zip.generateAsync({ type: 'arraybuffer' })
 
-  // Export protokollieren (beide Updates parallel, Fehler isoliert damit Download nicht blockiert)
-  await Promise.allSettled([
-    supabase.from('export_protokolle').insert({
-      mandant_id: mandant.id,
-      jahr,
-      monat,
-      exportiert_von: user.id,
-      export_typ: 'zip',
-      anzahl_transaktionen: exportDaten.length,
-      anzahl_ohne_beleg,
-    }),
-    supabase
-      .from('monatsabschluesse')
-      .update({ export_vorhanden: true })
-      .eq('mandant_id', mandant.id)
-      .eq('jahr', jahr)
-      .eq('monat', monat),
-  ])
+  await supabase.from('export_protokolle').insert({
+    mandant_id: mandant.id,
+    jahr,
+    monat,
+    exportiert_von: user.id,
+    export_typ: 'zip',
+    anzahl_transaktionen: exportDaten.length,
+    anzahl_ohne_beleg,
+  })
+  await supabase
+    .from('monatsabschluesse')
+    .update({ export_vorhanden: true })
+    .eq('mandant_id', mandant.id)
+    .eq('jahr', jahr)
+    .eq('monat', monat)
 
   const zipName = zipDateiname(jahr, monat, mandant.firmenname)
 

@@ -100,25 +100,22 @@ export async function POST(_request: Request, { params }: Params) {
 
   const csv = generateBuchungsCSV(exportDaten, jahr, monat)
 
-  // Export protokollieren (beide Updates parallel, Fehler isoliert damit Download nicht blockiert)
   const anzahl_ohne_beleg = exportDaten.filter(t => !t.beleg).length
-  await Promise.allSettled([
-    supabase.from('export_protokolle').insert({
-      mandant_id: mandant.id,
-      jahr,
-      monat,
-      exportiert_von: user.id,
-      export_typ: 'csv',
-      anzahl_transaktionen: exportDaten.length,
-      anzahl_ohne_beleg,
-    }),
-    supabase
-      .from('monatsabschluesse')
-      .update({ export_vorhanden: true })
-      .eq('mandant_id', mandant.id)
-      .eq('jahr', jahr)
-      .eq('monat', monat),
-  ])
+  await supabase.from('export_protokolle').insert({
+    mandant_id: mandant.id,
+    jahr,
+    monat,
+    exportiert_von: user.id,
+    export_typ: 'csv',
+    anzahl_transaktionen: exportDaten.length,
+    anzahl_ohne_beleg,
+  })
+  await supabase
+    .from('monatsabschluesse')
+    .update({ export_vorhanden: true })
+    .eq('mandant_id', mandant.id)
+    .eq('jahr', jahr)
+    .eq('monat', monat)
 
   const filename = csvDateiname(jahr, monat, mandant.firmenname)
 

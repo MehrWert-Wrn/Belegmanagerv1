@@ -37,10 +37,18 @@ const RATE_LIMITED_ROUTES = [
 
 // ---------------------------------------------------------------------------
 // In-Memory Rate Limiter
-// NOTE: This is instance-local. On Vercel (serverless), each cold start gets
-// its own instance. For multi-instance rate limiting, replace with
-// @upstash/ratelimit + Redis. This still provides meaningful protection
-// within a single warm instance (e.g. dev, single-region hot paths).
+// KNOWN LIMITATION (BUG-PROJ9-015): On Vercel Serverless, each cold start
+// spawns a new instance with its own empty store. Parallel requests can hit
+// different instances, making this rate limiter practically ineffective in
+// production under concurrent load.
+//
+// TODO before public launch: replace with a global Redis-backed limiter:
+//   npm install @upstash/ratelimit @upstash/redis
+//   Use Ratelimit.slidingWindow(20, '1 m') keyed on IP.
+//   Requires UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN env vars.
+//
+// Until then, this still protects against sequential abuse within a single
+// warm instance (dev, low-traffic single-region paths).
 // ---------------------------------------------------------------------------
 
 interface RateLimitEntry {
