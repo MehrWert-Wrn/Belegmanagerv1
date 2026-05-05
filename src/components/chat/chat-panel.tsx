@@ -368,7 +368,7 @@ export function ChatPanel({ open, onClose, currentPath }: ChatPanelProps) {
     <div
       role="dialog"
       aria-label="Belegmanager-Assistent"
-      className="fixed inset-0 z-50 flex flex-col border-0 bg-white shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200 sm:inset-auto sm:bottom-24 sm:right-6 sm:h-[560px] sm:w-[380px] sm:rounded-2xl sm:border sm:border-slate-200"
+      className="fixed inset-0 z-50 flex flex-col border-0 bg-white shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200 sm:inset-auto sm:bottom-20 sm:right-6 sm:h-[560px] sm:w-[380px] sm:rounded-2xl sm:border sm:border-slate-200"
     >
       {/* Header */}
       <header className="flex items-center justify-between rounded-t-2xl border-b border-slate-200 bg-gradient-to-r from-teal-600 to-teal-700 px-4 py-3 text-white">

@@ -21,9 +21,14 @@ export function ChatbotWidget() {
         aria-label={open ? 'Chat schließen' : 'Belegmanager-Assistent öffnen'}
         aria-expanded={open}
         aria-controls="belegmanager-chatbot-panel"
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg transition-transform hover:scale-105 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-full bg-teal-600 py-3 pl-4 pr-5 text-white shadow-xl transition-all hover:scale-105 hover:bg-teal-700 hover:shadow-teal-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
       >
-        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+        {open
+          ? <X className="h-5 w-5 shrink-0" />
+          : <MessageCircle className="h-5 w-5 shrink-0" />}
+        <span className="text-sm font-semibold leading-none tracking-wide">
+          {open ? 'Schließen' : 'KI-Assistent'}
+        </span>
       </button>
 
       <div id="belegmanager-chatbot-panel">
