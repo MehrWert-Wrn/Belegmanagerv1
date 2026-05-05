@@ -294,7 +294,7 @@ export function ChatPanel({ open, onClose, currentPath }: ChatPanelProps) {
           if (wasFallback) {
             fallbackCountRef.current += 1
             // BUG-008: don't re-open if user already dismissed this session
-            if (fallbackCountRef.current >= 2 && !escalationDismissedRef.current) {
+            if (fallbackCountRef.current >= 1 && !escalationDismissedRef.current) {
               setEscalationOpen(true)
             }
           } else {
