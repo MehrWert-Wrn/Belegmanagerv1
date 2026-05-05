@@ -140,6 +140,7 @@ interface BelegUploadDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
+  onSuccessWithBelegId?: (belegId: string) => void
   onMassImportComplete?: (result: MassImportResult) => void
 }
 
@@ -147,6 +148,7 @@ export function BelegUploadDialog({
   open,
   onOpenChange,
   onSuccess,
+  onSuccessWithBelegId,
   onMassImportComplete,
 }: BelegUploadDialogProps) {
   // Mode: 'single' or 'mass'
@@ -786,7 +788,9 @@ export function BelegUploadDialog({
         return
       }
 
+      const createdBeleg = await response.json()
       toast.success('Beleg erfolgreich hochgeladen')
+      onSuccessWithBelegId?.(createdBeleg.id)
       resetDialog()
       onOpenChange(false)
       onSuccess()

@@ -110,7 +110,8 @@ function amountScore(transaktionBetrag: number, belegBetrag: number | null): num
   const abw = betragsAbweichung(transaktionBetrag, belegBetrag)
   if (abw === null) return 0
   if (abw === 0) return 40
-  if (abw <= 0.03) return 30  // ±3%
+  if (abw <= 0.03) return 30  // ±3% (Skonto, Bankgebühren)
+  if (abw <= 0.15) return 10  // ±15% (Währungsumrechnung USD/EUR, CHF/EUR etc.)
   return 0
 }
 

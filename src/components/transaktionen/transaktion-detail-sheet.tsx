@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   ArrowUpRight, ArrowDownLeft, CheckCircle2, Link2, EyeOff,
-  Eye, X, FileQuestion, ExternalLink, Loader2,
+  Eye, X, FileQuestion, ExternalLink, Loader2, Upload,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -21,6 +21,7 @@ import { WorkflowStatusSection } from '@/components/transaktionen/workflow-statu
 import { KommentareSection } from '@/components/transaktionen/kommentare-section'
 import { ZuordnungsDialog } from '@/components/transaktionen/zuordnungs-dialog'
 import { EigenbelegDialog } from '@/components/transaktionen/eigenbeleg-dialog'
+import { BelegUploadDialog } from '@/components/belege/beleg-upload-dialog'
 import type { TransaktionWithRelations, WorkflowStatus } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
 
@@ -71,6 +72,7 @@ export function TransaktionDetailSheet({
 }: TransaktionDetailSheetProps) {
   const [zuordnungsOpen, setZuordnungsOpen] = useState(false)
   const [eigenbelegOpen, setEigenbelegOpen] = useState(false)
+  const [belegUploadOpen, setBelegUploadOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [markingPrivat, setMarkingPrivat] = useState(false)
 
@@ -169,6 +171,25 @@ export function TransaktionDetailSheet({
       toast.error(err instanceof Error ? err.message : 'Fehler beim Speichern')
     } finally {
       setMarkingPrivat(false)
+    }
+  }
+
+  async function handleBelegUploaded(belegId: string) {
+    if (!transaktion) return
+    try {
+      const res = await fetch('/api/matching/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaktion_id: transaktion.id, beleg_id: belegId }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        throw new Error(d.error ?? 'Zuordnung fehlgeschlagen')
+      }
+      toast.success('Beleg hochgeladen und zugeordnet')
+      onAssigned?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Fehler bei der Zuordnung')
     }
   }
 
@@ -492,6 +513,17 @@ export function TransaktionDetailSheet({
                         Eigenbeleg erstellen
                       </Button>
                     )}
+                    {transaktion.match_status === 'offen' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBelegUploadOpen(true)}
+                        className="gap-1.5"
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        Beleg hochladen
+                      </Button>
+                    )}
                     {isEar &&
                       transaktion.match_status === 'offen' &&
                       isExpense &&
@@ -552,6 +584,12 @@ export function TransaktionDetailSheet({
           }}
         />
       )}
+      <BelegUploadDialog
+        open={belegUploadOpen}
+        onOpenChange={setBelegUploadOpen}
+        onSuccess={() => {}}
+        onSuccessWithBelegId={handleBelegUploaded}
+      />
     </Sheet>
   )
 }

@@ -107,6 +107,21 @@ interface BelegReviewModusProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onComplete: () => void
+  mandantFirmenname?: string
+}
+
+/**
+ * Returns true if the OCR-extracted lieferant appears to be the mandant's own company
+ * (signals an Ausgangsrechnung rather than an Eingangsrechnung).
+ */
+function isOwnCompany(lieferant: string | null | undefined, firmenname: string | undefined): boolean {
+  if (!lieferant || !firmenname || firmenname.length < 5) return false
+  const l = lieferant.toLowerCase().replace(/[^\w\s]/g, '')
+  const f = firmenname.toLowerCase().replace(/[^\w\s]/g, '')
+  // Match if either string contains a 10-char prefix of the other
+  const prefix = f.slice(0, Math.min(f.length, 10))
+  const lprefix = l.slice(0, Math.min(l.length, 10))
+  return l.includes(prefix) || f.includes(lprefix)
 }
 
 export function BelegReviewModus({
@@ -114,6 +129,7 @@ export function BelegReviewModus({
   open,
   onOpenChange,
   onComplete,
+  mandantFirmenname,
 }: BelegReviewModusProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [belege, setBelege] = useState<Beleg[]>([])
@@ -254,11 +270,24 @@ export function BelegReviewModus({
       setOcrFields(new Set())
     }
 
+    // Detect Ausgangsrechnung: if OCR identified the mandant's own company as lieferant
+    const detectedTyp: ReviewFormValues['rechnungstyp'] =
+      currentBeleg.rechnungstyp ??
+      (rechnungsnameUnset && isOwnCompany(currentBeleg.lieferant, mandantFirmenname)
+        ? 'ausgangsrechnung'
+        : 'eingangsrechnung')
+
+    // For own-company invoices (Ausgangsrechnung), clear lieferant — the mandant IS the lieferant
+    const lieferantValue =
+      detectedTyp === 'ausgangsrechnung' && isOwnCompany(currentBeleg.lieferant, mandantFirmenname)
+        ? ''
+        : (currentBeleg.lieferant ?? '')
+
     form.reset({
       rechnungsname: rechnungsnameUnset ? buildAutoRechnungsname(currentBeleg) : (currentBeleg.rechnungsname ?? undefined),
       rechnungsnummer: currentBeleg.rechnungsnummer ?? '',
-      rechnungstyp: currentBeleg.rechnungstyp ?? 'eingangsrechnung',
-      lieferant: currentBeleg.lieferant ?? '',
+      rechnungstyp: detectedTyp,
+      lieferant: lieferantValue,
       uid_lieferant: currentBeleg.uid_lieferant ?? '',
       lieferant_iban: currentBeleg.lieferant_iban ?? '',
       steuerzeilen: initSteuerzeilen,
@@ -739,7 +768,8 @@ export function BelegReviewModus({
             </div>
 
             {/* Right: Form */}
-            <div className="flex w-2/5 flex-col overflow-y-auto px-6 py-4">
+            <div className="flex w-2/5 flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-6 py-4">
               {/* Bulk-skip reason banner */}
               {bulkSkipReasons.length > 0 && (() => {
                 const reason = bulkSkipReasons.find(r => r.id === currentBeleg?.id)
@@ -821,7 +851,7 @@ export function BelegReviewModus({
               )}
 
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <form id="review-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   {/* Beleginfo */}
                   <div className="grid gap-3 sm:grid-cols-2">
                     <FormField
@@ -1122,55 +1152,62 @@ export function BelegReviewModus({
                     )}
                   />
 
-                  {/* Actions */}
-                  <SheetFooter className="gap-2 pt-4">
-                    <div className="mr-auto flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowDeleteConfirm(true)}
-                        disabled={saving || ocrRunning}
-                        className="gap-1 text-destructive hover:text-destructive"
-                        title="Beleg unwiderruflich löschen"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Löschen
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleReOcr}
-                        disabled={saving || ocrRunning}
-                        className="gap-1"
-                        title="Felder automatisch aus dem Beleg auslesen"
-                      >
-                        {ocrRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanText className="h-4 w-4" />}
-                        Automatisch auslesen
-                      </Button>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleSkip}
-                      disabled={saving || ocrRunning}
-                      className="gap-1"
-                    >
-                      <SkipForward className="h-4 w-4" />
-                      Überspringen
-                    </Button>
-                    <Button type="submit" disabled={saving || ocrRunning} className="gap-1">
-                      {saving ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                      {currentIndex < totalCount - 1 ? 'Speichern & Weiter' : 'Speichern & Fertig'}
-                    </Button>
-                  </SheetFooter>
                 </form>
               </Form>
+            </div>
+
+            {/* Sticky footer – always visible regardless of scroll */}
+            <div className="flex shrink-0 items-center gap-2 border-t bg-background px-6 py-4">
+              <div className="mr-auto flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={saving || ocrRunning}
+                  className="gap-1 text-destructive hover:text-destructive"
+                  title="Beleg unwiderruflich löschen"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Löschen
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReOcr}
+                  disabled={saving || ocrRunning}
+                  className="gap-1"
+                  title="Felder automatisch aus dem Beleg auslesen"
+                >
+                  {ocrRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanText className="h-4 w-4" />}
+                  Automatisch auslesen
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSkip}
+                disabled={saving || ocrRunning}
+                className="gap-1"
+              >
+                <SkipForward className="h-4 w-4" />
+                Überspringen
+              </Button>
+              <Button
+                type="submit"
+                form="review-form"
+                disabled={saving || ocrRunning}
+                className="gap-1"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                {currentIndex < totalCount - 1 ? 'Speichern & Weiter' : 'Speichern & Fertig'}
+              </Button>
+            </div>
             </div>
           </div>
         ) : null}

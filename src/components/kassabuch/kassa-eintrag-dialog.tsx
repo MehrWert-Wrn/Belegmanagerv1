@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
-import { Upload, FileText, X, Loader2 } from 'lucide-react'
+import { Upload, FileText, X, Loader2, ScanSearch } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -88,6 +88,18 @@ export function KassaEintragDialog({
   const [existingBelegName, setExistingBelegName] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // OCR state
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrData, setOcrData] = useState<{
+    lieferant: string | null
+    rechnungsnummer: string | null
+    rechnungsdatum: string | null
+    bruttobetrag: number | null
+    nettobetrag: number | null
+    mwst_satz: number | null
+  } | null>(null)
+  const [ocrFilledFields, setOcrFilledFields] = useState<Set<string>>(new Set())
 
   // Computed values for Netto/USt display
   const bruttoParsed = useMemo(() => {
@@ -197,10 +209,13 @@ export function KassaEintragDialog({
       }
       setPendingBelegFile(null)
       setBelegSectionOpen(false)
+      setOcrLoading(false)
+      setOcrData(null)
+      setOcrFilledFields(new Set())
     }
   }, [open, eintrag, initialVorlage])
 
-  function handleFileSelect(file: File) {
+  async function handleFileSelect(file: File) {
     if (file.size > MAX_BELEG_SIZE) {
       toast.error('Datei zu gross. Maximal 5 MB erlaubt.')
       return
@@ -211,6 +226,73 @@ export function KassaEintragDialog({
       return
     }
     setPendingBelegFile(file)
+    setBelegSectionOpen(true)
+    setOcrLoading(true)
+    setOcrData(null)
+    setOcrFilledFields(new Set())
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/belege/ocr', { method: 'POST', body: formData })
+
+      if (res.status === 429) {
+        toast.info('OCR-Limit erreicht – bitte Felder manuell ausfüllen.')
+        return
+      }
+      if (!res.ok) {
+        toast.info('OCR konnte keine Daten erkennen – bitte manuell ausfüllen.')
+        return
+      }
+
+      const data = await res.json()
+      if (!data || data.confidence === 0) {
+        toast.info('OCR konnte keine Daten erkennen – bitte manuell ausfüllen.')
+        return
+      }
+
+      setOcrData({
+        lieferant: data.lieferant ?? null,
+        rechnungsnummer: data.rechnungsnummer ?? null,
+        rechnungsdatum: data.rechnungsdatum ?? null,
+        bruttobetrag: data.bruttobetrag ?? null,
+        nettobetrag: data.nettobetrag ?? null,
+        mwst_satz: data.mwst_satz ?? null,
+      })
+
+      const filled = new Set<string>()
+
+      if (data.lieferant && !lieferant.trim()) {
+        setLieferant(data.lieferant)
+        filled.add('lieferant')
+      }
+      if (data.bruttobetrag !== null && !betrag.trim()) {
+        setBetrag(String(Math.abs(data.bruttobetrag)))
+        filled.add('betrag')
+      }
+      if (data.rechnungsdatum && !isEdit) {
+        setDatum(data.rechnungsdatum)
+        filled.add('datum')
+      }
+      if (data.mwst_satz !== null && mwstSatz === 'none') {
+        const satz = String(data.mwst_satz)
+        if (['20', '13', '10', '0'].includes(satz)) {
+          setMwstSatz(satz as MwstSatzOption)
+          filled.add('mwstSatz')
+        }
+      }
+
+      setOcrFilledFields(filled)
+      if (filled.size > 0) {
+        toast.success('OCR hat Daten erkannt – bitte prüfen und ggf. korrigieren.')
+      } else {
+        toast.info('OCR konnte keine neuen Felder befüllen.')
+      }
+    } catch {
+      toast.info('OCR fehlgeschlagen – bitte manuell ausfüllen.')
+    } finally {
+      setOcrLoading(false)
+    }
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -236,7 +318,7 @@ export function KassaEintragDialog({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
-  async function uploadBelegAndCreate(file: File): Promise<string | null> {
+  async function uploadBelegAndCreate(file: File, ocr: typeof ocrData): Promise<string | null> {
     const supabase = createClient()
 
     // Get mandant id
@@ -267,7 +349,7 @@ export function KassaEintragDialog({
 
     const dateityp = ext === 'jpg' || ext === 'jpeg' ? 'jpg' : ext === 'png' ? 'png' : 'pdf'
 
-    // Create beleg record via API
+    // Create beleg record via API, including OCR metadata if available
     const response = await fetch('/api/belege', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -277,6 +359,14 @@ export function KassaEintragDialog({
         dateityp,
         file_size: file.size,
         rechnungstyp: 'eingangsrechnung',
+        ...(ocr && {
+          lieferant: ocr.lieferant ?? undefined,
+          rechnungsnummer: ocr.rechnungsnummer ?? undefined,
+          rechnungsdatum: ocr.rechnungsdatum ?? undefined,
+          bruttobetrag: ocr.bruttobetrag ?? undefined,
+          nettobetrag: ocr.nettobetrag ?? undefined,
+          mwst_satz: ocr.mwst_satz ?? undefined,
+        }),
       }),
     })
 
@@ -324,7 +414,7 @@ export function KassaEintragDialog({
       // Upload beleg if file is pending
       let belegId: string | undefined
       if (pendingBelegFile) {
-        const uploadedId = await uploadBelegAndCreate(pendingBelegFile)
+        const uploadedId = await uploadBelegAndCreate(pendingBelegFile, ocrData)
         if (uploadedId) {
           belegId = uploadedId
         }
@@ -422,7 +512,11 @@ export function KassaEintragDialog({
               id="kassa-datum"
               type="date"
               value={datum}
-              onChange={(e) => setDatum(e.target.value)}
+              onChange={(e) => {
+                setDatum(e.target.value)
+                setOcrFilledFields(prev => { const s = new Set(prev); s.delete('datum'); return s })
+              }}
+              className={ocrFilledFields.has('datum') ? 'ring-2 ring-blue-300 ring-offset-1 bg-blue-50/50' : ''}
               required
             />
           </div>
@@ -456,7 +550,11 @@ export function KassaEintragDialog({
                 inputMode="decimal"
                 placeholder="0,00"
                 value={betrag}
-                onChange={(e) => setBetrag(e.target.value)}
+                onChange={(e) => {
+                  setBetrag(e.target.value)
+                  setOcrFilledFields(prev => { const s = new Set(prev); s.delete('betrag'); return s })
+                }}
+                className={ocrFilledFields.has('betrag') ? 'ring-2 ring-blue-300 ring-offset-1 bg-blue-50/50' : ''}
                 required
               />
             </div>
@@ -464,9 +562,12 @@ export function KassaEintragDialog({
               <Label htmlFor="kassa-mwst-satz">USt.-Satz</Label>
               <Select
                 value={mwstSatz}
-                onValueChange={(v) => setMwstSatz(v as MwstSatzOption)}
+                onValueChange={(v) => {
+                  setMwstSatz(v as MwstSatzOption)
+                  setOcrFilledFields(prev => { const s = new Set(prev); s.delete('mwstSatz'); return s })
+                }}
               >
-                <SelectTrigger id="kassa-mwst-satz" aria-label="Umsatzsteuersatz">
+                <SelectTrigger id="kassa-mwst-satz" aria-label="Umsatzsteuersatz" className={ocrFilledFields.has('mwstSatz') ? 'ring-2 ring-blue-300 ring-offset-1 bg-blue-50/50' : ''}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -527,7 +628,11 @@ export function KassaEintragDialog({
               id="kassa-lieferant"
               placeholder="z.B. Papierhandel Maier"
               value={lieferant}
-              onChange={(e) => setLieferant(e.target.value)}
+              onChange={(e) => {
+                setLieferant(e.target.value)
+                setOcrFilledFields(prev => { const s = new Set(prev); s.delete('lieferant'); return s })
+              }}
+              className={ocrFilledFields.has('lieferant') ? 'ring-2 ring-blue-300 ring-offset-1 bg-blue-50/50' : ''}
             />
           </div>
 
@@ -587,12 +692,29 @@ export function KassaEintragDialog({
                     className="h-6 w-6 shrink-0"
                     onClick={() => {
                       setPendingBelegFile(null)
+                      setOcrData(null)
+                      setOcrLoading(false)
+                      setOcrFilledFields(new Set())
                       if (fileInputRef.current) fileInputRef.current.value = ''
                     }}
                     aria-label="Datei entfernen"
                   >
                     <X className="h-4 w-4" />
                   </Button>
+                </div>
+              )}
+
+              {/* OCR loading / result indicator */}
+              {ocrLoading && (
+                <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50/50 px-3 py-2 text-sm text-blue-700">
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                  <span>OCR erkennt Daten...</span>
+                </div>
+              )}
+              {!ocrLoading && ocrData && ocrFilledFields.size > 0 && (
+                <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50/50 px-3 py-2 text-sm text-blue-700">
+                  <ScanSearch className="h-4 w-4 shrink-0" />
+                  <span>OCR hat Felder befüllt – blau markierte Felder bitte prüfen.</span>
                 </div>
               )}
 

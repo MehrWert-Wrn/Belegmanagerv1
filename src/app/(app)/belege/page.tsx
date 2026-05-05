@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Plus, Search, X, Trash2 } from 'lucide-react'
+import { Plus, Search, X, Trash2, Wallet, ScanText, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import { BelegDetailSheet } from '@/components/belege/beleg-detail-sheet'
 import { BelegLoeschenDialog } from '@/components/belege/beleg-loeschen-dialog'
 import { BelegReviewModus } from '@/components/belege/beleg-review-modus'
 import { DirektBezahltDialog } from '@/components/belege/direkt-bezahlt-dialog'
+import { BulkDirektBezahltDialog } from '@/components/belege/bulk-direkt-bezahlt-dialog'
 import type { Beleg } from '@/lib/supabase/types'
 
 export default function BelegePage() {
@@ -28,6 +29,14 @@ export default function BelegePage() {
   const [belege, setBelege] = useState<Beleg[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mandantFirmenname, setMandantFirmenname] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    fetch('/api/mandant')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.firmenname) setMandantFirmenname(d.firmenname) })
+      .catch(() => {})
+  }, [])
 
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -58,6 +67,10 @@ export default function BelegePage() {
   // Direkt bezahlt dialog state
   const [direktBezahltBeleg, setDirektBezahltBeleg] = useState<Beleg | null>(null)
   const [direktBezahltOpen, setDirektBezahltOpen] = useState(false)
+
+  // Bulk action states
+  const [bulkDirektBezahltOpen, setBulkDirektBezahltOpen] = useState(false)
+  const [bulkOcrRunning, setBulkOcrRunning] = useState(false)
 
   // Review mode state (mass import)
   const [reviewBelegIds, setReviewBelegIds] = useState<string[]>([])
@@ -163,6 +176,47 @@ export default function BelegePage() {
     fetchBelege(true)
   }
 
+  async function handleBulkOcr() {
+    if (selectedIds.size === 0) return
+    setBulkOcrRunning(true)
+    try {
+      const res = await fetch('/api/belege/bulk/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Fehler beim OCR-Auslesen')
+
+      const { succeeded, skipped, rateLimited, errors } = data as {
+        succeeded: number
+        skipped: number
+        rateLimited: number
+        errors: { id: string; error: string }[]
+      }
+
+      const parts: string[] = []
+      if (succeeded > 0) parts.push(`${succeeded} Beleg${succeeded !== 1 ? 'e' : ''} ausgelesen`)
+      if (skipped > 0) parts.push(`${skipped} ohne Dokument übersprungen`)
+      if (rateLimited > 0) parts.push(`${rateLimited} wegen Rate-Limit nicht verarbeitet`)
+      if (errors.length > 0) parts.push(`${errors.length} Fehler`)
+
+      if (succeeded > 0) {
+        toast.success(parts.join(', '))
+      } else if (rateLimited > 0) {
+        toast.warning('Rate-Limit erreicht. Bitte einen Moment warten und erneut versuchen.')
+      } else {
+        toast.info(parts.join(', ') || 'Keine Belege verarbeitet')
+      }
+
+      fetchBelege(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Fehler beim OCR-Auslesen')
+    } finally {
+      setBulkOcrRunning(false)
+    }
+  }
+
   const hasMatchedBelegeInSelection = belege.some(
     (b) => selectedIds.has(b.id) && b.zuordnungsstatus === 'zugeordnet'
   )
@@ -210,13 +264,33 @@ export default function BelegePage() {
         </div>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && (
-            <Button
-              variant="destructive"
-              onClick={handleBulkDeleteRequest}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              {selectedIds.size} loschen
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={handleBulkOcr}
+                disabled={bulkOcrRunning}
+              >
+                {bulkOcrRunning
+                  ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  : <ScanText className="mr-2 h-4 w-4" />
+                }
+                OCR auslesen
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setBulkDirektBezahltOpen(true)}
+              >
+                <Wallet className="mr-2 h-4 w-4" />
+                Direkt bezahlt
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleBulkDeleteRequest}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {selectedIds.size} löschen
+              </Button>
+            </>
           )}
           <Button onClick={() => setUploadOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -517,12 +591,24 @@ export default function BelegePage() {
         onSuccess={() => fetchBelege(true)}
       />
 
+      {/* Bulk direkt bezahlt dialog */}
+      <BulkDirektBezahltDialog
+        belegIds={Array.from(selectedIds)}
+        open={bulkDirektBezahltOpen}
+        onOpenChange={setBulkDirektBezahltOpen}
+        onSuccess={() => {
+          setSelectedIds(new Set())
+          fetchBelege(true)
+        }}
+      />
+
       {/* Review mode for mass import */}
       <BelegReviewModus
         belegIds={reviewBelegIds}
         open={reviewOpen}
         onOpenChange={setReviewOpen}
         onComplete={() => fetchBelege(true)}
+        mandantFirmenname={mandantFirmenname}
       />
     </div>
   )
