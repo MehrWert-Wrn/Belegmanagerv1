@@ -489,21 +489,17 @@ export function BelegUploadDialog({
     }
 
     const belegIds: string[] = []
+    const mandantId = mandant.id
 
-    for (let i = 0; i < items.length; i++) {
-      if (massAbortRef.current) break
-
-      const item = items[i]
-
-      // Update status to uploading
+    // Process a single file — upload, OCR, save to DB
+    async function processItem(item: MassFileItem, idx: number): Promise<string | null> {
       setMassFiles((prev) => {
         const next = [...prev]
-        next[i] = { ...next[i], status: 'uploading' }
+        next[idx] = { ...next[idx], status: 'uploading' }
         return next
       })
 
       try {
-        // Check for duplicate before uploading
         const fileHash = await computeFileHash(item.file)
         const encodedFilename = encodeURIComponent(item.file.name)
         const checkRes = await fetch(`/api/belege/check-hash?hash=${fileHash}&filename=${encodedFilename}`)
@@ -512,56 +508,47 @@ export function BelegUploadDialog({
           if (duplicate) {
             setMassFiles((prev) => {
               const next = [...prev]
-              next[i] = { ...next[i], status: 'duplicate', error: `Bereits vorhanden: ${duplicate.original_filename}` }
+              next[idx] = { ...next[idx], status: 'duplicate', error: `Bereits vorhanden: ${duplicate.original_filename}` }
               return next
             })
-            continue
+            return null
           }
         }
 
-        // Upload file to storage
         const fileId = crypto.randomUUID()
         const ext = item.file.name.split('.').pop()?.toLowerCase() ?? 'pdf'
-        const storagePath = `${mandant.id}/${fileId}.${ext}`
+        const storagePath = `${mandantId}/${fileId}.${ext}`
 
         const { error: uploadError } = await supabase.storage
           .from('belege')
-          .upload(storagePath, item.file, {
-            contentType: item.file.type,
-            upsert: false,
-          })
+          .upload(storagePath, item.file, { contentType: item.file.type, upsert: false })
 
-        if (uploadError) {
-          throw new Error(uploadError.message)
-        }
+        if (uploadError) throw new Error(uploadError.message)
 
         const dateityp = ext === 'jpg' || ext === 'jpeg' ? 'jpg' : ext === 'png' ? 'png' : 'pdf'
 
-        // Update status to OCR
         setMassFiles((prev) => {
           const next = [...prev]
-          next[i] = { ...next[i], status: 'ocr' }
+          next[idx] = { ...next[idx], status: 'ocr' }
           return next
         })
 
-        // Run OCR
         const ocrResult = await runOcr(item.file)
 
-        // Content-based duplicate check after OCR (catches format-crossing duplicates)
         if (ocrResult) {
           const contentDup = await runContentCheck(ocrResult)
           if (contentDup) {
             await supabase.storage.from('belege').remove([storagePath])
             setMassFiles((prev) => {
               const next = [...prev]
-              next[i] = { ...next[i], status: 'duplicate', error: `Inhaltl. Duplikat: ${contentDup.rechnungsname || contentDup.original_filename}` }
+              next[idx] = { ...next[idx], status: 'duplicate', error: `Inhaltl. Duplikat: ${contentDup.rechnungsname || contentDup.original_filename}` }
               return next
             })
-            continue
+            return null
           }
         }
 
-        // Create beleg in DB (rechnungsname=null -> "nicht reviewed")
+        // rechnungstyp intentionally omitted — review mode detects it via isOwnCompany
         const response = await fetch('/api/belege', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -571,39 +558,48 @@ export function BelegUploadDialog({
             dateityp,
             file_size: item.file.size,
             file_hash: fileHash,
-            rechnungstyp: 'eingangsrechnung',
-            // Apply OCR results if available
             lieferant: ocrResult?.lieferant || undefined,
             rechnungsnummer: ocrResult?.rechnungsnummer || undefined,
             bruttobetrag: ocrResult?.bruttobetrag || null,
             nettobetrag: ocrResult?.nettobetrag || null,
             mwst_satz: ocrResult?.mwst_satz || null,
             rechnungsdatum: ocrResult?.rechnungsdatum || null,
+            steuerzeilen: ocrResult?.steuerzeilen || null,
           }),
         })
 
         if (!response.ok) {
-          // Clean up storage
           await supabase.storage.from('belege').remove([storagePath])
           throw new Error('Speichern fehlgeschlagen')
         }
 
         const createdBeleg = await response.json()
-        belegIds.push(createdBeleg.id)
 
         setMassFiles((prev) => {
           const next = [...prev]
-          next[i] = { ...next[i], status: 'done', belegId: createdBeleg.id }
+          next[idx] = { ...next[idx], status: 'done', belegId: createdBeleg.id }
           return next
         })
+
+        return createdBeleg.id as string
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unbekannter Fehler'
         setMassFiles((prev) => {
           const next = [...prev]
-          next[i] = { ...next[i], status: 'error', error: message }
+          next[idx] = { ...next[idx], status: 'error', error: message }
           return next
         })
+        return null
       }
+    }
+
+    // Run up to 3 files in parallel
+    const CONCURRENCY = 3
+    for (let i = 0; i < items.length; i += CONCURRENCY) {
+      if (massAbortRef.current) break
+      const batch = items.slice(i, Math.min(i + CONCURRENCY, items.length))
+      const results = await Promise.all(batch.map((item, j) => processItem(item, i + j)))
+      results.forEach((id) => { if (id) belegIds.push(id) })
     }
 
     setMassProcessing(false)
