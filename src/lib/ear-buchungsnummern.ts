@@ -15,7 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type ZahlungsquellenTyp = 'kontoauszug' | 'kassa' | 'kreditkarte' | 'paypal' | 'sonstige'
 
-export type Rechnungstyp = 'eingangsrechnung' | 'ausgangsrechnung' | 'gutschrift' | 'eigenbeleg' | 'eigenverbrauch' | null
+export type Rechnungstyp = 'eingangsrechnung' | 'ausgangsrechnung' | 'gutschrift' | 'eigenbeleg' | 'eigenverbrauch' | 'tageslosung' | null
 
 /** Typ -> Kuerzel prefix mapping */
 const TYP_KUERZEL_PREFIX: Record<ZahlungsquellenTyp, string> = {

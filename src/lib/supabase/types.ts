@@ -339,7 +339,7 @@ export type Database = {
     }
     Enums: {
       match_status: 'offen' | 'vorgeschlagen' | 'bestaetigt' | 'kein_beleg'
-      rechnungstyp: 'eingangsrechnung' | 'ausgangsrechnung' | 'gutschrift' | 'sonstiges' | 'eigenbeleg' | 'eigenverbrauch'
+      rechnungstyp: 'eingangsrechnung' | 'ausgangsrechnung' | 'gutschrift' | 'sonstiges' | 'eigenbeleg' | 'eigenverbrauch' | 'tageslosung'
       import_quelle: 'manuell' | 'n8n_import'
       workflow_status: 'normal' | 'rueckfrage' | 'erledigt' | 'privat'
       zahlungsquelle_typ: 'kontoauszug' | 'kassa' | 'kreditkarte' | 'paypal' | 'sonstige'

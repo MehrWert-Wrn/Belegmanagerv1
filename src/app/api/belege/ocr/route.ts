@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth-helpers'
-import { performOcr, OCR_MAX_FILE_SIZE, OcrResult } from '@/lib/ocr'
+import { performOcr, TAGESLOSUNG_OCR_PROMPT, OCR_MAX_FILE_SIZE, OcrResult } from '@/lib/ocr'
 import { convertToEur } from '@/lib/exchange-rate'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { NextResponse } from 'next/server'
@@ -30,6 +30,8 @@ const RATE_LIMIT_DAY_MS = 24 * 60 * 60 * 1000
  * The file is NOT stored — it is only used for recognition.
  */
 export async function POST(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const mode = searchParams.get('mode')
   // 1. Authentication
   const supabase = await createClient()
   const { user, error: authError } = await requireAuth(supabase)
@@ -110,7 +112,8 @@ export async function POST(request: Request) {
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
 
-  const result = await performOcr(buffer, mimeType)
+  const ocrPrompt = mode === 'tageslosung' ? TAGESLOSUNG_OCR_PROMPT : undefined
+  const result = await performOcr(buffer, mimeType, ocrPrompt)
 
   // 7. Currency conversion: if invoice is not in EUR, convert amounts to EUR
   if (result.waehrung && result.waehrung !== 'EUR') {

@@ -48,6 +48,38 @@ export const OCR_MAX_FILE_SIZE = 5 * 1024 * 1024
 /** OCR timeout in milliseconds */
 const OCR_TIMEOUT_MS = 30_000
 
+export const TAGESLOSUNG_OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Kassaabschluss-Dokumente (Z-Bon, Tagesabschluss, Kassaabschluss, Tageslosung).
+Analysiere das Dokument und extrahiere NUR folgende Informationen:
+
+- lieferant: Name des Geschäfts/Unternehmens (steht meist oben im Header oder Briefkopf)
+- rechnungsnummer: Abschluss-Nummer, Z-Bon-Nummer oder Bon-Nummer (z.B. "Z-1234", "1234", "Abschluss-Nr. 42")
+- rechnungsdatum: Datum des Abschlusses im Format YYYY-MM-DD
+- bruttobetrag: NUR die BAR-Einnahmen (Bargeld-Umsatz) als Zahl in EUR.
+  Suche nach Bezeichnungen wie: "Bar", "Bargeld", "Cash", "Barverkauf", "Bargeldumsatz", "Barumsatz", "Barzahlung".
+  IGNORIERE VOLLSTÄNDIG: Kreditkarte, EC-Karte, Bankomat, Debit, Maestro, Visa, Mastercard, PayPal, Gutschein, Voucher, Sonstige, Andere, Überweisung sowie die GESAMTSUMME.
+  Der bruttobetrag ist der Bar-Teilbetrag, NICHT der Gesamtumsatz!
+- nettobetrag: Netto-Anteil der Bar-Einnahmen (ohne MwSt), falls aus dem Dokument ableitbar. Sonst null.
+- mwst_satz: Hauptsteuersatz der Barumsätze in Prozent (z.B. 10, 20). Sonst null.
+- confidence: Gesamtzuversicht (0.0 bis 1.0)
+
+WICHTIG:
+- bruttobetrag = NUR BAR-Einnahmen, NIEMALS der Gesamtumsatz aller Zahlungsarten
+- Wenn kein eindeutiger Bar-Betrag erkennbar ist: bruttobetrag = null, confidence niedrig setzen
+- rechnungsempfaenger: immer null (Kassaabschlüsse haben keinen Empfänger)
+- waehrung: immer "EUR"
+
+Antworte NUR mit einem JSON-Objekt. Null für unbekannte Felder. Beträge: Punkt als Dezimaltrennzeichen.
+
+Beispiele:
+
+Z-Bon mit gemischten Zahlungsarten:
+"Bar: € 2.847,50 | EC/Kreditkarte: € 5.123,80 | Gutschein: € 150,00 | Gesamt: € 8.121,30"
+→ {"lieferant":"Muster GmbH","rechnungsnummer":"Z-1234","rechnungsdatum":"2026-05-05","bruttobetrag":2847.50,"nettobetrag":null,"mwst_satz":null,"confidence":0.95}
+
+Z-Bon nur Barzahlungen:
+"Bargeld: € 1.450,00 | Gesamt: € 1.450,00"
+→ {"lieferant":"Bäckerei Huber","rechnungsnummer":"42","rechnungsdatum":"2026-05-05","bruttobetrag":1450.00,"nettobetrag":null,"mwst_satz":null,"confidence":0.97}`
+
 const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen und Kassenbons. Analysiere das Dokument und extrahiere:
 
 - lieferant: Name des Rechnungsstellers (Absender, steht meist im Briefkopf oben)
@@ -91,12 +123,14 @@ Bon zeigt: "Gesamt: 47,80 / davon 10% USt.: 2,05 / davon 20% USt.: 4,20"
 {"lieferant":"Novecento","rechnungsnummer":"RG2026/6666","rechnungsdatum":"2026-04-08","bruttobetrag":47.80,"nettobetrag":41.50,"mwst_satz":20,"steuerzeilen":[{"nettobetrag":20.50,"mwst_satz":10,"bruttobetrag":22.55},{"nettobetrag":21.00,"mwst_satz":20,"bruttobetrag":25.20}],"confidence":0.95}`
 
 /**
- * Perform OCR on a document using Claude Haiku Vision.
- * Returns extracted invoice fields or empty result on failure.
+ * Perform OCR on a document using Claude Vision.
+ * Pass an optional custom prompt; defaults to the general invoice prompt.
+ * For Tagesabschluss/Z-Bon documents use TAGESLOSUNG_OCR_PROMPT.
  */
 export async function performOcr(
   fileBuffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  prompt: string = OCR_PROMPT
 ): Promise<OcrResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
@@ -148,7 +182,7 @@ export async function performOcr(
             role: 'user',
             content: [
               contentBlock,
-              { type: 'text', text: OCR_PROMPT },
+              { type: 'text', text: prompt },
             ],
           },
         ],

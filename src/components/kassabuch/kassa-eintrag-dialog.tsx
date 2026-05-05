@@ -231,10 +231,13 @@ export function KassaEintragDialog({
     setOcrData(null)
     setOcrFilledFields(new Set())
 
+    const isTageslosung = kategorien.find(k => k.id === kategorieId)?.name === 'Tageslosung'
+
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch('/api/belege/ocr', { method: 'POST', body: formData })
+      const ocrUrl = isTageslosung ? '/api/belege/ocr?mode=tageslosung' : '/api/belege/ocr'
+      const res = await fetch(ocrUrl, { method: 'POST', body: formData })
 
       if (res.status === 429) {
         toast.info('OCR-Limit erreicht – bitte Felder manuell ausfüllen.')
@@ -266,6 +269,7 @@ export function KassaEintragDialog({
         setLieferant(data.lieferant)
         filled.add('lieferant')
       }
+      // For Tageslosung: bruttobetrag = bar_einnahmen (cash only, card payments excluded)
       if (data.bruttobetrag !== null && !betrag.trim()) {
         setBetrag(String(Math.abs(data.bruttobetrag)))
         filled.add('betrag')
@@ -284,9 +288,17 @@ export function KassaEintragDialog({
 
       setOcrFilledFields(filled)
       if (filled.size > 0) {
-        toast.success('OCR hat Daten erkannt – bitte prüfen und ggf. korrigieren.')
+        toast.success(
+          isTageslosung
+            ? 'OCR: Bar-Einnahmen erkannt – Kreditkarte/EC wurde ignoriert. Bitte prüfen.'
+            : 'OCR hat Daten erkannt – bitte prüfen und ggf. korrigieren.'
+        )
       } else {
-        toast.info('OCR konnte keine neuen Felder befüllen.')
+        toast.info(
+          isTageslosung
+            ? 'OCR konnte keine Bar-Einnahmen erkennen – bitte manuell ausfüllen.'
+            : 'OCR konnte keine neuen Felder befüllen.'
+        )
       }
     } catch {
       toast.info('OCR fehlgeschlagen – bitte manuell ausfüllen.')
@@ -358,7 +370,7 @@ export function KassaEintragDialog({
         original_filename: file.name,
         dateityp,
         file_size: file.size,
-        rechnungstyp: 'eingangsrechnung',
+        rechnungstyp: kategorien.find(k => k.id === kategorieId)?.name === 'Tageslosung' ? 'tageslosung' : 'eingangsrechnung',
         ...(ocr && {
           lieferant: ocr.lieferant ?? undefined,
           rechnungsnummer: ocr.rechnungsnummer ?? undefined,

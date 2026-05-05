@@ -76,7 +76,7 @@ const steuerzeileSchema = z.object({
 const reviewSchema = z.object({
   rechnungsname: z.string().optional(),
   rechnungsnummer: z.string().optional(),
-  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges', 'eigenbeleg', 'eigenverbrauch']),
+  rechnungstyp: z.enum(['eingangsrechnung', 'ausgangsrechnung', 'gutschrift', 'sonstiges', 'eigenbeleg', 'eigenverbrauch', 'tageslosung']),
   lieferant: z.string().optional(),
   uid_lieferant: z.string().optional(),
   lieferant_iban: z.string().optional(),
@@ -887,6 +887,7 @@ export function BelegReviewModus({
                               <SelectItem value="gutschrift">Gutschrift</SelectItem>
                               <SelectItem value="eigenbeleg">Eigenbeleg</SelectItem>
                               <SelectItem value="eigenverbrauch">Eigenverbrauch</SelectItem>
+                              <SelectItem value="tageslosung">Tageslosung</SelectItem>
                               <SelectItem value="sonstiges">Sonstiges</SelectItem>
                             </SelectContent>
                           </Select>

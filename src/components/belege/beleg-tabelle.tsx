@@ -79,6 +79,10 @@ const rechnungstypConfig: Record<Rechnungstyp, { label: string; className: strin
     label: 'Eigenverbrauch',
     className: 'bg-amber-100 text-amber-800 hover:bg-amber-100',
   },
+  tageslosung: {
+    label: 'Tageslosung/Abschluss',
+    className: 'bg-pink-100 text-pink-800 hover:bg-pink-100',
+  },
 }
 
 function RechnungstypBadge({ typ }: { typ: Rechnungstyp | undefined }) {
