@@ -153,7 +153,14 @@ export async function performOcr(
 
   const client = new Anthropic({ apiKey })
 
-  // Build the content block based on file type
+  // Static prompt is cached after the first call (5-min TTL).
+  // Document content follows uncached — it's different every time.
+  const promptBlock = {
+    type: 'text' as const,
+    text: prompt,
+    cache_control: { type: 'ephemeral' as const },
+  }
+
   const contentBlock: Anthropic.ContentBlockParam = mediaType === 'application/pdf'
     ? {
         type: 'document' as const,
@@ -174,18 +181,16 @@ export async function performOcr(
 
   try {
     const response = await Promise.race([
-      client.messages.create({
-        model: 'claude-sonnet-4-6',
+      client.beta.messages.create({
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 1024,
         messages: [
           {
             role: 'user',
-            content: [
-              contentBlock,
-              { type: 'text', text: prompt },
-            ],
+            content: [promptBlock, contentBlock],
           },
         ],
+        betas: ['prompt-caching-2024-07-31'],
       }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('OCR timeout')), OCR_TIMEOUT_MS)
@@ -193,16 +198,14 @@ export async function performOcr(
     ])
 
     // Extract text from response
-    const textBlock = response.content.find(
-      (block): block is Anthropic.TextBlock => block.type === 'text'
-    )
+    const textBlock = response.content.find(b => b.type === 'text')
     if (!textBlock) {
       console.error('[OCR] No text block in response')
       return EMPTY_RESULT
     }
 
     // Parse JSON from response (handle markdown code blocks)
-    let jsonText = textBlock.text.trim()
+    let jsonText = ('text' in textBlock ? textBlock.text : '').trim()
     const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/)
     if (jsonMatch) {
       jsonText = jsonMatch[1].trim()

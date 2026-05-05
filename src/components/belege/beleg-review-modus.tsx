@@ -295,7 +295,7 @@ export function BelegReviewModus({
       faelligkeitsdatum: currentBeleg.faelligkeitsdatum,
       beschreibung: currentBeleg.beschreibung ?? '',
     })
-  }, [currentBeleg, form])
+  }, [currentBeleg, form, mandantFirmenname])
 
   function clearOcrHighlight(fieldName: string) {
     setOcrFields((prev) => {

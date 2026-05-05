@@ -58,93 +58,99 @@ export async function POST(request: Request) {
   const skipped: string[] = []
   const errors: { id: string; error: string }[] = []
 
+  // Split into valid (have file + known mime type) and invalid belege
+  const valid: NonNullable<typeof belege> = []
   for (const beleg of belege ?? []) {
-    if (!beleg.storage_path) {
-      skipped.push(beleg.id)
-      continue
-    }
-
     const mimeType = MIME_TYPE_MAP[beleg.dateityp?.toLowerCase() ?? '']
-    if (!mimeType) {
+    if (!beleg.storage_path || !mimeType) {
       skipped.push(beleg.id)
-      continue
+    } else {
+      valid.push(beleg)
+    }
+  }
+
+  // Process in parallel batches of 3
+  const CONCURRENCY = 3
+
+  for (let i = 0; i < valid.length; i += CONCURRENCY) {
+    const batch = valid.slice(i, i + CONCURRENCY)
+
+    // Consume one rate-limit slot per item in this batch (sequential — no race on counter)
+    let allowedCount = 0
+    for (let j = 0; j < batch.length; j++) {
+      const { allowed } = checkRateLimit(`ocr:${userId}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS)
+      if (!allowed) {
+        rateLimited = valid.length - i - j
+        break
+      }
+      allowedCount++
     }
 
-    // Check rate limit before each OCR call
-    const { allowed, retryAfterMs } = checkRateLimit(
-      `ocr:${userId}`,
-      RATE_LIMIT_MAX,
-      RATE_LIMIT_WINDOW_MS
-    )
-    if (!allowed) {
-      rateLimited = (belege?.length ?? 0) - succeeded - skipped.length - errors.length
-      break
-    }
+    await Promise.all(batch.slice(0, allowedCount).map(async (beleg) => {
+      const mimeType = MIME_TYPE_MAP[beleg.dateityp!.toLowerCase()]
 
-    // Download file from storage
-    const { data: blob, error: downloadError } = await supabase.storage
-      .from('belege')
-      .download(beleg.storage_path)
+      const { data: blob, error: downloadError } = await supabase.storage
+        .from('belege')
+        .download(beleg.storage_path!)
 
-    if (downloadError || !blob) {
-      errors.push({ id: beleg.id, error: 'Dokument konnte nicht geladen werden' })
-      continue
-    }
+      if (downloadError || !blob) {
+        errors.push({ id: beleg.id, error: 'Dokument konnte nicht geladen werden' })
+        return
+      }
 
-    const arrayBuffer = await blob.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+      const buffer = Buffer.from(await blob.arrayBuffer())
 
-    let ocr: Awaited<ReturnType<typeof performOcr>>
-    try {
-      ocr = await performOcr(buffer, mimeType)
-    } catch {
-      errors.push({ id: beleg.id, error: 'OCR fehlgeschlagen' })
-      continue
-    }
+      let ocr: Awaited<ReturnType<typeof performOcr>>
+      try {
+        ocr = await performOcr(buffer, mimeType)
+      } catch {
+        errors.push({ id: beleg.id, error: 'OCR fehlgeschlagen' })
+        return
+      }
 
-    // Build update object – only fill empty fields
-    const update: Record<string, unknown> = {}
+      const update: Record<string, unknown> = {}
 
-    if (isEmpty(beleg.lieferant) && ocr.lieferant) update.lieferant = ocr.lieferant
-    if (isEmpty(beleg.rechnungsnummer) && ocr.rechnungsnummer) update.rechnungsnummer = ocr.rechnungsnummer
-    if (isEmpty(beleg.rechnungsdatum) && ocr.rechnungsdatum) update.rechnungsdatum = ocr.rechnungsdatum
+      if (isEmpty(beleg.lieferant) && ocr.lieferant) update.lieferant = ocr.lieferant
+      if (isEmpty(beleg.rechnungsnummer) && ocr.rechnungsnummer) update.rechnungsnummer = ocr.rechnungsnummer
+      if (isEmpty(beleg.rechnungsdatum) && ocr.rechnungsdatum) update.rechnungsdatum = ocr.rechnungsdatum
 
-    // Apply amounts only if beleg has none yet
-    const hasAmounts = !isEmpty(beleg.bruttobetrag) || !isEmpty(beleg.nettobetrag)
-    if (!hasAmounts) {
-      const ocrRows = ocr.steuerzeilen?.length
-        ? ocr.steuerzeilen
-        : (ocr.bruttobetrag != null || ocr.nettobetrag != null)
-          ? [{ nettobetrag: ocr.nettobetrag, mwst_satz: ocr.mwst_satz, bruttobetrag: ocr.bruttobetrag }]
-          : null
+      const hasAmounts = !isEmpty(beleg.bruttobetrag) || !isEmpty(beleg.nettobetrag)
+      if (!hasAmounts) {
+        const ocrRows = ocr.steuerzeilen?.length
+          ? ocr.steuerzeilen
+          : (ocr.bruttobetrag != null || ocr.nettobetrag != null)
+            ? [{ nettobetrag: ocr.nettobetrag, mwst_satz: ocr.mwst_satz, bruttobetrag: ocr.bruttobetrag }]
+            : null
 
-      if (ocrRows) {
-        update.steuerzeilen = ocrRows
-        if (ocrRows.length === 1) {
-          if (ocrRows[0].bruttobetrag != null) update.bruttobetrag = ocrRows[0].bruttobetrag
-          if (ocrRows[0].nettobetrag != null) update.nettobetrag = ocrRows[0].nettobetrag
-          if (ocrRows[0].mwst_satz != null) update.mwst_satz = ocrRows[0].mwst_satz
+        if (ocrRows) {
+          update.steuerzeilen = ocrRows
+          if (ocrRows.length === 1) {
+            if (ocrRows[0].bruttobetrag != null) update.bruttobetrag = ocrRows[0].bruttobetrag
+            if (ocrRows[0].nettobetrag != null) update.nettobetrag = ocrRows[0].nettobetrag
+            if (ocrRows[0].mwst_satz != null) update.mwst_satz = ocrRows[0].mwst_satz
+          }
         }
       }
-    }
 
-    if (Object.keys(update).length === 0) {
-      // Nothing to update – beleg already has all data
-      succeeded++
-      continue
-    }
+      if (Object.keys(update).length === 0) {
+        succeeded++
+        return
+      }
 
-    const { error: updateError } = await supabase
-      .from('belege')
-      .update(update)
-      .eq('id', beleg.id)
-      .eq('mandant_id', mandantId)
+      const { error: updateError } = await supabase
+        .from('belege')
+        .update(update)
+        .eq('id', beleg.id)
+        .eq('mandant_id', mandantId)
 
-    if (updateError) {
-      errors.push({ id: beleg.id, error: updateError.message })
-    } else {
-      succeeded++
-    }
+      if (updateError) {
+        errors.push({ id: beleg.id, error: updateError.message })
+      } else {
+        succeeded++
+      }
+    }))
+
+    if (allowedCount < batch.length) break
   }
 
   return NextResponse.json({ succeeded, skipped: skipped.length, rateLimited, errors })
