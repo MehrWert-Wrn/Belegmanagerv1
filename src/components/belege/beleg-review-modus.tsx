@@ -270,12 +270,12 @@ export function BelegReviewModus({
       setOcrFields(new Set())
     }
 
-    // Detect Ausgangsrechnung: if OCR identified the mandant's own company as lieferant
+    // For unreviewed belege: isOwnCompany always wins (DB may have a default 'eingangsrechnung').
+    // For reviewed belege (rechnungsname set): trust the stored rechnungstyp.
     const detectedTyp: ReviewFormValues['rechnungstyp'] =
-      currentBeleg.rechnungstyp ??
-      (rechnungsnameUnset && isOwnCompany(currentBeleg.lieferant, mandantFirmenname)
+      (rechnungsnameUnset && isOwnCompany(currentBeleg.lieferant, mandantFirmenname))
         ? 'ausgangsrechnung'
-        : 'eingangsrechnung')
+        : (currentBeleg.rechnungstyp ?? 'eingangsrechnung')
 
     // For own-company invoices (Ausgangsrechnung), clear lieferant — the mandant IS the lieferant
     const lieferantValue =

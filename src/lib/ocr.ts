@@ -89,7 +89,7 @@ const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen und
 - währung: ISO-4217-Währungscode der Rechnung (z.B. "EUR", "USD", "GBP", "CHF"). Standard: "EUR"
 - bruttobetrag: Gesamtbruttobetrag (inkl. MwSt) als Zahl in der Originalwährung — die GESAMTSUMME inkl. aller Positionen und Trinkgeld
 - nettobetrag: Gesamtnettobetrag (ohne MwSt) als Zahl in der Originalwährung — die GESAMTSUMME netto
-- mwst_satz: Hauptsteuersatz in Prozent (der häufigste oder höchste Steuersatz)
+- mwst_satz: Hauptsteuersatz in Prozent (der häufigste oder höchste Steuersatz). Bei steuerbefreiten Rechnungen ("umsatzsteuerbefreit", "MwSt-frei", "steuerfrei", "0% MwSt", "0 % USt", "VAT 0%", "VAT exempt", "reverse charge") MUSS mwst_satz: 0 zurückgegeben werden — NICHT null. null NUR wenn kein Steuersatz erkennbar ist.
 - steuerzeilen: KRITISCH — suche nach der MwSt-Aufschlüsselungstabelle. Diese erscheint am Ende der Rechnung in verschiedenen Formaten:
   FORMAT A (Standard-Rechnung): Spalten "Netto / MwSt% / MwSt-Betrag / Brutto"
   FORMAT B (Österr. Kassenbon/POS): Spalten "Satz / Netto / MwSt / Summe" — dabei bedeutet "EUR 10" = Steuersatz 10%, "EUR 20" = Steuersatz 20% usw.
@@ -100,6 +100,7 @@ const OCR_PROMPT = `Du bist ein OCR-Experte für österreichische Rechnungen und
   - Bei nur einem Steuersatz: genau ein Eintrag
   - Bei mehreren Steuersätzen: je ein Eintrag PRO Steuersatz-Zeile
   - Trinkgeld / Tip ohne MwSt: als separate Zeile mit mwst_satz=0 erfassen
+  - Steuerbefreite Positionen ("umsatzsteuerbefreit", "0%", "VAT 0%"): mwst_satz=0 setzen, NICHT null
   - NICHT die Summenzeile / Gesamtsumme aufnehmen — nur die Steuergruppen-Zeilen
   - Österreichische Steuersätze: 0%, 10%, 13%, 20%
 - confidence: Gesamtzuversicht (0.0 bis 1.0)
