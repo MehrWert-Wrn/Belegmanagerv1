@@ -52,6 +52,7 @@ Ab v2 unterstützt die App beliebig viele, vom Mandanten konfigurierbare Zahlung
 | P1 | Buchungs-Sync FreeFinance (PROJ-29) | Vorkontierungen einzeln oder als Batch via FreeFinance API buchen, Status-Tracking, Retry bei Fehlern | Planned |
 | P1 | E-Mail-Belegeingang (PROJ-30) | Shared Testphase-Postfach testphase@belegmanager.at; Mandant-Identifikation via Absender-E-Mail, OCR-Verarbeitung, automatische Beleg-Anlage | Planned |
 | P1 | Weiterempfehlungssystem (PROJ-31) | Referral-Links pro Mandant, Landing Page, Reward 1 Gratismonat via Stripe Credit Balance, Dashboard Widget + Full Page /referral | Planned |
+| P1 | Natives Mandanten-Postfach – IMAP + Gmail (PROJ-32) | Self-service Postfach-Anbindung pro Mandant; IMAP (universell, empfohlen) + Gmail OAuth2; Vercel Cron pollt alle 15 min, OCR + Beleg-Anlage automatisch | Planned |
 
 > Details zu jeder Feature (User Stories, Acceptance Criteria, Edge Cases, Tech Design) → `features/`
 

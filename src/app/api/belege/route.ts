@@ -149,13 +149,16 @@ export async function POST(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // BUG-PROJ5-001: Trigger matching after beleg upload (fire-and-forget, errors non-fatal)
-  // BUG-PROJ5-R4-005: Log errors so failures are visible in server logs
-  executeMatching(supabase, mandantId).catch((err) =>
+  // Run matching synchronously so the beleg's zuordnungsstatus is final before the
+  // client re-fetches the list (avoids race condition where überfällig status appears
+  // stale because matching completes after the UI refresh). Errors are non-fatal.
+  await executeMatching(supabase, mandantId).catch((err) =>
     console.error('[belege] Post-upload matching failed:', err)
   )
 
-  return NextResponse.json(data, { status: 201 })
+  // Re-fetch to return the potentially-updated zuordnungsstatus
+  const { data: refreshed } = await supabase.from('belege').select('*').eq('id', data.id).single()
+  return NextResponse.json(refreshed ?? data, { status: 201 })
 }
 
 // DELETE /api/belege – Bulk soft-delete multiple Belege + unlink matched transactions

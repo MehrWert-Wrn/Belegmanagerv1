@@ -187,9 +187,9 @@ export async function POST(request: Request) {
         : null,
   })
 
-  // Trigger matching for newly imported belege (fire-and-forget, non-fatal).
+  // Run matching synchronously so status is correct before webhook returns.
   if (importedBelege.length > 0) {
-    executeMatching(supabase, mandantId).catch((err) =>
+    await executeMatching(supabase, mandantId).catch((err) =>
       console.error('[email-inbound] Post-import matching failed:', err)
     )
   }

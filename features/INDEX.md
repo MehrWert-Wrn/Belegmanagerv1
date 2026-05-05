@@ -46,6 +46,7 @@
 | PROJ-29 | Buchungs-Sync FreeFinance | Planned | [PROJ-29-buchungs-sync-freefinance.md](PROJ-29-buchungs-sync-freefinance.md) | 2026-04-17 |
 | PROJ-30 | E-Mail-Belegeingang (testphase@belegmanager.at) | Deployed | [PROJ-30-email-belegeingang.md](PROJ-30-email-belegeingang.md) | 2026-04-20 |
 | PROJ-31 | Weiterempfehlungssystem (Referral) | Deployed | [PROJ-31-weiterempfehlungssystem.md](PROJ-31-weiterempfehlungssystem.md) | 2026-04-25 |
+| PROJ-32 | Natives Mandanten-Postfach (IMAP + Gmail OAuth2) | In Progress | [PROJ-32-natives-mandanten-postfach.md](PROJ-32-natives-mandanten-postfach.md) | 2026-05-05 |
 
 
-## Next Available ID: PROJ-32
+## Next Available ID: PROJ-33

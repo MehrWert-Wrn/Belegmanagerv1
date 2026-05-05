@@ -199,7 +199,12 @@ export async function DELETE(request: Request, { params }: Params) {
 
   // BAO §131: Original NICHT verstecken – beide Eintraege (Original + Storno) bleiben
   // im Kassabuch sichtbar und heben sich im Saldo gegenseitig auf.
-  // Das Original wird nur als "storniert" markiert via kassa_buchungstyp des Storno-Eintrags.
+  // match_status auf kein_beleg setzen damit der Originaleintrag nicht mehr als "offen"
+  // in der allgemeinen Transaktionen-Ansicht erscheint.
+  await supabase
+    .from('transaktionen')
+    .update({ match_status: 'kein_beleg' })
+    .eq('id', id)
 
   // Beleg freigeben wenn vorhanden
   if (original.beleg_id) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { MoreHorizontal, Eye, Pencil, Trash2, FileText, Ban, RotateCcw, Wallet, HelpCircle, Mail } from 'lucide-react'
+import { MoreHorizontal, Eye, Pencil, Trash2, FileText, Ban, RotateCcw, Wallet, HelpCircle, Mail, Inbox } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -159,9 +159,9 @@ export function BelegTabelle({
   const someSelected = belege.some((b) => selectedIds.has(b.id)) && !allSelected
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border overflow-auto">
       <Table>
-        <TableHeader>
+        <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
             <TableHead className="w-[40px]">
               <Checkbox
@@ -206,6 +206,14 @@ export function BelegTabelle({
                       <Mail
                         className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
                         aria-label="Via E-Mail importiert"
+                      />
+                    </span>
+                  )}
+                  {(beleg.quelle as string) === 'mailbox' && (
+                    <span title="Via Postfach-Anbindung importiert">
+                      <Inbox
+                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                        aria-label="Via Postfach-Anbindung importiert"
                       />
                     </span>
                   )}

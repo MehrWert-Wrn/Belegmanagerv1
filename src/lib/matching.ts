@@ -103,7 +103,8 @@ function matchesWordBounded(text: string, token: string): boolean {
 /** Betrag-Differenz in Prozent (abs). Gibt null zurück wenn kein belegBetrag vorhanden. */
 function betragsAbweichung(transaktionBetrag: number, belegBetrag: number | null): number | null {
   if (belegBetrag === null || belegBetrag === 0) return null
-  return Math.abs(Math.abs(transaktionBetrag) - belegBetrag) / belegBetrag
+  const absBetrag = Math.abs(belegBetrag)
+  return Math.abs(Math.abs(transaktionBetrag) - absBetrag) / absBetrag
 }
 
 function amountScore(transaktionBetrag: number, belegBetrag: number | null): number {

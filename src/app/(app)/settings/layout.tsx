@@ -8,6 +8,7 @@ const settingsNav = [
   { label: 'Firma', href: '/settings/firma' },
   { label: 'Zahlungsquellen', href: '/settings/zahlungsquellen' },
   { label: 'Bankverbindungen', href: '/settings/bankverbindungen' },
+  { label: 'E-Mail-Postfach', href: '/settings/email-postfach' },
   { label: 'Benutzer', href: '/settings/benutzer' },
   { label: 'Abonnement', href: '/settings/abonnement' },
 ]

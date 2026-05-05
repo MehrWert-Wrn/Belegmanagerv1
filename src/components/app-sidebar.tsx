@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
+  LayoutDashboard,
   FileText,
   ArrowLeftRight,
   BookOpen,
@@ -42,6 +43,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 
 const navItems = [
+  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Belege', href: '/belege', icon: FileText },
   { title: 'Transaktionen', href: '/transaktionen', icon: ArrowLeftRight },
   { title: 'Kassabuch', href: '/kassabuch', icon: BookOpen },

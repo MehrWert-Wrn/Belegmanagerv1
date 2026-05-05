@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Plus, Search, X, Trash2, Wallet, ScanText, Loader2 } from 'lucide-react'
+import { Plus, Search, X, Trash2, Wallet, ScanText, Loader2, Tag, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { BelegTabelle } from '@/components/belege/beleg-tabelle'
 import { BelegUploadDialog } from '@/components/belege/beleg-upload-dialog'
 import { BelegDetailSheet } from '@/components/belege/beleg-detail-sheet'
@@ -217,6 +223,23 @@ export default function BelegePage() {
     }
   }
 
+  async function handleBulkRechnungstyp(typ: string) {
+    if (selectedIds.size === 0) return
+    try {
+      const res = await fetch('/api/belege/bulk/rechnungstyp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds), rechnungstyp: typ }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Fehler beim Ändern des Typs')
+      toast.success(`${data.updated} Beleg${data.updated !== 1 ? 'e' : ''} aktualisiert`)
+      fetchBelege(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Fehler')
+    }
+  }
+
   const hasMatchedBelegeInSelection = belege.some(
     (b) => selectedIds.has(b.id) && b.zuordnungsstatus === 'zugeordnet'
   )
@@ -283,6 +306,38 @@ export default function BelegePage() {
                 <Wallet className="mr-2 h-4 w-4" />
                 Direkt bezahlt
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <Tag className="mr-2 h-4 w-4" />
+                    Typ ändern
+                    <ChevronDown className="ml-1 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleBulkRechnungstyp('eingangsrechnung')}>
+                    Eingangsrechnung
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkRechnungstyp('ausgangsrechnung')}>
+                    Ausgangsrechnung
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkRechnungstyp('gutschrift')}>
+                    Gutschrift
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkRechnungstyp('eigenbeleg')}>
+                    Eigenbeleg
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkRechnungstyp('eigenverbrauch')}>
+                    Eigenverbrauch
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkRechnungstyp('tageslosung')}>
+                    Tageslosung/Abschluss
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkRechnungstyp('sonstiges')}>
+                    Sonstiges
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="destructive"
                 onClick={handleBulkDeleteRequest}
